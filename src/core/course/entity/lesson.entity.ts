@@ -4,10 +4,12 @@ import {
   Entity,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
 import { Unit } from '@/core/course/entity/unit.entity';
+import { Progress } from '@/core/enrollment/entity/progress.entity';
 
 @Entity('lessons')
 export class Lesson {
@@ -26,6 +28,9 @@ export class Lesson {
   @ManyToOne(() => Unit, (unit) => unit.lessons, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'unit_id' })
   unit: Unit;
+
+  @OneToMany(() => Progress, (progress) => progress.lesson)
+  progresses: Progress[];
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

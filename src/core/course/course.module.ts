@@ -13,5 +13,6 @@ import { AdminCourseController } from '@/core/course/controller/admin-course.con
   imports: [TypeOrmModule.forFeature([Course, Unit, Lesson])],
   controllers: [CourseController, AdminCourseController],
   providers: [CourseService, UnitService, LessonService],
+  exports: [CourseService],
 })
 export class CourseModule {}
