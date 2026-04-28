@@ -40,10 +40,20 @@ Copy `.env` and set:
 
 **Database:** TypeORM with PostgreSQL. `dataSource` in `shared/config/database.config.ts` is used both for the NestJS module root (`TypeOrmModule.forRoot`) and can be used for CLI migrations. `synchronize: true` — schema is auto-synced from compiled entities in `dist/**/*.entity.js`, so **always build before running** if entities changed.
 
-**User model:** A single `User` entity holds credentials and profile fields. Role is expressed via three optional `OneToOne` relations — `Student`, `Teacher`, `Admin` — rather than a column. A user's role is determined by which relation is populated. The `UserRole` enum (`src/core/user/enum/user-role.enum.ts`) is the canonical list of roles.
+**User model:** A single `User` entity holds credentials and profile fields. Role is expressed via three optional `OneToOne` relations — `Student`, `Teacher`, `Admin` — rather than a column. A user's role is determined by which relation is populated. The `UserRole` enum (`src/common/enum/user-role.enum.ts`) is the canonical list of roles.
 
 **Auth flow:** `POST /api/auth/sign-up` creates a `User` + `Student` record and returns `{ accessToken, refreshToken }`. Tokens are signed JWTs; access/refresh secrets and expiries come from config. Password hashing uses bcrypt with cost factor 15 (`hash.util.ts`).
 
 **Validation:** A global `ValidationPipe` (whitelist + forbidNonWhitelisted + transform) is applied at bootstrap. DTOs use `class-validator` decorators. User-facing error messages are written in Uzbek.
 
 **New feature checklist:** create `src/core/<feature>/` with a module, controller, service, `dto/`, and `entity/` sub-directories; register the module in `AppModule`; register entities with `TypeOrmModule.forFeature` inside the feature module and export the service if other modules need it.
+
+## API Documentation
+
+Swagger UI is served at `http://localhost:<PORT>/docs` (powered by `@nestjs/swagger`). The spec is generated at runtime — no static file to maintain.
+
+**Conventions:**
+- Every controller gets `@ApiTags('tag-name')`.
+- Protected controllers/routes get `@ApiBearerAuth()`. The refresh endpoint uses `@ApiBearerAuth()` at the route level (refresh token in header), while the global access guard is documented via the top-level `addBearerAuth()` call in `main.ts`.
+- DTO fields get `@ApiProperty()`. Use `example:` for fields with a constrained format (e.g. phone numbers).
+- Public routes (`sign-up`, `sign-in`) need no security decorator — they have no `@ApiBearerAuth()` and the global bearer auth does not apply.

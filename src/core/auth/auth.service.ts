@@ -1,10 +1,12 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
-import { UserService } from '@/core/user/service/user.service';
-import { SignUpRequest } from '@/core/auth/dto/sign-up-request.dto';
-import { hashPassword } from '@/shared/util/hash.util';
+import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { UserService } from '@/core/user/service/user.service';
+import { SignUpRequest } from '@/core/auth/dto/sign-up-request.dto';
+import { SignInRequest } from '@/core/auth/dto/sign-in-request.dto';
+import { hashPassword, comparePassword } from '@/shared/util/hash.util';
 import { Student } from '@/core/user/entity/student.entity';
+import { User } from '@/core/user/entity/user.entity';
 
 @Injectable()
 export class AuthService {
@@ -15,9 +17,7 @@ export class AuthService {
   ) {}
 
   issueTokens(userId: string) {
-    const payload = {
-      sub: userId,
-    };
+    const payload = { sub: userId };
 
     const accessToken = this.jwtService.sign(payload);
     const refreshToken = this.jwtService.sign(payload, {
@@ -25,10 +25,7 @@ export class AuthService {
       expiresIn: this.configService.getOrThrow('JWT_REFRESH_EXPIRE'),
     });
 
-    return {
-      accessToken,
-      refreshToken,
-    };
+    return { accessToken, refreshToken };
   }
 
   async signUp(data: SignUpRequest) {
@@ -48,5 +45,19 @@ export class AuthService {
     });
 
     return this.issueTokens(newUser.id);
+  }
+
+  async signIn(data: SignInRequest) {
+    const user = await this.userService.findByPhoneNumber(data.phoneNumber);
+
+    if (!user || !(await comparePassword(data.password, user.password))) {
+      throw new UnauthorizedException('Telefon raqam yoki parol noto\'g\'ri');
+    }
+
+    return this.issueTokens(user.id);
+  }
+
+  refresh(user: Pick<User, 'id'>) {
+    return this.issueTokens(user.id);
   }
 }

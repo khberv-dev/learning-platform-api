@@ -6,7 +6,7 @@ export class Admin {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @OneToOne(() => User, (user) => user.student)
+  @OneToOne(() => User, (user) => user.admin)
   @JoinColumn({ name: 'user_id' })
   user: User;
 

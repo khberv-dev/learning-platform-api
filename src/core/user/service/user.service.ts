@@ -8,7 +8,7 @@ export class UserService {
   constructor(@InjectRepository(User) private readonly userRepo: Repository<User>) {}
 
   async findById(userId: string, excludePassword: boolean = true) {
-    const user = await this.userRepo.findOne({
+    const _user = await this.userRepo.findOne({
       where: {
         id: userId,
       },
@@ -19,13 +19,20 @@ export class UserService {
       },
     });
 
-    if (!user) {
+    if (!_user) {
       return null;
     }
 
+    const { student, teacher, admin, ...user } = _user;
+
     const { password, ...userData } = user;
 
-    return excludePassword ? userData : user;
+    const data = excludePassword ? userData : user;
+
+    return {
+      ...data,
+      roles: _user.roles(),
+    };
   }
 
   findByPhoneNumber(phoneNumber: string) {

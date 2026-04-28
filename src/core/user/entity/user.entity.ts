@@ -2,6 +2,7 @@ import { Column, CreateDateColumn, Entity, OneToOne, PrimaryGeneratedColumn, Upd
 import { Student } from '@/core/user/entity/student.entity';
 import { Teacher } from '@/core/user/entity/teacher.entity';
 import { Admin } from '@/core/user/entity/admin.entity';
+import { UserRole } from '@/common/enum/user-role.enum';
 
 @Entity('users')
 export class User {
@@ -40,4 +41,22 @@ export class User {
 
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
+
+  roles(): UserRole[] {
+    const roles: UserRole[] = [];
+
+    if (this.student) {
+      roles.push(UserRole.STUDENT);
+    }
+
+    if (this.teacher) {
+      roles.push(UserRole.TEACHER);
+    }
+
+    if (this.admin) {
+      roles.push(UserRole.ADMIN);
+    }
+
+    return roles;
+  }
 }

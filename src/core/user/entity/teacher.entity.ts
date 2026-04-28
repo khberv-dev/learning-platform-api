@@ -6,7 +6,7 @@ export class Teacher {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @OneToOne(() => User, (user) => user.student)
+  @OneToOne(() => User, (user) => user.teacher)
   @JoinColumn({ name: 'user_id' })
   user: User;
 
