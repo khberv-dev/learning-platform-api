@@ -54,6 +54,10 @@ export class AuthService {
       throw new UnauthorizedException("Telefon raqam yoki parol noto'g'ri");
     }
 
+    if (!user.isActive) {
+      throw new UnauthorizedException('Hisobingiz faol emas');
+    }
+
     return this.issueTokens(user.id);
   }
 

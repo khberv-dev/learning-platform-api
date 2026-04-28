@@ -27,6 +27,9 @@ export class User {
   @Column()
   password: string;
 
+  @Column({ name: 'is_active', default: true })
+  isActive: boolean;
+
   @OneToOne(() => Student, (student) => student.user, { cascade: true })
   student: Student;
 
