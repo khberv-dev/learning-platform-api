@@ -18,7 +18,7 @@ import { CourseService } from '@/core/course/service/course.service';
 import { UnitService } from '@/core/course/service/unit.service';
 import { LessonService } from '@/core/course/service/lesson.service';
 import { courseImageStorage, imageFileFilter, toImagePath } from '@/core/course/storage/course-image.storage';
-import { lessonMediaStorage, videoFileFilter, toMediaPath } from '@/core/course/storage/lesson-media.storage';
+import { lessonMediaStorage, toMediaPath, videoFileFilter } from '@/core/course/storage/lesson-media.storage';
 import { CreateCourseDto } from '@/core/course/dto/create-course.dto';
 import { UpdateCourseDto } from '@/core/course/dto/update-course.dto';
 import { CreateUnitDto } from '@/core/course/dto/create-unit.dto';
@@ -34,10 +34,10 @@ const courseFormSchema = (required: string[] = ['title']) => ({
     type: 'object',
     required,
     properties: {
-      title:       { type: 'string' },
+      title: { type: 'string' },
       description: { type: 'string' },
-      isActive:    { type: 'boolean' },
-      image:       { type: 'string', format: 'binary' },
+      isActive: { type: 'boolean' },
+      image: { type: 'string', format: 'binary' },
     },
   },
 });
@@ -45,7 +45,7 @@ const courseFormSchema = (required: string[] = ['title']) => ({
 @ApiTags('admin / courses')
 @ApiBearerAuth()
 @Roles(UserRole.ADMIN)
-@Controller('admin/courses')
+@Controller('courses')
 export class AdminCourseController {
   constructor(
     private readonly courseService: CourseService,
@@ -77,11 +77,7 @@ export class AdminCourseController {
   @courseUpload()
   @ApiConsumes('multipart/form-data')
   @ApiBody(courseFormSchema([]))
-  updateCourse(
-    @Param('id') id: string,
-    @Body() dto: UpdateCourseDto,
-    @UploadedFile() file?: Express.Multer.File,
-  ) {
+  updateCourse(@Param('id') id: string, @Body() dto: UpdateCourseDto, @UploadedFile() file?: Express.Multer.File) {
     return this.courseService.updateCourse(id, dto, file && toImagePath(file.filename));
   }
 
@@ -119,9 +115,9 @@ export class AdminCourseController {
       type: 'object',
       required: ['title'],
       properties: {
-        title:       { type: 'string' },
+        title: { type: 'string' },
         description: { type: 'string' },
-        media:       { type: 'string', format: 'binary' },
+        media: { type: 'string', format: 'binary' },
       },
     },
   })

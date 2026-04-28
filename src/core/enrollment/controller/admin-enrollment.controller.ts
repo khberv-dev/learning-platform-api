@@ -8,7 +8,7 @@ import { CreateEnrollmentDto } from '@/core/enrollment/dto/create-enrollment.dto
 @ApiTags('admin / enrollments')
 @ApiBearerAuth()
 @Roles(UserRole.ADMIN)
-@Controller('admin/enrollments')
+@Controller('enrollments')
 export class AdminEnrollmentController {
   constructor(private readonly enrollmentService: EnrollmentService) {}
 

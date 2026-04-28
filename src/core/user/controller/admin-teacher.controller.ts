@@ -11,7 +11,7 @@ import { ChangeTeacherStatusDto } from '@/core/user/dto/change-teacher-status.dt
 @ApiTags('admin / teachers')
 @ApiBearerAuth()
 @Roles(UserRole.ADMIN)
-@Controller('admin/teachers')
+@Controller('teachers')
 export class AdminTeacherController {
   constructor(private readonly teacherService: TeacherService) {}
 
