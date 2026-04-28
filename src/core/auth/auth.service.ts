@@ -1,0 +1,52 @@
+import { BadRequestException, Injectable } from '@nestjs/common';
+import { UserService } from '@/core/user/service/user.service';
+import { SignUpRequest } from '@/core/auth/dto/sign-up-request.dto';
+import { hashPassword } from '@/shared/util/hash.util';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
+import { Student } from '@/core/user/entity/student.entity';
+
+@Injectable()
+export class AuthService {
+  constructor(
+    private readonly userService: UserService,
+    private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
+  ) {}
+
+  issueTokens(userId: string) {
+    const payload = {
+      sub: userId,
+    };
+
+    const accessToken = this.jwtService.sign(payload);
+    const refreshToken = this.jwtService.sign(payload, {
+      secret: this.configService.getOrThrow('JWT_REFRESH_SECRET'),
+      expiresIn: this.configService.getOrThrow('JWT_REFRESH_EXPIRE'),
+    });
+
+    return {
+      accessToken,
+      refreshToken,
+    };
+  }
+
+  async signUp(data: SignUpRequest) {
+    const existingUser = await this.userService.findByPhoneNumber(data.phoneNumber);
+
+    if (existingUser) {
+      throw new BadRequestException('Boshqa telefon raqam kiriting');
+    }
+
+    const passwordHash = await hashPassword(data.password);
+
+    const newUser = await this.userService.save({
+      firstName: data.firstName,
+      phoneNumber: data.phoneNumber,
+      password: passwordHash,
+      student: new Student(),
+    });
+
+    return this.issueTokens(newUser.id);
+  }
+}
