@@ -2,7 +2,7 @@ import { Column, CreateDateColumn, Entity, OneToOne, PrimaryGeneratedColumn, Upd
 import { Student } from '@/core/user/entity/student.entity';
 import { Teacher } from '@/core/user/entity/teacher.entity';
 import { Admin } from '@/core/user/entity/admin.entity';
-import { UserRole } from '@/common/enum/user-role.enum';
+import { UserRole } from '@/core/user/enum/user-role.enum';
 
 @Entity('users')
 export class User {

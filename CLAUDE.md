@@ -32,11 +32,22 @@ Copy `.env` and set:
 ## Architecture
 
 **Module layout:**
-- `src/core/` — domain feature modules (auth, user, …). Each follows the pattern: `module.ts` → `controller.ts` → `service.ts` → `dto/` → `entity/`.
-- `src/common/` — app-wide NestJS primitives (guards, pipes). Guards (`jwt-access.guard.ts`, `jwt-refresh.guard.ts`) wrap `@nestjs/passport` strategies named `jwt-access` / `jwt-refresh`.
+- `src/core/` — domain feature modules. Each module folder contains one `<feature>.module.ts` file at the root plus typed subfolders:
+  - `dto/` — request/response DTOs
+  - `entity/` — TypeORM entity classes
+  - `service/` — one service file per logical resource (e.g. `course.service.ts`, `unit.service.ts`, `lesson.service.ts`)
+  - `controller/` — one controller file per logical resource (e.g. `course.controller.ts`, `admin-course.controller.ts`)
+  - `storage/` — Multer `diskStorage` configs and file-filter helpers (only when the feature handles uploads)
+  - additional resource folders as needed (e.g. `strategy/` in auth)
+  - the module file lives at the feature root, not in a subfolder
+- `src/common/` — app-wide NestJS primitives (guards, decorators, pipes). Guards (`jwt-access.guard.ts`, `jwt-refresh.guard.ts`) wrap `@nestjs/passport` strategies named `jwt-access` / `jwt-refresh`.
 - `src/shared/` — framework-agnostic utilities and config (`database.config.ts`, `hash.util.ts`).
 
+**UserRole enum** lives at `src/core/user/enum/user-role.enum.ts` — import from there everywhere.
+
 **Path alias:** `@/*` resolves to `src/*` (configured in `tsconfig.json` and supported via `tsconfig-paths` at runtime).
+
+**Naming convention:** All TypeScript/application properties use **camelCase**; all database column names use **snake_case**. Enforce this explicitly on every entity column and relation with the `name:` option — e.g. `@Column({ name: 'is_active' })`, `@CreateDateColumn({ name: 'created_at' })`, `@JoinColumn({ name: 'course_id' })`. Never rely on TypeORM's default column naming.
 
 **Database:** TypeORM with PostgreSQL. `dataSource` in `shared/config/database.config.ts` is used both for the NestJS module root (`TypeOrmModule.forRoot`) and can be used for CLI migrations. `synchronize: true` — schema is auto-synced from compiled entities in `dist/**/*.entity.js`, so **always build before running** if entities changed.
 
@@ -46,7 +57,7 @@ Copy `.env` and set:
 
 **Validation:** A global `ValidationPipe` (whitelist + forbidNonWhitelisted + transform) is applied at bootstrap. DTOs use `class-validator` decorators. User-facing error messages are written in Uzbek.
 
-**New feature checklist:** create `src/core/<feature>/` with a module, controller, service, `dto/`, and `entity/` sub-directories; register the module in `AppModule`; register entities with `TypeOrmModule.forFeature` inside the feature module and export the service if other modules need it.
+**New feature checklist:** create `src/core/<feature>/` with `<feature>.module.ts` at the root; add `dto/`, `entity/`, `service/` subfolders (plus `storage/` if uploads are needed); register the module in `AppModule`; register entities with `TypeOrmModule.forFeature` inside the feature module; export services that other modules need to inject.
 
 ## API Documentation
 

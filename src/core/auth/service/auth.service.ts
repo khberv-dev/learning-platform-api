@@ -4,7 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { UserService } from '@/core/user/service/user.service';
 import { SignUpRequest } from '@/core/auth/dto/sign-up-request.dto';
 import { SignInRequest } from '@/core/auth/dto/sign-in-request.dto';
-import { hashPassword, comparePassword } from '@/shared/util/hash.util';
+import { comparePassword, hashPassword } from '@/shared/util/hash.util';
 import { Student } from '@/core/user/entity/student.entity';
 import { User } from '@/core/user/entity/user.entity';
 
@@ -51,7 +51,7 @@ export class AuthService {
     const user = await this.userService.findByPhoneNumber(data.phoneNumber);
 
     if (!user || !(await comparePassword(data.password, user.password))) {
-      throw new UnauthorizedException('Telefon raqam yoki parol noto\'g\'ri');
+      throw new UnauthorizedException("Telefon raqam yoki parol noto'g'ri");
     }
 
     return this.issueTokens(user.id);
