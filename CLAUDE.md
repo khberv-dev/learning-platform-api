@@ -64,7 +64,54 @@ Copy `.env` and set:
 Swagger UI is served at `http://localhost:<PORT>/docs` (powered by `@nestjs/swagger`). The spec is generated at runtime — no static file to maintain.
 
 **Conventions:**
-- Every controller gets `@ApiTags('tag-name')`.
+- Every controller gets `@ApiTags('resource-name')` — use the plain resource name (`courses`, `teachers`, `enrollments`), never a role prefix like `admin / courses`.
 - Protected controllers/routes get `@ApiBearerAuth()`. The refresh endpoint uses `@ApiBearerAuth()` at the route level (refresh token in header), while the global access guard is documented via the top-level `addBearerAuth()` call in `main.ts`.
 - DTO fields get `@ApiProperty()`. Use `example:` for fields with a constrained format (e.g. phone numbers).
 - Public routes (`sign-up`, `sign-in`) need no security decorator — they have no `@ApiBearerAuth()` and the global bearer auth does not apply.
+- Multipart/form-data endpoints use a manual `@ApiBody({ schema: { ... } })` inline schema instead of a DTO class, since Swagger cannot introspect `multipart/form-data` from class decorators.
+
+## Controller Routing Pattern
+
+When two controllers share the same base path (e.g. both `@Controller('courses')`), register the **less-privileged controller first** in the module's `controllers` array. NestJS/Express routes to the first registered handler that matches — the role guard then enforces access.
+
+Example in `CourseModule`:
+```ts
+controllers: [CourseController, AdminCourseController]  // student first, admin second
+```
+
+This means:
+- `GET /courses` → hits `CourseController` (student) first; admin's handler at the same path is shadowed
+- Routes that only exist in `AdminCourseController` (e.g. `DELETE /courses/:id`) are still reachable
+
+For a teacher self-update route (`PATCH /teachers/me`) that must not be captured by an admin param route (`PATCH /teachers/:id`): placing `TeacherController` before `AdminTeacherController` ensures the literal `me` segment is matched first.
+
+## Password Security
+
+The `User.password` column has `select: false` — TypeORM excludes it from every `find`/`findOne` query by default. **Do not remove this.**
+
+The only place that needs the hash is `AuthService.signIn`, which calls `UserService.findByPhoneNumberForAuth`. That method uses a query builder with `.addSelect('user.password')` to opt back in. All other callers use `findByPhoneNumber` (no password).
+
+## File Uploads
+
+Uploaded files are served as static assets at `/public/<subfolder>/<filename>` (served by `ServeStaticModule` from the `uploads/` directory at the project root).
+
+Each upload type has its own storage config in `<module>/storage/`:
+- `uploads/course/` → `/public/course/…` (course images)
+- `uploads/lesson/` → `/public/lesson/…` (lesson videos)
+- `uploads/teacher-intro/` → `/public/teacher-intro/…` (teacher intro videos)
+
+Storage files export three things: a `diskStorage` instance, a file-filter function, and a `toXxxPath(filename)` helper that returns the public URL path to store in the DB.
+
+## Role Guard
+
+`RolesGuard` (`src/common/guard/roles.guard.ts`) reads `user.roles` (a `UserRole[]` array) from the request. This array is attached by `JwtAccessStrategy.validate` → `UserService.findById`, which calls `_user.roles()` on the loaded entity. The `roles()` method on `User` checks which of `student`, `teacher`, `admin` relations are populated.
+
+Do **not** check `user.student`, `user.teacher`, or `user.admin` directly in the guard — those relations are stripped from the object that `findById` returns.
+
+## Student Gamification
+
+`Student` entity has `points: int`, `coins: int`, `level: StudentLevel` (enum: A1, A2, B1, B2, C1, C2, default A1). These are managed server-side; no public write endpoint exists yet.
+
+## Teacher Model
+
+`Teacher` has `status: TeacherStatus` (ACTIVE / INACTIVE), `profession: string | null`, `introVideo: string | null`, and a `feedbacks: TeacherFeedback[]` relation. `summaryRating` is computed in-memory from feedbacks — it is not stored in the DB. When `status` changes, `User.isActive` is updated accordingly so inactive teachers cannot sign in.
