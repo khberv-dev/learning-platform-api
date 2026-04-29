@@ -11,22 +11,28 @@ export const COURSE_RELATIONS = { units: { lessons: true } } as const;
 export class CourseService {
   constructor(@InjectRepository(Course) private readonly courseRepo: Repository<Course>) {}
 
+  private withLessonsCount(course: Course) {
+    return { ...course, lessonsCount: course.units.reduce((sum, u) => sum + u.lessons.length, 0) };
+  }
+
   createCourse(dto: CreateCourseDto, image?: string) {
     return this.courseRepo.save({ ...dto, image });
   }
 
-  findAllCourses() {
-    return this.courseRepo.find({ relations: COURSE_RELATIONS });
+  async findAllCourses() {
+    const courses = await this.courseRepo.find({ relations: COURSE_RELATIONS });
+    return courses.map((c) => this.withLessonsCount(c));
   }
 
-  findActiveCourses() {
-    return this.courseRepo.find({ where: { isActive: true }, relations: COURSE_RELATIONS });
+  async findActiveCourses() {
+    const courses = await this.courseRepo.find({ where: { isActive: true }, relations: COURSE_RELATIONS });
+    return courses.map((c) => this.withLessonsCount(c));
   }
 
   async findOneCourse(id: string) {
     const course = await this.courseRepo.findOne({ where: { id }, relations: COURSE_RELATIONS });
     if (!course) throw new NotFoundException('Kurs topilmadi');
-    return course;
+    return this.withLessonsCount(course);
   }
 
   async findOneActiveCourse(id: string) {
@@ -35,16 +41,18 @@ export class CourseService {
       relations: COURSE_RELATIONS,
     });
     if (!course) throw new NotFoundException('Kurs topilmadi');
-    return course;
+    return this.withLessonsCount(course);
   }
 
   async updateCourse(id: string, dto: UpdateCourseDto, image?: string) {
-    const course = await this.findOneCourse(id);
+    const course = await this.courseRepo.findOne({ where: { id }, relations: COURSE_RELATIONS });
+    if (!course) throw new NotFoundException('Kurs topilmadi');
     return this.courseRepo.save({ ...course, ...dto, ...(image && { image }) });
   }
 
   async deleteCourse(id: string) {
-    const course = await this.findOneCourse(id);
+    const course = await this.courseRepo.findOne({ where: { id } });
+    if (!course) throw new NotFoundException('Kurs topilmadi');
     await this.courseRepo.remove(course);
   }
 }

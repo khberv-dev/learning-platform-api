@@ -43,14 +43,21 @@ export class EnrollmentService {
     const now = new Date();
     const enrollments = await this.enrollmentRepo.find({
       where: { student: { id: student.id } },
-      relations: { course: { units: { lessons: true } } },
+      relations: { course: { units: { lessons: true } }, progresses: true },
       order: { start: 'DESC' },
     });
 
-    return enrollments.map((e) => ({
-      ...e,
-      status: now >= e.start && now <= e.end ? EnrollmentStatus.ACTIVE : EnrollmentStatus.EXPIRED,
-    }));
+    return enrollments.map((e) => {
+      const lessonsCount = e.course.units.reduce((sum, u) => sum + u.lessons.length, 0);
+      const totalProgress =
+        lessonsCount === 0 ? 0 : Math.round(e.progresses.reduce((sum, p) => sum + p.progress, 0) / lessonsCount);
+      return {
+        ...e,
+        lessonsCount,
+        totalProgress,
+        status: now >= e.start && now <= e.end ? EnrollmentStatus.ACTIVE : EnrollmentStatus.EXPIRED,
+      };
+    });
   }
 
   async getHistory(userId: string) {

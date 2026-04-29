@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateCourseDto {
@@ -12,6 +12,13 @@ export class CreateCourseDto {
   @IsString()
   @IsOptional()
   description?: string;
+
+  @ApiProperty({ required: false, default: 0 })
+  @Transform(({ value }) => (value !== undefined ? parseInt(value, 10) : value))
+  @IsInt()
+  @Min(0)
+  @IsOptional()
+  price?: number;
 
   @ApiProperty({ required: false, default: false })
   @Transform(({ value }) => value === 'true' || value === true)

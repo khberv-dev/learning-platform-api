@@ -36,6 +36,7 @@ const courseFormSchema = (required: string[] = ['title']) => ({
     properties: {
       title: { type: 'string' },
       description: { type: 'string' },
+      price: { type: 'number' },
       isActive: { type: 'boolean' },
       image: { type: 'string', format: 'binary' },
     },

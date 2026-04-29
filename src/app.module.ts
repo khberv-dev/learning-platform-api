@@ -1,7 +1,9 @@
+import { join } from 'path';
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ServeStaticModule } from '@nestjs/serve-static';
 import { dataSource } from '@/shared/config/database.config';
 import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from '@/core/auth/auth.module';
@@ -15,6 +17,10 @@ import { RolesGuard } from '@/common/guard/roles.guard';
   imports: [
     TypeOrmModule.forRoot(dataSource.options),
     ConfigModule.forRoot({ isGlobal: true }),
+    ServeStaticModule.forRoot({
+      rootPath: join(process.cwd(), 'uploads'),
+      serveRoot: '/public',
+    }),
     AuthModule,
     UserModule,
     EnrollmentModule,
