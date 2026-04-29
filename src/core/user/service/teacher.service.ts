@@ -3,11 +3,14 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Teacher } from '@/core/user/entity/teacher.entity';
 import { TeacherStatusHistory } from '@/core/user/entity/teacher-status-history.entity';
+import { TeacherFeedback } from '@/core/user/entity/teacher-feedback.entity';
 import { Admin } from '@/core/user/entity/admin.entity';
+import { Student } from '@/core/user/entity/student.entity';
 import { TeacherStatus } from '@/core/user/enum/teacher-status.enum';
 import { CreateTeacherDto } from '@/core/user/dto/create-teacher.dto';
 import { UpdateTeacherDto } from '@/core/user/dto/update-teacher.dto';
 import { ChangeTeacherStatusDto } from '@/core/user/dto/change-teacher-status.dto';
+import { CreateFeedbackDto } from '@/core/user/dto/create-feedback.dto';
 import { UserService } from '@/core/user/service/user.service';
 import { hashPassword } from '@/shared/util/hash.util';
 
@@ -16,7 +19,9 @@ export class TeacherService {
   constructor(
     @InjectRepository(Teacher) private readonly teacherRepo: Repository<Teacher>,
     @InjectRepository(TeacherStatusHistory) private readonly statusHistoryRepo: Repository<TeacherStatusHistory>,
+    @InjectRepository(TeacherFeedback) private readonly feedbackRepo: Repository<TeacherFeedback>,
     @InjectRepository(Admin) private readonly adminRepo: Repository<Admin>,
+    @InjectRepository(Student) private readonly studentRepo: Repository<Student>,
     private readonly userService: UserService,
   ) {}
 
@@ -27,6 +32,7 @@ export class TeacherService {
     const passwordHash = await hashPassword(dto.password);
     const teacher = new Teacher();
     teacher.status = TeacherStatus.ACTIVE;
+    teacher.profession = dto.profession;
 
     const user = await this.userService.save({
       firstName: dto.firstName,
@@ -68,7 +74,50 @@ export class TeacherService {
       await this.userService.save({ id: teacher.user.id, ...update });
     }
 
+    if (dto.profession !== undefined) {
+      await this.teacherRepo.update(teacher.id, { profession: dto.profession });
+    }
+
     return this.findOneTeacher(id);
+  }
+
+  private withSummaryRating(teacher: Teacher & { feedbacks: TeacherFeedback[] }) {
+    const summaryRating =
+      teacher.feedbacks.length === 0
+        ? 0
+        : Math.round((teacher.feedbacks.reduce((sum, f) => sum + f.rate, 0) / teacher.feedbacks.length) * 10) / 10;
+    return { ...teacher, summaryRating };
+  }
+
+  async findActiveTeachers() {
+    const teachers = await this.teacherRepo.find({
+      where: { status: TeacherStatus.ACTIVE },
+      relations: { user: true, feedbacks: true },
+    });
+    return teachers.map((t) => this.withSummaryRating(t));
+  }
+
+  async findOneActiveTeacher(id: string) {
+    const teacher = await this.teacherRepo.findOne({
+      where: { id, status: TeacherStatus.ACTIVE },
+      relations: { user: true, feedbacks: { student: { user: true } } },
+    });
+    if (!teacher) throw new NotFoundException("O'qituvchi topilmadi");
+    return this.withSummaryRating(teacher);
+  }
+
+  async addFeedback(teacherId: string, studentUserId: string, dto: CreateFeedbackDto) {
+    const teacher = await this.teacherRepo.findOne({ where: { id: teacherId, status: TeacherStatus.ACTIVE } });
+    if (!teacher) throw new NotFoundException("O'qituvchi topilmadi");
+    const student = await this.studentRepo.findOne({ where: { user: { id: studentUserId } } });
+    if (!student) throw new NotFoundException('Talaba topilmadi');
+    return this.feedbackRepo.save({ teacher, student, ...dto });
+  }
+
+  async updateIntroVideo(userId: string, videoPath: string) {
+    const teacher = await this.teacherRepo.findOne({ where: { user: { id: userId } } });
+    if (!teacher) throw new NotFoundException("O'qituvchi topilmadi");
+    return this.teacherRepo.save({ ...teacher, introVideo: videoPath });
   }
 
   async changeStatus(teacherId: string, dto: ChangeTeacherStatusDto, adminUserId: string) {

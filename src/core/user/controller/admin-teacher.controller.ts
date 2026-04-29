@@ -8,7 +8,7 @@ import { CreateTeacherDto } from '@/core/user/dto/create-teacher.dto';
 import { UpdateTeacherDto } from '@/core/user/dto/update-teacher.dto';
 import { ChangeTeacherStatusDto } from '@/core/user/dto/change-teacher-status.dto';
 
-@ApiTags('admin / teachers')
+@ApiTags('teachers')
 @ApiBearerAuth()
 @Roles(UserRole.ADMIN)
 @Controller('teachers')

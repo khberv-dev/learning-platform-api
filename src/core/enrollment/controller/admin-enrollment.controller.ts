@@ -5,7 +5,7 @@ import { UserRole } from '@/core/user/enum/user-role.enum';
 import { EnrollmentService } from '@/core/enrollment/service/enrollment.service';
 import { CreateEnrollmentDto } from '@/core/enrollment/dto/create-enrollment.dto';
 
-@ApiTags('admin / enrollments')
+@ApiTags('enrollments')
 @ApiBearerAuth()
 @Roles(UserRole.ADMIN)
 @Controller('enrollments')

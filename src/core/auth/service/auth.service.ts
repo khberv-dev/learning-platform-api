@@ -48,7 +48,7 @@ export class AuthService {
   }
 
   async signIn(data: SignInRequest) {
-    const user = await this.userService.findByPhoneNumber(data.phoneNumber);
+    const user = await this.userService.findByPhoneNumberForAuth(data.phoneNumber);
 
     if (!user || !(await comparePassword(data.password, user.password))) {
       throw new UnauthorizedException("Telefon raqam yoki parol noto'g'ri");

@@ -11,6 +11,7 @@ import {
 import { User } from '@/core/user/entity/user.entity';
 import { TeacherStatus } from '@/core/user/enum/teacher-status.enum';
 import { TeacherStatusHistory } from '@/core/user/entity/teacher-status-history.entity';
+import { TeacherFeedback } from '@/core/user/entity/teacher-feedback.entity';
 
 @Entity('teachers')
 export class Teacher {
@@ -24,8 +25,17 @@ export class Teacher {
   @Column({ type: 'enum', enum: TeacherStatus, default: TeacherStatus.ACTIVE })
   status: TeacherStatus;
 
+  @Column({ nullable: true })
+  profession: string;
+
+  @Column({ name: 'intro_video', nullable: true })
+  introVideo: string;
+
   @OneToMany(() => TeacherStatusHistory, (history) => history.teacher)
   statusHistories: TeacherStatusHistory[];
+
+  @OneToMany(() => TeacherFeedback, (feedback) => feedback.teacher)
+  feedbacks: TeacherFeedback[];
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

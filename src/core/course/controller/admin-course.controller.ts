@@ -43,7 +43,7 @@ const courseFormSchema = (required: string[] = ['title']) => ({
   },
 });
 
-@ApiTags('admin / courses')
+@ApiTags('courses')
 @ApiBearerAuth()
 @Roles(UserRole.ADMIN)
 @Controller('courses')

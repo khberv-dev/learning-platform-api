@@ -24,7 +24,7 @@ export class User {
   @Column({ nullable: true, unique: true })
   phoneNumber: string;
 
-  @Column()
+  @Column({ select: false })
   password: string;
 
   @Column({ name: 'is_active', default: true })

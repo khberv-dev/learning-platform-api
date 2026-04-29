@@ -20,6 +20,11 @@ export class CreateTeacherDto {
   @Matches(/^998\d{9}$/, { message: "Telefon raqam 998XXXXXXXXX formatida bo'lishi kerak" })
   phoneNumber: string;
 
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  profession: string;
+
   @ApiProperty()
   @IsString()
   @MinLength(6)
