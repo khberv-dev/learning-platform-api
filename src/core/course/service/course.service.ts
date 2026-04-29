@@ -12,7 +12,8 @@ export class CourseService {
   constructor(@InjectRepository(Course) private readonly courseRepo: Repository<Course>) {}
 
   private withLessonsCount(course: Course) {
-    return { ...course, lessonsCount: course.units.reduce((sum, u) => sum + u.lessons.length, 0) };
+    const units = course.units.map((u) => ({ ...u, lessonsCount: u.lessons.length }));
+    return { ...course, units, lessonsCount: units.reduce((sum, u) => sum + u.lessonsCount, 0) };
   }
 
   createCourse(dto: CreateCourseDto, image?: string) {
