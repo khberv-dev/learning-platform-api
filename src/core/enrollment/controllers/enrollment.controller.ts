@@ -1,9 +1,9 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { Roles } from '@/common/decorator/roles.decorator';
-import { CurrentUser } from '@/common/decorator/current-user.decorator';
+import { Roles } from '@/common/decorators/roles.decorator';
+import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { UserRole } from '@/core/user/enum/user-role.enum';
-import { EnrollmentService } from '@/core/enrollment/service/enrollment.service';
+import { EnrollmentService } from '@/core/enrollment/services/enrollment.service';
 
 @ApiTags('enrollments')
 @ApiBearerAuth()

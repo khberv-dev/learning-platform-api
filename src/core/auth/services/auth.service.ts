@@ -1,10 +1,10 @@
 import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { UserService } from '@/core/user/service/user.service';
+import { UserService } from '@/core/user/services/user.service';
 import { SignUpRequest } from '@/core/auth/dto/sign-up-request.dto';
 import { SignInRequest } from '@/core/auth/dto/sign-in-request.dto';
-import { comparePassword, hashPassword } from '@/shared/util/hash.util';
+import { comparePassword, hashPassword } from '@/shared/utils/hash.util';
 import { Student } from '@/core/user/entity/student.entity';
 import { User } from '@/core/user/entity/user.entity';
 

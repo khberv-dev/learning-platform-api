@@ -11,8 +11,8 @@ import { CreateTeacherDto } from '@/core/user/dto/create-teacher.dto';
 import { UpdateTeacherDto } from '@/core/user/dto/update-teacher.dto';
 import { ChangeTeacherStatusDto } from '@/core/user/dto/change-teacher-status.dto';
 import { CreateFeedbackDto } from '@/core/user/dto/create-feedback.dto';
-import { UserService } from '@/core/user/service/user.service';
-import { hashPassword } from '@/shared/util/hash.util';
+import { UserService } from '@/core/user/services/user.service';
+import { hashPassword } from '@/shared/utils/hash.util';
 
 @Injectable()
 export class TeacherService {

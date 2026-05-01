@@ -12,11 +12,11 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiTags } from '@nestjs/swagger';
-import { Roles } from '@/common/decorator/roles.decorator';
+import { Roles } from '@/common/decorators/roles.decorator';
 import { UserRole } from '@/core/user/enum/user-role.enum';
-import { CourseService } from '@/core/course/service/course.service';
-import { UnitService } from '@/core/course/service/unit.service';
-import { LessonService } from '@/core/course/service/lesson.service';
+import { CourseService } from '@/core/course/services/course.service';
+import { UnitService } from '@/core/course/services/unit.service';
+import { LessonService } from '@/core/course/services/lesson.service';
 import { courseImageStorage, imageFileFilter, toImagePath } from '@/core/course/storage/course-image.storage';
 import { lessonMediaStorage, toMediaPath, videoFileFilter } from '@/core/course/storage/lesson-media.storage';
 import { CreateCourseDto } from '@/core/course/dto/create-course.dto';

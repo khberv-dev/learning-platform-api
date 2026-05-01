@@ -35,10 +35,10 @@ Copy `.env` and set:
 - `src/core/` — domain feature modules. Each module folder contains one `<feature>.module.ts` file at the root plus typed subfolders:
   - `dto/` — request/response DTOs
   - `entity/` — TypeORM entity classes
-  - `service/` — one service file per logical resource (e.g. `course.service.ts`, `unit.service.ts`, `lesson.service.ts`)
-  - `controller/` — one controller file per logical resource (e.g. `course.controller.ts`, `admin-course.controller.ts`)
+  - `services/` — one service file per logical resource (e.g. `course.service.ts`, `unit.service.ts`, `lesson.service.ts`)
+  - `controllers/` — one controller file per logical resource (e.g. `course.controller.ts`, `admin-course.controller.ts`)
   - `storage/` — Multer `diskStorage` configs and file-filter helpers (only when the feature handles uploads)
-  - additional resource folders as needed (e.g. `strategy/` in auth)
+  - additional resource folders as needed (e.g. `strategies/` in auth)
   - the module file lives at the feature root, not in a subfolder
 - `src/common/` — app-wide NestJS primitives (guards, decorators, pipes). Guards (`jwt-access.guard.ts`, `jwt-refresh.guard.ts`) wrap `@nestjs/passport` strategies named `jwt-access` / `jwt-refresh`.
 - `src/shared/` — framework-agnostic utilities and config (`database.config.ts`, `hash.util.ts`).
@@ -57,7 +57,7 @@ Copy `.env` and set:
 
 **Validation:** A global `ValidationPipe` (whitelist + forbidNonWhitelisted + transform) is applied at bootstrap. DTOs use `class-validator` decorators. User-facing error messages are written in Uzbek.
 
-**New feature checklist:** create `src/core/<feature>/` with `<feature>.module.ts` at the root; add `dto/`, `entity/`, `service/` subfolders (plus `storage/` if uploads are needed); register the module in `AppModule`; register entities with `TypeOrmModule.forFeature` inside the feature module; export services that other modules need to inject.
+**New feature checklist:** create `src/core/<feature>/` with `<feature>.module.ts` at the root; add `dto/`, `entity/`, `services/` subfolders (plus `storage/` if uploads are needed); register the module in `AppModule`; register entities with `TypeOrmModule.forFeature` inside the feature module; export services that other modules need to inject.
 
 ## API Documentation
 
@@ -104,7 +104,7 @@ Storage files export three things: a `diskStorage` instance, a file-filter funct
 
 ## Role Guard
 
-`RolesGuard` (`src/common/guard/roles.guard.ts`) reads `user.roles` (a `UserRole[]` array) from the request. This array is attached by `JwtAccessStrategy.validate` → `UserService.findById`, which calls `_user.roles()` on the loaded entity. The `roles()` method on `User` checks which of `student`, `teacher`, `admin` relations are populated.
+`RolesGuard` (`src/common/guards/roles.guard.ts`) reads `user.roles` (a `UserRole[]` array) from the request. This array is attached by `JwtAccessStrategy.validate` → `UserService.findById`, which calls `_user.roles()` on the loaded entity. The `roles()` method on `User` checks which of `student`, `teacher`, `admin` relations are populated.
 
 Do **not** check `user.student`, `user.teacher`, or `user.admin` directly in the guard — those relations are stripped from the object that `findById` returns.
 

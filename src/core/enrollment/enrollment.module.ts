@@ -5,10 +5,10 @@ import { Progress } from '@/core/enrollment/entity/progress.entity';
 import { EnrollmentHistory } from '@/core/enrollment/entity/enrollment-history.entity';
 import { Student } from '@/core/user/entity/student.entity';
 import { CourseModule } from '@/core/course/course.module';
-import { EnrollmentService } from '@/core/enrollment/service/enrollment.service';
-import { StudentCourseController } from '@/core/enrollment/controller/student-course.controller';
-import { EnrollmentController } from '@/core/enrollment/controller/enrollment.controller';
-import { AdminEnrollmentController } from '@/core/enrollment/controller/admin-enrollment.controller';
+import { EnrollmentService } from '@/core/enrollment/services/enrollment.service';
+import { StudentCourseController } from '@/core/enrollment/controllers/student-course.controller';
+import { EnrollmentController } from '@/core/enrollment/controllers/enrollment.controller';
+import { AdminEnrollmentController } from '@/core/enrollment/controllers/admin-enrollment.controller';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Enrollment, Progress, EnrollmentHistory, Student]), CourseModule],

@@ -5,7 +5,7 @@ import { Enrollment } from '@/core/enrollment/entity/enrollment.entity';
 import { EnrollmentHistory } from '@/core/enrollment/entity/enrollment-history.entity';
 import { EnrollmentStatus } from '@/core/enrollment/enum/enrollment-status.enum';
 import { CreateEnrollmentDto } from '@/core/enrollment/dto/create-enrollment.dto';
-import { CourseService } from '@/core/course/service/course.service';
+import { CourseService } from '@/core/course/services/course.service';
 import { Student } from '@/core/user/entity/student.entity';
 
 @Injectable()

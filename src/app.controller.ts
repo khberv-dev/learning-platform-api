@@ -1,12 +1,12 @@
 import { Controller, Get } from '@nestjs/common';
 import dayjs from 'dayjs';
-import { IsPublic } from '@/common/decorator/is-public.decorator';
+import { IsPublic } from '@/common/decorators/is-public.decorator';
 
 @Controller()
 @IsPublic()
 export class AppController {
   @Get()
-  getHello() {
+  status() {
     return {
       ok: true,
       timestamp: dayjs(),

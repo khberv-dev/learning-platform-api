@@ -1,8 +1,8 @@
 import { Controller, Get, Param } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { Roles } from '@/common/decorator/roles.decorator';
+import { Roles } from '@/common/decorators/roles.decorator';
 import { UserRole } from '@/core/user/enum/user-role.enum';
-import { CourseService } from '@/core/course/service/course.service';
+import { CourseService } from '@/core/course/services/course.service';
 
 @ApiTags('courses')
 @ApiBearerAuth()

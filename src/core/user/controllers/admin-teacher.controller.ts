@@ -1,9 +1,9 @@
 import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { Roles } from '@/common/decorator/roles.decorator';
-import { CurrentUser } from '@/common/decorator/current-user.decorator';
+import { Roles } from '@/common/decorators/roles.decorator';
+import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { UserRole } from '@/core/user/enum/user-role.enum';
-import { TeacherService } from '@/core/user/service/teacher.service';
+import { TeacherService } from '@/core/user/services/teacher.service';
 import { CreateTeacherDto } from '@/core/user/dto/create-teacher.dto';
 import { UpdateTeacherDto } from '@/core/user/dto/update-teacher.dto';
 import { ChangeTeacherStatusDto } from '@/core/user/dto/change-teacher-status.dto';
