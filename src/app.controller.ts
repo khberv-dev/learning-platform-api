@@ -1,9 +1,9 @@
 import { Controller, Get } from '@nestjs/common';
 import dayjs from 'dayjs';
-import { IsPublic } from '@/common/decorators/is-public.decorator';
+import { Public } from '@/common/decorators/public.decorator';
 
 @Controller()
-@IsPublic()
+@Public()
 export class AppController {
   @Get()
   status() {
