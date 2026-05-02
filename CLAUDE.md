@@ -28,6 +28,10 @@ Copy `.env` and set:
 - `JWT_REFRESH_SECRET`, `JWT_REFRESH_EXPIRE` — refresh token config
 - `DB_HOST`, `DB_PORT`, `DB_USERNAME`, `DB_PASSWORD`, `DB_DATABASE` — PostgreSQL connection
 - `INIT_ADMIN_LOGIN`, `INIT_ADMIN_PASSWORD` — initial admin seed credentials
+- `GEMINI_API_KEY` — Google Gen AI API key (used by `assessment` module)
+- `GEMINI_MODEL` — Gemini model for audio analysis (e.g. `gemini-2.5-flash`)
+- `GEMINI_TTS_MODEL` — Gemini TTS model for spoken feedback (e.g. `gemini-2.5-flash-preview-tts`)
+- `GEMINI_TTS_VOICE` — optional, prebuilt voice name (default `Kore`)
 
 ## Architecture
 

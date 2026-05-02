@@ -11,6 +11,7 @@ import { UserModule } from '@/core/user/user.module';
 import { CourseModule } from '@/core/course/course.module';
 import { EnrollmentModule } from '@/core/enrollment/enrollment.module';
 import { AssignmentModule } from '@/core/assignment/assignment.module';
+import { AssessmentModule } from '@/core/assessment/assessment.module';
 import { JwtAccessGuard } from '@/common/guards/jwt-access.guard';
 import { RolesGuard } from '@/common/guards/roles.guard';
 
@@ -27,6 +28,7 @@ import { RolesGuard } from '@/common/guards/roles.guard';
     EnrollmentModule,
     CourseModule,
     AssignmentModule,
+    AssessmentModule,
   ],
   controllers: [AppController],
   providers: [
