@@ -6,7 +6,7 @@ import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { UserRole } from '@/core/user/enum/user-role.enum';
 import { TeacherService } from '@/core/user/services/teacher.service';
 import { CreateFeedbackDto } from '@/core/user/dto/create-feedback.dto';
-import { teacherIntroStorage, introVideoFileFilter, toIntroVideoPath } from '@/core/user/storage/teacher-intro.storage';
+import { introVideoFileFilter, teacherIntroStorage, toIntroVideoPath } from '@/core/user/storage/teacher-intro.storage';
 
 @ApiTags('teachers')
 @ApiBearerAuth()
@@ -36,7 +36,9 @@ export class TeacherController {
   @Roles(UserRole.TEACHER)
   @UseInterceptors(FileInterceptor('video', { storage: teacherIntroStorage, fileFilter: introVideoFileFilter }))
   @ApiConsumes('multipart/form-data')
-  @ApiBody({ schema: { type: 'object', required: ['video'], properties: { video: { type: 'string', format: 'binary' } } } })
+  @ApiBody({
+    schema: { type: 'object', required: ['video'], properties: { video: { type: 'string', format: 'binary' } } },
+  })
   updateIntroVideo(@UploadedFile() file: Express.Multer.File, @CurrentUser() user: { id: string }) {
     return this.teacherService.updateIntroVideo(user.id, toIntroVideoPath(file.filename));
   }

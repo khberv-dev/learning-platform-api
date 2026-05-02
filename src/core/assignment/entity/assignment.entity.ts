@@ -9,13 +9,14 @@ import {
 } from 'typeorm';
 import { Teacher } from '@/core/user/entity/teacher.entity';
 import { Student } from '@/core/user/entity/student.entity';
+import { AssignmentStatus } from '@/core/assignment/enum/assignment-status.enum';
 
-@Entity('teacher_feedbacks')
-export class TeacherFeedback {
+@Entity('assignments')
+export class Assignment {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @ManyToOne(() => Teacher, (teacher) => teacher.feedbacks, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Teacher, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'teacher_id' })
   teacher: Teacher;
 
@@ -23,11 +24,14 @@ export class TeacherFeedback {
   @JoinColumn({ name: 'student_id' })
   student: Student;
 
-  @Column({ type: 'text' })
-  text: string;
+  @Column({ name: 'start_date', type: 'timestamp' })
+  startDate: Date;
 
-  @Column({ type: 'smallint' })
-  rate: number;
+  @Column({ name: 'end_date', type: 'timestamp' })
+  endDate: Date;
+
+  @Column({ type: 'enum', enum: AssignmentStatus, default: AssignmentStatus.PENDING })
+  status: AssignmentStatus;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
