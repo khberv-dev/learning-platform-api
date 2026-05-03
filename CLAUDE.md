@@ -119,3 +119,14 @@ Do **not** check `user.student`, `user.teacher`, or `user.admin` directly in the
 ## Teacher Model
 
 `Teacher` has `status: TeacherStatus` (ACTIVE / INACTIVE), `profession: string | null`, `introVideo: string | null`, and a `feedbacks: TeacherFeedback[]` relation. `summaryRating` is computed in-memory from feedbacks — it is not stored in the DB. When `status` changes, `User.isActive` is updated accordingly so inactive teachers cannot sign in.
+
+## Match (WebRTC signaling)
+
+Socket.IO gateway at namespace `/match` (`MatchGateway`). Auth: pass the access token as `auth.token` in the handshake (or `Authorization: Bearer …`) — verified directly with `JwtService` (no Passport). The global HTTP `JwtAccessGuard` does not apply to sockets.
+
+State is in-memory (`MatchService`): a FIFO queue, one socket per user (a second connection from the same user kicks the first via `replaced` then disconnect), and a `sessionId → [userA, userB]` map.
+
+Client → server events: `search`, `cancel`, `signal` (`{ data }` is opaquely relayed — SDP/ICE), `leave`.
+Server → client events: `searching`, `matched` (`{ sessionId, role: 'caller' | 'callee' }`), `signal`, `partner-left` (`{ reason: 'leave' | 'disconnect' }`), `cancelled`, `left`, `replaced`, `unauthorized`, `error`.
+
+Pairing rule: the user already in the queue is `callee`; the newcomer is `caller` and creates the SDP offer first.
