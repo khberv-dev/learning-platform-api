@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { UserModule } from '@/core/user/user.module';
+import { CallModule } from '@/core/call/call.module';
 import { MatchService } from '@/core/match/services/match.service';
 import { MatchGateway } from '@/core/match/gateways/match.gateway';
 
@@ -14,6 +15,7 @@ import { MatchGateway } from '@/core/match/gateways/match.gateway';
       }),
     }),
     UserModule,
+    CallModule,
   ],
   providers: [MatchService, MatchGateway],
 })

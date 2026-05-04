@@ -1,20 +1,44 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { Socket } from 'socket.io';
+import { CallService } from '@/core/call/services/call.service';
 
-type PeerRole = 'caller' | 'callee';
+type SessionState = 'waiting' | 'active';
+
 interface Session {
   id: string;
-  peers: [string, string];
+  peers: string[];
+  state: SessionState;
+  callId?: string;
+}
+
+export type SearchResult =
+  | { kind: 'created'; sessionId: string }
+  | { kind: 'joined'; sessionId: string; partnerId: string }
+  | { kind: 'already-waiting'; sessionId: string };
+
+export type CloseReason = 'cancel' | 'leave' | 'disconnect' | 'replaced';
+
+export interface SearchOutcome {
+  result: SearchResult;
+  endedPartner?: EndedSession;
+}
+
+interface EndedSession {
+  sessionId: string;
+  partnerId: string | null;
+  partnerSocket: Socket | null;
 }
 
 @Injectable()
 export class MatchService {
   private readonly logger = new Logger(MatchService.name);
-  private readonly queue: string[] = [];
   private readonly socketByUser = new Map<string, Socket>();
-  private readonly sessionByUser = new Map<string, string>();
   private readonly sessions = new Map<string, Session>();
+  private readonly sessionByUser = new Map<string, string>();
+  private readonly waitingSessionIds: string[] = [];
+
+  constructor(private readonly callService: CallService) {}
 
   registerSocket(userId: string, socket: Socket): Socket | null {
     const existing = this.socketByUser.get(userId);
@@ -25,7 +49,6 @@ export class MatchService {
   unregisterSocket(userId: string, socketId: string) {
     const current = this.socketByUser.get(userId);
     if (current && current.id === socketId) this.socketByUser.delete(userId);
-    this.removeFromQueue(userId);
   }
 
   getSocket(userId: string): Socket | null {
@@ -36,61 +59,105 @@ export class MatchService {
     const sessionId = this.sessionByUser.get(userId);
     if (!sessionId) return null;
     const session = this.sessions.get(sessionId);
-    if (!session) return null;
-    const partnerId = session.peers[0] === userId ? session.peers[1] : session.peers[0];
+    if (!session || session.state !== 'active') return null;
+    const partnerId = session.peers.find((p) => p !== userId);
+    if (!partnerId) return null;
     const partnerSocket = this.socketByUser.get(partnerId);
     if (!partnerSocket) return null;
     return { partnerId, partnerSocket, sessionId };
   }
 
-  enqueue(userId: string): { matched: false } | { matched: true; sessionId: string; role: PeerRole; partnerId: string } {
-    if (this.sessionByUser.has(userId)) {
-      this.endSession(userId);
+  async search(userId: string): Promise<SearchOutcome> {
+    let endedPartner: EndedSession | undefined;
+    const currentSessionId = this.sessionByUser.get(userId);
+    if (currentSessionId) {
+      const current = this.sessions.get(currentSessionId);
+      if (current?.state === 'waiting') {
+        return { result: { kind: 'already-waiting', sessionId: current.id } };
+      }
+      if (current?.state === 'active') {
+        endedPartner = (await this.dropSession(userId, 'replaced')) ?? undefined;
+      }
     }
-    if (this.queue.includes(userId)) return { matched: false };
 
-    const waitingId = this.popNextWaiting(userId);
-    if (!waitingId) {
-      this.queue.push(userId);
-      this.logger.log(`User ${userId} added to queue (size=${this.queue.length})`);
-      return { matched: false };
+    const joinable = this.popJoinableSession(userId);
+    if (joinable) {
+      joinable.peers.push(userId);
+      joinable.state = 'active';
+      this.sessionByUser.set(userId, joinable.id);
+      const partnerId = joinable.peers[0];
+      joinable.callId = await this.callService.start(partnerId, userId);
+      this.logger.log(
+        `Session ${joinable.id} member added: ${userId} (caller) joined; active peers=[${joinable.peers.join(', ')}]; callId=${joinable.callId}`,
+      );
+      return {
+        result: { kind: 'joined', sessionId: joinable.id, partnerId },
+        endedPartner,
+      };
     }
 
-    const session: Session = { id: randomUUID(), peers: [waitingId, userId] };
+    const session: Session = { id: randomUUID(), peers: [userId], state: 'waiting' };
     this.sessions.set(session.id, session);
-    this.sessionByUser.set(waitingId, session.id);
     this.sessionByUser.set(userId, session.id);
-    this.logger.log(`Matched ${waitingId} (callee) with ${userId} (caller) in session ${session.id}`);
-
-    return { matched: true, sessionId: session.id, role: 'caller', partnerId: waitingId };
+    this.waitingSessionIds.push(session.id);
+    this.logger.log(`Session ${session.id} created (waiting) by ${userId}`);
+    return { result: { kind: 'created', sessionId: session.id }, endedPartner };
   }
 
-  removeFromQueue(userId: string): boolean {
-    const idx = this.queue.indexOf(userId);
-    if (idx === -1) return false;
-    this.queue.splice(idx, 1);
+  async cancel(userId: string): Promise<boolean> {
+    const sessionId = this.sessionByUser.get(userId);
+    if (!sessionId) return false;
+    const session = this.sessions.get(sessionId);
+    if (!session || session.state !== 'waiting') return false;
+    await this.dropSession(userId, 'cancel');
     return true;
   }
 
-  endSession(userId: string): { partnerId: string; partnerSocket: Socket | null; sessionId: string } | null {
+  end(userId: string, reason: 'leave' | 'disconnect'): Promise<EndedSession | null> {
+    return this.dropSession(userId, reason);
+  }
+
+  private async dropSession(userId: string, reason: CloseReason): Promise<EndedSession | null> {
     const sessionId = this.sessionByUser.get(userId);
     if (!sessionId) return null;
     const session = this.sessions.get(sessionId);
     this.sessions.delete(sessionId);
     this.sessionByUser.delete(userId);
-    if (!session) return null;
-    const partnerId = session.peers[0] === userId ? session.peers[1] : session.peers[0];
-    this.sessionByUser.delete(partnerId);
-    return { partnerId, partnerSocket: this.socketByUser.get(partnerId) ?? null, sessionId };
+
+    if (!session || session.state === 'waiting') {
+      if (session) this.removeWaiting(sessionId);
+      this.logger.log(`Session ${sessionId} closed (reason=${reason}, by ${userId}, partner=none)`);
+      return { sessionId, partnerId: null, partnerSocket: null };
+    }
+
+    const partnerId = session.peers.find((p) => p !== userId) ?? null;
+    if (partnerId) this.sessionByUser.delete(partnerId);
+    if (session.callId) await this.callService.end(session.callId);
+    this.logger.log(
+      `Session ${sessionId} closed (reason=${reason}, by ${userId}, partner=${partnerId ?? 'none'}, callId=${session.callId ?? 'none'})`,
+    );
+    return { sessionId, partnerId, partnerSocket: partnerId ? (this.socketByUser.get(partnerId) ?? null) : null };
   }
 
-  private popNextWaiting(excludeUserId: string): string | null {
-    while (this.queue.length > 0) {
-      const candidate = this.queue.shift()!;
-      if (candidate === excludeUserId) continue;
-      if (!this.socketByUser.has(candidate)) continue;
-      return candidate;
+  private popJoinableSession(excludeUserId: string): Session | null {
+    while (this.waitingSessionIds.length > 0) {
+      const id = this.waitingSessionIds.shift()!;
+      const session = this.sessions.get(id);
+      if (!session || session.state !== 'waiting') continue;
+      const peer = session.peers[0];
+      if (!peer || peer === excludeUserId) continue;
+      if (!this.socketByUser.has(peer)) {
+        this.sessions.delete(id);
+        this.sessionByUser.delete(peer);
+        continue;
+      }
+      return session;
     }
     return null;
+  }
+
+  private removeWaiting(sessionId: string) {
+    const idx = this.waitingSessionIds.indexOf(sessionId);
+    if (idx !== -1) this.waitingSessionIds.splice(idx, 1);
   }
 }
