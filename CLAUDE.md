@@ -32,6 +32,7 @@ Copy `.env` and set:
 - `GEMINI_MODEL` — Gemini model for audio analysis (e.g. `gemini-2.5-flash`)
 - `GEMINI_TTS_MODEL` — Gemini TTS model for spoken feedback (e.g. `gemini-2.5-flash-preview-tts`)
 - `GEMINI_TTS_VOICE` — optional, prebuilt voice name (default `Kore`)
+- `GEMINI_PROXY_URL` — optional outbound proxy for Gemini calls (e.g. `http://user:pass@host:port`, `socks5://host:1080`). Wired via `undici.setGlobalDispatcher` in `GeminiService.onModuleInit`, so it applies process-wide to every `fetch()`, not just GenAI traffic.
 
 ## Architecture
 

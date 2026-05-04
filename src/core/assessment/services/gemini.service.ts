@@ -1,6 +1,7 @@
 import { Injectable, InternalServerErrorException, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { GoogleGenAI, Modality } from '@google/genai';
+import { ProxyAgent, setGlobalDispatcher } from 'undici';
 
 const ASSESSMENT_PROMPT = [
   'You are a friendly language coach. The user has submitted a short spoken audio clip.',
@@ -24,6 +25,10 @@ export class GeminiService implements OnModuleInit {
     this.analysisModel = this.configService.getOrThrow<string>('GEMINI_MODEL');
     this.ttsModel = this.configService.getOrThrow<string>('GEMINI_TTS_MODEL');
     this.ttsVoice = this.configService.get<string>('GEMINI_TTS_VOICE') ?? 'Kore';
+
+    const proxyUrl = this.configService.get<string>('GEMINI_PROXY_URL');
+    if (proxyUrl) setGlobalDispatcher(new ProxyAgent(proxyUrl));
+
     this.client = new GoogleGenAI({ apiKey });
   }
 
