@@ -110,9 +110,7 @@ export class MatchGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
       return;
     }
     const type = (body?.data as { type?: string } | undefined)?.type ?? 'unknown';
-    this.logger.log(
-      `Session ${partner.sessionId} signal type=${type}: ${socket.data.userId} -> ${partner.partnerId}`,
-    );
+    this.logger.log(`Session ${partner.sessionId} signal type=${type}: ${socket.data.userId} -> ${partner.partnerId}`);
     partner.partnerSocket.emit('signal', { data: body?.data });
   }
 
