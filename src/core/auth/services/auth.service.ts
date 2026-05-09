@@ -48,10 +48,12 @@ export class AuthService {
   }
 
   async signIn(data: SignInRequest) {
-    const user = await this.userService.findByPhoneNumberForAuth(data.phoneNumber);
+    const user = data.email
+      ? await this.userService.findByEmailForAuth(data.email)
+      : await this.userService.findByPhoneNumberForAuth(data.phoneNumber);
 
     if (!user || !(await comparePassword(data.password, user.password))) {
-      throw new UnauthorizedException("Telefon raqam yoki parol noto'g'ri");
+      throw new UnauthorizedException("Login yoki parol noto'g'ri");
     }
 
     if (!user.isActive) {

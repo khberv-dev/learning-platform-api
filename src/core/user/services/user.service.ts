@@ -23,7 +23,7 @@ export class UserService {
     return { ...user, roles: _user.roles() };
   }
 
-  findByPhoneNumberForAuth(phoneNumber: string) {
+  findByPhoneNumberForAuth(phoneNumber: string | undefined) {
     if (!phoneNumber) return null;
     return this.userRepo
       .createQueryBuilder('user')
@@ -54,6 +54,15 @@ export class UserService {
         email,
       },
     });
+  }
+
+  findByEmailForAuth(email: string | undefined) {
+    if (!email) return null;
+    return this.userRepo
+      .createQueryBuilder('user')
+      .addSelect('user.password')
+      .where('user.email = :email', { email })
+      .getOne();
   }
 
   async findStudentMe(userId: string) {
