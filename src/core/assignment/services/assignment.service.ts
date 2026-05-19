@@ -1,12 +1,13 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Not, Repository } from 'typeorm';
 import { Assignment } from '@/core/assignment/entity/assignment.entity';
 import { AssignmentStatus } from '@/core/assignment/enum/assignment-status.enum';
 import { CreateAssignmentDto } from '@/core/assignment/dto/create-assignment.dto';
 import { Teacher } from '@/core/user/entity/teacher.entity';
 import { Student } from '@/core/user/entity/student.entity';
 import { TeacherStatus } from '@/core/user/enum/teacher-status.enum';
+import { paginate, Paginated, PaginationQuery } from '@/common/dto/pagination-query.dto';
 
 @Injectable()
 export class AssignmentService {
@@ -76,6 +77,24 @@ export class AssignmentService {
       relations: { student: { user: true } },
       order: { createdAt: 'DESC' },
     });
+  }
+
+  async findAssignmentsForTeacher(teacherUserId: string, query: PaginationQuery): Promise<Paginated<Assignment>> {
+    const teacher = await this.teacherRepo.findOne({ where: { user: { id: teacherUserId } } });
+    if (!teacher) throw new NotFoundException("O'qituvchi topilmadi");
+
+    const [assignments, total] = await this.assignmentRepo.findAndCount({
+      where: { teacher: { id: teacher.id }, status: Not(AssignmentStatus.PENDING) },
+      relations: { student: { user: true } },
+      order: { createdAt: 'DESC' },
+      skip: query.skip,
+      take: query.take,
+    });
+    return paginate(
+      assignments.map((a) => this.withEffectiveStatus(a)),
+      total,
+      query,
+    );
   }
 
   private async loadTeacherAssignment(teacherUserId: string, assignmentId: string) {

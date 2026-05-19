@@ -44,7 +44,9 @@ export class AuthService {
       student: new Student(),
     });
 
-    return this.issueTokens(newUser.id);
+    const fullUser = await this.userService.findById(newUser.id);
+
+    return { ...this.issueTokens(newUser.id), roles: fullUser!.roles };
   }
 
   async signIn(data: SignInRequest) {
@@ -53,14 +55,16 @@ export class AuthService {
       : await this.userService.findByPhoneNumberForAuth(data.phoneNumber);
 
     if (!user || !(await comparePassword(data.password, user.password))) {
-      throw new UnauthorizedException("Login yoki parol noto'g'ri");
+      throw new BadRequestException("Login yoki parol noto'g'ri");
     }
 
     if (!user.isActive) {
       throw new UnauthorizedException('Hisobingiz faol emas');
     }
 
-    return this.issueTokens(user.id);
+    const fullUser = await this.userService.findById(user.id);
+
+    return { ...this.issueTokens(user.id), roles: fullUser!.roles };
   }
 
   refresh(user: Pick<User, 'id'>) {

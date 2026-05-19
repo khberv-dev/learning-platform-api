@@ -6,6 +6,8 @@ import { TeacherStatusHistory } from '@/core/user/entity/teacher-status-history.
 import { TeacherFeedback } from '@/core/user/entity/teacher-feedback.entity';
 import { Admin } from '@/core/user/entity/admin.entity';
 import { Student } from '@/core/user/entity/student.entity';
+import { Assignment } from '@/core/assignment/entity/assignment.entity';
+import { AssignmentStatus } from '@/core/assignment/enum/assignment-status.enum';
 import { TeacherStatus } from '@/core/user/enum/teacher-status.enum';
 import { CreateTeacherDto } from '@/core/user/dto/create-teacher.dto';
 import { UpdateTeacherDto } from '@/core/user/dto/update-teacher.dto';
@@ -13,6 +15,7 @@ import { ChangeTeacherStatusDto } from '@/core/user/dto/change-teacher-status.dt
 import { CreateFeedbackDto } from '@/core/user/dto/create-feedback.dto';
 import { UserService } from '@/core/user/services/user.service';
 import { hashPassword } from '@/shared/utils/hash.util';
+import { paginate, Paginated, PaginationQuery } from '@/common/dto/pagination-query.dto';
 
 @Injectable()
 export class TeacherService {
@@ -22,6 +25,7 @@ export class TeacherService {
     @InjectRepository(TeacherFeedback) private readonly feedbackRepo: Repository<TeacherFeedback>,
     @InjectRepository(Admin) private readonly adminRepo: Repository<Admin>,
     @InjectRepository(Student) private readonly studentRepo: Repository<Student>,
+    @InjectRepository(Assignment) private readonly assignmentRepo: Repository<Assignment>,
     private readonly userService: UserService,
   ) {}
 
@@ -47,8 +51,14 @@ export class TeacherService {
     return this.teacherRepo.findOne({ where: { user: { id: user.id } }, relations: { user: true } });
   }
 
-  findAllTeachers() {
-    return this.teacherRepo.find({ relations: { user: true } });
+  async findAllTeachers(query: PaginationQuery): Promise<Paginated<Teacher>> {
+    const [data, total] = await this.teacherRepo.findAndCount({
+      relations: { user: true },
+      order: { createdAt: 'DESC' },
+      skip: query.skip,
+      take: query.take,
+    });
+    return paginate(data, total, query);
   }
 
   async findOneTeacher(id: string) {
@@ -118,6 +128,49 @@ export class TeacherService {
     const teacher = await this.teacherRepo.findOne({ where: { user: { id: userId } } });
     if (!teacher) throw new NotFoundException("O'qituvchi topilmadi");
     return this.teacherRepo.save({ ...teacher, introVideo: videoPath });
+  }
+
+  async getSummaryForTeacher(teacherUserId: string) {
+    const teacher = await this.teacherRepo.findOne({ where: { user: { id: teacherUserId } } });
+    if (!teacher) throw new NotFoundException("O'qituvchi topilmadi");
+
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+    const [totalRaw, newRaw, pendingApprovals, feedbacks] = await Promise.all([
+      this.assignmentRepo
+        .createQueryBuilder('a')
+        .select('COUNT(DISTINCT a.student_id)', 'count')
+        .where('a.teacher_id = :teacherId', { teacherId: teacher.id })
+        .andWhere('a.status = :status', { status: AssignmentStatus.ACTIVE })
+        .andWhere('a.end_date > :now', { now })
+        .getRawOne<{ count: string }>(),
+      this.assignmentRepo
+        .createQueryBuilder('a')
+        .select('COUNT(DISTINCT a.student_id)', 'count')
+        .where('a.teacher_id = :teacherId', { teacherId: teacher.id })
+        .andWhere('a.created_at >= :monthStart', { monthStart })
+        .andWhere('a.created_at < :monthEnd', { monthEnd })
+        .getRawOne<{ count: string }>(),
+      this.assignmentRepo.count({
+        where: { teacher: { id: teacher.id }, status: AssignmentStatus.PENDING },
+      }),
+      this.feedbackRepo.find({ where: { teacher: { id: teacher.id } } }),
+    ]);
+
+    const averageRating =
+      feedbacks.length === 0
+        ? 0
+        : Math.round((feedbacks.reduce((sum, f) => sum + f.rate, 0) / feedbacks.length) * 10) / 10;
+
+    return {
+      totalStudents: Number(totalRaw?.count ?? 0),
+      newStudentsThisMonth: Number(newRaw?.count ?? 0),
+      liveSessionsScheduled: 0,
+      averageRating,
+      pendingApprovals,
+    };
   }
 
   async changeStatus(teacherId: string, dto: ChangeTeacherStatusDto, adminUserId: string) {

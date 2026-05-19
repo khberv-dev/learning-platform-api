@@ -1,15 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from '@/core/user/entity/user.entity';
-import { Student } from '@/core/user/entity/student.entity';
 import { Repository } from 'typeorm';
 
 @Injectable()
 export class UserService {
-  constructor(
-    @InjectRepository(User) private readonly userRepo: Repository<User>,
-    @InjectRepository(Student) private readonly studentRepo: Repository<Student>,
-  ) {}
+  constructor(@InjectRepository(User) private readonly userRepo: Repository<User>) {}
 
   async findById(userId: string) {
     const _user = await this.userRepo.findOne({
@@ -63,15 +59,6 @@ export class UserService {
       .addSelect('user.password')
       .where('user.email = :email', { email })
       .getOne();
-  }
-
-  async findStudentMe(userId: string) {
-    const student = await this.studentRepo.findOne({
-      where: { user: { id: userId } },
-      relations: { user: true },
-    });
-    if (!student) throw new NotFoundException('Talaba topilmadi');
-    return student;
   }
 
   save(user: Partial<User>) {

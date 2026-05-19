@@ -96,6 +96,35 @@ The `User.password` column has `select: false` — TypeORM excludes it from ever
 
 The only place that needs the hash is `AuthService.signIn`, which calls `UserService.findByPhoneNumberForAuth`. That method uses a query builder with `.addSelect('user.password')` to opt back in. All other callers use `findByPhoneNumber` (no password).
 
+## Pagination
+
+List endpoints that need pagination must accept `PaginationQuery` from `@/common/dto/pagination-query.dto` as a `@Query()` parameter — do not roll bespoke `page`/`limit` params per endpoint.
+
+- `PaginationQuery` fields: `page` (default 1) and `limit` (default 10, max 100). Both validated as positive integers and converted via `class-transformer`.
+- Getters: `query.skip` and `query.take` — pass directly to TypeORM's `findAndCount({ skip, take, ... })`.
+- Return shape: wrap the result with `paginate(data, total, query)` to produce `Paginated<T> = { data, total, page, limit, totalPages }`. Don't return bare arrays from paginated endpoints.
+
+Example:
+```ts
+@Get()
+findAll(@Query() query: PaginationQuery) {
+  return this.studentService.findAll(query);
+}
+
+// service
+async findAll(query: PaginationQuery): Promise<Paginated<Student>> {
+  const [data, total] = await this.studentRepo.findAndCount({
+    relations: { user: true },
+    order: { createdAt: 'DESC' },
+    skip: query.skip,
+    take: query.take,
+  });
+  return paginate(data, total, query);
+}
+```
+
+Feature-specific filters (search, status, etc.) belong in a subclass that extends `PaginationQuery`, keeping the pagination fields in one place.
+
 ## File Uploads
 
 Uploaded files are served as static assets at `/public/<subfolder>/<filename>` (served by `ServeStaticModule` from the `uploads/` directory at the project root).

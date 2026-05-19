@@ -1,11 +1,20 @@
 import { BadRequestException, Controller, Get, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiBearerAuth, ApiBody, ApiConsumes, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Roles } from '@/common/decorators/roles.decorator';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { UserRole } from '@/core/user/enum/user-role.enum';
 import { AssessmentService } from '@/core/assessment/services/assessment.service';
 import { assessmentInputStorage, audioFileFilter } from '@/core/assessment/storage/assessment.storage';
+
+const assessmentExample = {
+  id: 'as000000-0000-0000-0000-000000000001',
+  inputAudio: '/public/assessment/input.mp3',
+  feedbackText: 'Yaxshi talaffuz. Iborali grammatikani yaxshilang.',
+  feedbackAudio: '/public/assessment/feedback.mp3',
+  createdAt: '2026-05-18T12:00:00.000Z',
+  updatedAt: '2026-05-18T12:00:00.000Z',
+};
 
 @ApiTags('assessments')
 @ApiBearerAuth()
@@ -20,12 +29,14 @@ export class AssessmentController {
   @ApiBody({
     schema: { type: 'object', required: ['audio'], properties: { audio: { type: 'string', format: 'binary' } } },
   })
+  @ApiCreatedResponse({ schema: { example: assessmentExample } })
   create(@UploadedFile() file: Express.Multer.File, @CurrentUser() user: { id: string }) {
     if (!file) throw new BadRequestException('Audio fayl yuborilmagan');
     return this.assessmentService.assess(user.id, file);
   }
 
   @Get('me')
+  @ApiOkResponse({ schema: { example: [assessmentExample] } })
   findMine(@CurrentUser() user: { id: string }) {
     return this.assessmentService.findMine(user.id);
   }
