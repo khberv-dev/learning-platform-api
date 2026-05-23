@@ -1,16 +1,17 @@
 import {
-  Column,
   CreateDateColumn,
   Entity,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
 import { Student } from '@/core/user/entity/student.entity';
+import { ConversationMessage } from '@/core/assessment/entity/conversation-message.entity';
 
-@Entity('assessments')
-export class Assessment {
+@Entity('conversations')
+export class Conversation {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
@@ -18,14 +19,8 @@ export class Assessment {
   @JoinColumn({ name: 'student_id' })
   student: Student;
 
-  @Column({ name: 'input_audio', type: 'text' })
-  inputAudio: string;
-
-  @Column({ name: 'feedback_text', type: 'text' })
-  feedbackText: string;
-
-  @Column({ name: 'feedback_audio', type: 'text' })
-  feedbackAudio: string;
+  @OneToMany(() => ConversationMessage, (message) => message.conversation)
+  messages: ConversationMessage[];
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

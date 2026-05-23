@@ -1,15 +1,26 @@
 import { Injectable, InternalServerErrorException, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { GoogleGenAI, Modality } from '@google/genai';
+import { GoogleGenAI, Modality, Type } from '@google/genai';
 import { ProxyAgent, setGlobalDispatcher } from 'undici';
 
-const ASSESSMENT_PROMPT = [
-  'You are a friendly language coach. The user has submitted a short spoken audio clip.',
-  'Listen carefully and produce concise spoken feedback (3-5 sentences).',
-  'Cover: pronunciation, fluency, grammar, and one concrete suggestion to improve.',
-  'Speak directly to the learner in encouraging, plain English.',
-  'Do not include markdown, headings, or bullet points — just the spoken text.',
+const SPEAKING_PARTNER_PERSONA = [
+  "You are Alex, a warm, easy-going English speaking partner — like a friend the user is chatting with to practise speaking, NOT a teacher, coach, or examiner.",
+  'The user sends short spoken audio clips. Keep a natural back-and-forth conversation going.',
+  'React genuinely to what they say, share your own short thoughts or opinions, and usually end with a light follow-up question so they have something to respond to.',
+  'Sound spontaneous and human: use contractions, everyday phrasing, and a casual tone. Vary how you open — do not start every reply the same way.',
+  'Keep replies short, like real speech: 1-3 sentences. Never lecture.',
+  'Do NOT correct grammar, score, rate, or critique their speaking unless they explicitly ask for feedback.',
+  'Stay on the topic they raise and remember what was said earlier in the conversation.',
+  'Output only the words you would actually say out loud — no markdown, labels, emoji, or stage directions.',
 ].join(' ');
+
+const TURN_INSTRUCTION =
+  'Listen to this audio clip from the user. Transcribe their words into "transcript", then reply as their speaking partner in "reply".';
+
+interface ConversationContext {
+  role: 'user' | 'assistant';
+  text: string;
+}
 
 @Injectable()
 export class GeminiService implements OnModuleInit {
@@ -32,20 +43,49 @@ export class GeminiService implements OnModuleInit {
     this.client = new GoogleGenAI({ apiKey });
   }
 
-  async analyzeAudio(audio: Buffer, mimeType: string): Promise<string> {
+  async converse(
+    history: ConversationContext[],
+    audio: Buffer,
+    mimeType: string,
+  ): Promise<{ transcript: string; reply: string }> {
+    const contents: Parameters<typeof this.client.models.generateContent>[0]['contents'] = history.map((m) => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.text }],
+    }));
+    contents.push({
+      role: 'user',
+      parts: [{ text: TURN_INSTRUCTION }, { inlineData: { mimeType, data: audio.toString('base64') } }],
+    });
+
     const response = await this.client.models.generateContent({
       model: this.analysisModel,
-      contents: [
-        {
-          role: 'user',
-          parts: [{ text: ASSESSMENT_PROMPT }, { inlineData: { mimeType, data: audio.toString('base64') } }],
+      contents,
+      config: {
+        systemInstruction: SPEAKING_PARTNER_PERSONA,
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            transcript: { type: Type.STRING },
+            reply: { type: Type.STRING },
+          },
+          required: ['transcript', 'reply'],
         },
-      ],
+      },
     });
 
     const text = response.text?.trim();
-    if (!text) throw new InternalServerErrorException("AI tahlili bo'sh javob qaytardi");
-    return text;
+    if (!text) throw new InternalServerErrorException("AI bo'sh javob qaytardi");
+
+    let parsed: { transcript?: string; reply?: string };
+    try {
+      parsed = JSON.parse(text) as { transcript?: string; reply?: string };
+    } catch {
+      throw new InternalServerErrorException("AI javobini o'qib bo'lmadi");
+    }
+    if (!parsed.reply) throw new InternalServerErrorException('AI javob matni topilmadi');
+
+    return { transcript: parsed.transcript ?? '', reply: parsed.reply };
   }
 
   async synthesizeSpeech(text: string): Promise<Buffer> {

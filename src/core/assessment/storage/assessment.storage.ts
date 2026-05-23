@@ -26,4 +26,4 @@ export function audioFileFilter(
 }
 
 export const toInputAudioPath = (filename: string) => `/assessment-input/${filename}`;
-export const toFeedbackAudioPath = (filename: string) => `/assessment-output/${filename}`;
+export const toReplyAudioPath = (filename: string) => `/assessment-output/${filename}`;
