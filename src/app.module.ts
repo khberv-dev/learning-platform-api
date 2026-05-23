@@ -11,6 +11,9 @@ import { UserModule } from '@/core/user/user.module';
 import { CourseModule } from '@/core/course/course.module';
 import { EnrollmentModule } from '@/core/enrollment/enrollment.module';
 import { AssignmentModule } from '@/core/assignment/assignment.module';
+import { GroupModule } from '@/core/group/group.module';
+import { ChatModule } from '@/core/chat/chat.module';
+import { LiveLessonModule } from '@/core/live-lesson/live-lesson.module';
 import { AssessmentModule } from '@/core/assessment/assessment.module';
 import { MatchModule } from '@/core/match/match.module';
 import { CallModule } from '@/core/call/call.module';
@@ -30,6 +33,9 @@ import { RolesGuard } from '@/common/guards/roles.guard';
     EnrollmentModule,
     CourseModule,
     AssignmentModule,
+    GroupModule,
+    ChatModule,
+    LiveLessonModule,
     AssessmentModule,
     MatchModule,
     CallModule,
