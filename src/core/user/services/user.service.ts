@@ -61,6 +61,11 @@ export class UserService {
       .getOne();
   }
 
+  async updateAvatar(userId: string, avatarPath: string) {
+    await this.userRepo.update(userId, { avatar: avatarPath });
+    return this.findById(userId);
+  }
+
   save(user: Partial<User>) {
     return this.userRepo.save(user);
   }
