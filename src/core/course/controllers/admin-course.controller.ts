@@ -25,6 +25,7 @@ import { UserRole } from '@/core/user/enum/user-role.enum';
 import { CourseService } from '@/core/course/services/course.service';
 import { UnitService } from '@/core/course/services/unit.service';
 import { LessonService } from '@/core/course/services/lesson.service';
+import { TaskService } from '@/core/course/services/task.service';
 import { courseImageStorage, imageFileFilter, toImagePath } from '@/core/course/storage/course-image.storage';
 import { lessonMediaStorage, toMediaPath, videoFileFilter } from '@/core/course/storage/lesson-media.storage';
 import { CreateCourseDto } from '@/core/course/dto/create-course.dto';
@@ -33,6 +34,8 @@ import { CreateUnitDto } from '@/core/course/dto/create-unit.dto';
 import { UpdateUnitDto } from '@/core/course/dto/update-unit.dto';
 import { CreateLessonDto } from '@/core/course/dto/create-lesson.dto';
 import { UpdateLessonDto } from '@/core/course/dto/update-lesson.dto';
+import { CreateTaskDto } from '@/core/course/dto/create-task.dto';
+import { UpdateTaskDto } from '@/core/course/dto/update-task.dto';
 
 const courseUpload = () =>
   UseInterceptors(FileInterceptor('image', { storage: courseImageStorage, fileFilter: imageFileFilter }));
@@ -93,6 +96,15 @@ const lessonExample = {
   updatedAt: '2026-01-15T10:00:00.000Z',
 };
 
+const taskExample = {
+  id: 't0000000-0000-0000-0000-000000000001',
+  task: 'Choose the correct greeting.',
+  options: ['Hello', 'Goodbye', 'Thank you', 'Sorry'],
+  answer: 'Hello',
+  createdAt: '2026-01-15T10:00:00.000Z',
+  updatedAt: '2026-01-15T10:00:00.000Z',
+};
+
 @ApiTags('courses')
 @ApiBearerAuth()
 @Roles(UserRole.ADMIN)
@@ -102,6 +114,7 @@ export class AdminCourseController {
     private readonly courseService: CourseService,
     private readonly unitService: UnitService,
     private readonly lessonService: LessonService,
+    private readonly taskService: TaskService,
   ) {}
 
   // ── Course ────────────────────────────────────────────────────────────────
@@ -210,5 +223,52 @@ export class AdminCourseController {
     @Param('lessonId') lessonId: string,
   ) {
     return this.lessonService.deleteLesson(courseId, unitId, lessonId);
+  }
+
+  // ── Task ──────────────────────────────────────────────────────────────────
+
+  @Post(':courseId/units/:unitId/lessons/:lessonId/tasks')
+  @ApiCreatedResponse({ schema: { example: taskExample } })
+  createTask(
+    @Param('courseId') courseId: string,
+    @Param('unitId') unitId: string,
+    @Param('lessonId') lessonId: string,
+    @Body() dto: CreateTaskDto,
+  ) {
+    return this.taskService.createTask(courseId, unitId, lessonId, dto);
+  }
+
+  @Get(':courseId/units/:unitId/lessons/:lessonId/tasks')
+  @ApiOkResponse({ schema: { example: [taskExample] } })
+  listTasks(
+    @Param('courseId') courseId: string,
+    @Param('unitId') unitId: string,
+    @Param('lessonId') lessonId: string,
+  ) {
+    return this.taskService.listTasks(courseId, unitId, lessonId);
+  }
+
+  @Patch(':courseId/units/:unitId/lessons/:lessonId/tasks/:taskId')
+  @ApiOkResponse({ schema: { example: taskExample } })
+  updateTask(
+    @Param('courseId') courseId: string,
+    @Param('unitId') unitId: string,
+    @Param('lessonId') lessonId: string,
+    @Param('taskId') taskId: string,
+    @Body() dto: UpdateTaskDto,
+  ) {
+    return this.taskService.updateTask(courseId, unitId, lessonId, taskId, dto);
+  }
+
+  @Delete(':courseId/units/:unitId/lessons/:lessonId/tasks/:taskId')
+  @HttpCode(204)
+  @ApiNoContentResponse()
+  deleteTask(
+    @Param('courseId') courseId: string,
+    @Param('unitId') unitId: string,
+    @Param('lessonId') lessonId: string,
+    @Param('taskId') taskId: string,
+  ) {
+    return this.taskService.deleteTask(courseId, unitId, lessonId, taskId);
   }
 }

@@ -10,6 +10,7 @@ import {
 } from 'typeorm';
 import { Unit } from '@/core/course/entity/unit.entity';
 import { Progress } from '@/core/enrollment/entity/progress.entity';
+import { Task } from '@/core/course/entity/task.entity';
 
 @Entity('lessons')
 export class Lesson {
@@ -31,6 +32,9 @@ export class Lesson {
 
   @OneToMany(() => Progress, (progress) => progress.lesson)
   progresses: Progress[];
+
+  @OneToMany(() => Task, (task) => task.lesson)
+  tasks: Task[];
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
