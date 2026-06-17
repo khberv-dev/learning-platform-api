@@ -5,158 +5,102 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-npm run start:dev      # run with hot reload (development)
-npm run build          # compile TypeScript to dist/
-npm run start:prod     # run compiled output
-npm run test           # unit tests (Jest, rootDir: src, pattern: *.spec.ts)
-npm run test:e2e       # end-to-end tests (test/jest-e2e.json config)
-npm run test:cov       # test coverage
-npm run lint           # ESLint with auto-fix
-npm run format         # Prettier format
+npm run start:dev       # dev server with watch mode
+npm run build           # production build (nest build → dist/)
+npm run start:prod      # run the compiled dist/main
+
+npm run test            # unit tests (jest)
+npm run test:e2e        # e2e tests (test/jest-e2e.json)
+npm run test:cov        # coverage report
+
+npx jest --testPathPattern="<pattern>"   # run a single spec file
+npx jest src/core/auth/auth.service.spec.ts  # by path
+
+npm run lint            # eslint with autofix
+npm run format          # prettier format
 ```
 
-Run a single test file:
-```bash
-npx jest src/core/auth/auth.service.spec.ts
-```
+## Environment
 
-## Environment Variables
+Copy `.env` and populate these variables before running:
 
-Copy `.env` and set:
-- `PORT` — server port
-- `JWT_ACCESS_SECRET`, `JWT_ACCESS_EXPIRE` — access token config
-- `JWT_REFRESH_SECRET`, `JWT_REFRESH_EXPIRE` — refresh token config
-- `DB_HOST`, `DB_PORT`, `DB_USERNAME`, `DB_PASSWORD`, `DB_DATABASE` — PostgreSQL connection
-- `INIT_ADMIN_LOGIN`, `INIT_ADMIN_PASSWORD` — initial admin seed credentials
-- `GEMINI_API_KEY` — Google Gen AI API key (used by `assessment` module)
-- `GEMINI_MODEL` — Gemini model for audio analysis (e.g. `gemini-2.5-flash`)
-- `GEMINI_TTS_MODEL` — Gemini TTS model for spoken feedback (e.g. `gemini-2.5-flash-preview-tts`)
-- `GEMINI_TTS_VOICE` — optional, prebuilt voice name (default `Kore`)
-- `GEMINI_PROXY_URL` — optional outbound proxy for Gemini calls (e.g. `http://user:pass@host:port`, `socks5://host:1080`). Wired via `undici.setGlobalDispatcher` in `GeminiService.onModuleInit`, so it applies process-wide to every `fetch()`, not just GenAI traffic.
+| Variable | Notes |
+|---|---|
+| `PORT` | HTTP port |
+| `DB_HOST`, `DB_PORT`, `DB_USERNAME`, `DB_PASSWORD`, `DB_DATABASE` | PostgreSQL |
+| `JWT_ACCESS_SECRET`, `JWT_ACCESS_EXPIRE` | e.g. `15m` |
+| `JWT_REFRESH_SECRET`, `JWT_REFRESH_EXPIRE` | e.g. `7d` |
+| `GEMINI_API_KEY`, `GEMINI_MODEL`, `GEMINI_TTS_MODEL` | Google Gemini |
+| `GEMINI_TTS_VOICE` | optional, defaults to `Kore` |
+| `GEMINI_PROXY_URL` | optional outbound proxy for Gemini calls |
+
+TypeORM runs with `synchronize: true` — schema is auto-migrated in dev. The data source reads from `dist/**/*.entity.js`, so the app must be built (or running via `nest start`) before the DB is used.
+
+Uploaded files land in `./uploads/` and are served as static assets at `/public/*`.
+
+Swagger docs are at `/docs`. All REST routes carry the prefix `/api`.
 
 ## Architecture
 
-**Module layout:**
-- `src/core/` — domain feature modules. Each module folder contains one `<feature>.module.ts` file at the root plus typed subfolders:
-  - `dto/` — request/response DTOs
-  - `entity/` — TypeORM entity classes
-  - `services/` — one service file per logical resource (e.g. `course.service.ts`, `unit.service.ts`, `lesson.service.ts`)
-  - `controllers/` — one controller file per logical resource (e.g. `course.controller.ts`, `admin-course.controller.ts`)
-  - `storage/` — Multer `diskStorage` configs and file-filter helpers (only when the feature handles uploads)
-  - additional resource folders as needed (e.g. `strategies/` in auth)
-  - the module file lives at the feature root, not in a subfolder
-- `src/common/` — app-wide NestJS primitives (guards, decorators, pipes). Guards (`jwt-access.guard.ts`, `jwt-refresh.guard.ts`) wrap `@nestjs/passport` strategies named `jwt-access` / `jwt-refresh`.
-- `src/shared/` — framework-agnostic utilities and config (`database.config.ts`, `hash.util.ts`).
-
-**UserRole enum** lives at `src/core/user/enum/user-role.enum.ts` — import from there everywhere.
-
-**Path alias:** `@/*` resolves to `src/*` (configured in `tsconfig.json` and supported via `tsconfig-paths` at runtime).
-
-**Naming convention:** All TypeScript/application properties use **camelCase**; all database column names use **snake_case**. Enforce this explicitly on every entity column and relation with the `name:` option — e.g. `@Column({ name: 'is_active' })`, `@CreateDateColumn({ name: 'created_at' })`, `@JoinColumn({ name: 'course_id' })`. Never rely on TypeORM's default column naming.
-
-**Database:** TypeORM with PostgreSQL. `dataSource` in `shared/config/database.config.ts` is used both for the NestJS module root (`TypeOrmModule.forRoot`) and can be used for CLI migrations. `synchronize: true` — schema is auto-synced from compiled entities in `dist/**/*.entity.js`, so **always build before running** if entities changed.
-
-**User model:** A single `User` entity holds credentials and profile fields. Role is expressed via three optional `OneToOne` relations — `Student`, `Teacher`, `Admin` — rather than a column. A user's role is determined by which relation is populated. The `UserRole` enum (`src/common/enum/user-role.enum.ts`) is the canonical list of roles.
-
-**Auth flow:** `POST /api/auth/sign-up` creates a `User` + `Student` record and returns `{ accessToken, refreshToken }`. Tokens are signed JWTs; access/refresh secrets and expiries come from config. Password hashing uses bcrypt with cost factor 15 (`hash.util.ts`).
-
-**Validation:** A global `ValidationPipe` (whitelist + forbidNonWhitelisted + transform) is applied at bootstrap. DTOs use `class-validator` decorators. User-facing error messages are written in Uzbek.
-
-**New feature checklist:** create `src/core/<feature>/` with `<feature>.module.ts` at the root; add `dto/`, `entity/`, `services/` subfolders (plus `storage/` if uploads are needed); register the module in `AppModule`; register entities with `TypeOrmModule.forFeature` inside the feature module; export services that other modules need to inject.
-
-## API Documentation
-
-Swagger UI is served at `http://localhost:<PORT>/docs` (powered by `@nestjs/swagger`). The spec is generated at runtime — no static file to maintain.
-
-**Conventions:**
-- Every controller gets `@ApiTags('resource-name')` — use the plain resource name (`courses`, `teachers`, `enrollments`), never a role prefix like `admin / courses`.
-- Protected controllers/routes get `@ApiBearerAuth()`. The refresh endpoint uses `@ApiBearerAuth()` at the route level (refresh token in header), while the global access guard is documented via the top-level `addBearerAuth()` call in `main.ts`.
-- DTO fields get `@ApiProperty()`. Use `example:` for fields with a constrained format (e.g. phone numbers).
-- Public routes (`sign-up`, `sign-in`) need no security decorator — they have no `@ApiBearerAuth()` and the global bearer auth does not apply.
-- Multipart/form-data endpoints use a manual `@ApiBody({ schema: { ... } })` inline schema instead of a DTO class, since Swagger cannot introspect `multipart/form-data` from class decorators.
-
-## Controller Routing Pattern
-
-When two controllers share the same base path (e.g. both `@Controller('courses')`), register the **less-privileged controller first** in the module's `controllers` array. NestJS/Express routes to the first registered handler that matches — the role guard then enforces access.
-
-Example in `CourseModule`:
-```ts
-controllers: [CourseController, AdminCourseController]  // student first, admin second
+```
+src/
+├── app.module.ts           # root module; wires global guards
+├── main.ts                 # bootstrap, Swagger setup, global pipe
+├── common/
+│   ├── decorators/         # @CurrentUser(), @Public(), @Roles()
+│   ├── dto/                # PaginationQuery + paginate() helper
+│   ├── guards/             # JwtAccessGuard, RolesGuard (both global via APP_GUARD)
+│   └── pipes/              # global ValidationPipe
+├── core/                   # feature modules
+│   ├── auth/               # sign-up, sign-in, refresh
+│   ├── user/               # User, Student, Teacher, Admin entities; avatar upload
+│   ├── course/             # Course → Unit → Lesson hierarchy
+│   ├── enrollment/         # Enrollment + Progress per Lesson
+│   ├── assignment/         # Assignments for teachers to post
+│   ├── group/              # Teacher-owned groups with M2M student members
+│   ├── chat/               # Chat rooms, members, messages + Socket.io gateway
+│   ├── live-lesson/        # Scheduled lessons with meet link
+│   ├── assessment/         # AI speaking partner (Gemini audio + TTS)
+│   ├── match/              # In-memory peer matchmaking
+│   └── call/               # Call record (start/end/duration)
+└── shared/
+    ├── config/             # TypeORM DataSource config
+    └── utils/              # bcrypt hash helpers
 ```
 
-This means:
-- `GET /courses` → hits `CourseController` (student) first; admin's handler at the same path is shadowed
-- Routes that only exist in `AdminCourseController` (e.g. `DELETE /courses/:id`) are still reachable
+### Path alias
 
-For a teacher self-update route (`PATCH /teachers/me`) that must not be captured by an admin param route (`PATCH /teachers/:id`): placing `TeacherController` before `AdminTeacherController` ensures the literal `me` segment is matched first.
+`@/` maps to `src/` (configured in `tsconfig.json`). Use it for all internal imports.
 
-## Password Security
+### Auth & authorization
 
-The `User.password` column has `select: false` — TypeORM excludes it from every `find`/`findOne` query by default. **Do not remove this.**
+`JwtAccessGuard` and `RolesGuard` are registered as global `APP_GUARD` providers, so every route is protected by default.
 
-The only place that needs the hash is `AuthService.signIn`, which calls `UserService.findByPhoneNumberForAuth`. That method uses a query builder with `.addSelect('user.password')` to opt back in. All other callers use `findByPhoneNumber` (no password).
+- Opt out of JWT with `@Public()` on the handler or controller.
+- Restrict by role with `@Roles(UserRole.TEACHER)` (or STUDENT / ADMIN).
+- Extract the authenticated user in a controller with `@CurrentUser()`.
 
-## Pagination
+JWT payload is `{ sub: userId }`. The access strategy resolves the full `User` entity on every request via `UserService.findById`.
 
-List endpoints that need pagination must accept `PaginationQuery` from `@/common/dto/pagination-query.dto` as a `@Query()` parameter — do not roll bespoke `page`/`limit` params per endpoint.
+Roles are not a column — they are derived from which of the three profile entities (`student`, `teacher`, `admin`) exist for that user (see `User.roles()` in `user.entity.ts`).
 
-- `PaginationQuery` fields: `page` (default 1) and `limit` (default 10, max 100). Both validated as positive integers and converted via `class-transformer`.
-- Getters: `query.skip` and `query.take` — pass directly to TypeORM's `findAndCount({ skip, take, ... })`.
-- Return shape: wrap the result with `paginate(data, total, query)` to produce `Paginated<T> = { data, total, page, limit, totalPages }`. Don't return bare arrays from paginated endpoints.
+### User / role model
 
-Example:
-```ts
-@Get()
-findAll(@Query() query: PaginationQuery) {
-  return this.studentService.findAll(query);
-}
+`User` has three optional one-to-one relations (`student`, `teacher`, `admin`). Presence of a relation means the user has that role. New sign-ups automatically get a `Student` profile created.
 
-// service
-async findAll(query: PaginationQuery): Promise<Paginated<Student>> {
-  const [data, total] = await this.studentRepo.findAndCount({
-    relations: { user: true },
-    order: { createdAt: 'DESC' },
-    skip: query.skip,
-    take: query.take,
-  });
-  return paginate(data, total, query);
-}
-```
+### WebSocket gateways
 
-Feature-specific filters (search, status, etc.) belong in a subclass that extends `PaginationQuery`, keeping the pagination fields in one place.
+Two Socket.io namespaces authenticate via a JWT the client passes in `handshake.auth.token` or `Authorization: Bearer <token>`:
 
-## File Uploads
+- `/chat` — room-based messaging; gateway writes to DB via `ChatService`, then broadcasts with `broadcastMessage`.
+- `/match` — in-memory peer-to-peer matchmaking; paired users exchange WebRTC signals via `onSignal`. Match state is not persisted — only the resulting `Call` record is saved.
 
-Uploaded files are served as static assets at `/public/<subfolder>/<filename>` (served by `ServeStaticModule` from the `uploads/` directory at the project root).
+### Assessment module
 
-Each upload type has its own storage config in `<module>/storage/`:
-- `uploads/course/` → `/public/course/…` (course images)
-- `uploads/lesson/` → `/public/lesson/…` (lesson videos)
-- `uploads/teacher-intro/` → `/public/teacher-intro/…` (teacher intro videos)
+Students upload audio clips via REST (`POST /api/assessment/conversations/:id/turns`). `AssessmentService` passes the audio to `GeminiService.converse()` (transcript + reply text), then synthesizes the reply with `GeminiService.synthesizeSpeech()` (raw PCM → WAV wrapper). Both audio files are stored under `uploads/assessment/`.
 
-Storage files export three things: a `diskStorage` instance, a file-filter function, and a `toXxxPath(filename)` helper that returns the public URL path to store in the DB.
+`GeminiService` reads its models and API key on `onModuleInit`. If `GEMINI_PROXY_URL` is set, it applies a process-wide proxy via `undici.setGlobalDispatcher`.
 
-## Role Guard
+### File storage pattern
 
-`RolesGuard` (`src/common/guards/roles.guard.ts`) reads `user.roles` (a `UserRole[]` array) from the request. This array is attached by `JwtAccessStrategy.validate` → `UserService.findById`, which calls `_user.roles()` on the loaded entity. The `roles()` method on `User` checks which of `student`, `teacher`, `admin` relations are populated.
-
-Do **not** check `user.student`, `user.teacher`, or `user.admin` directly in the guard — those relations are stripped from the object that `findById` returns.
-
-## Student Gamification
-
-`Student` entity has `points: int`, `coins: int`, `level: StudentLevel` (enum: A1, A2, B1, B2, C1, C2, default A1). These are managed server-side; no public write endpoint exists yet.
-
-## Teacher Model
-
-`Teacher` has `status: TeacherStatus` (ACTIVE / INACTIVE), `profession: string | null`, `introVideo: string | null`, and a `feedbacks: TeacherFeedback[]` relation. `summaryRating` is computed in-memory from feedbacks — it is not stored in the DB. When `status` changes, `User.isActive` is updated accordingly so inactive teachers cannot sign in.
-
-## Match (WebRTC signaling)
-
-Socket.IO gateway at namespace `/match` (`MatchGateway`). Auth: pass the access token as `auth.token` in the handshake (or `Authorization: Bearer …`) — verified directly with `JwtService` (no Passport). The global HTTP `JwtAccessGuard` does not apply to sockets.
-
-State is in-memory (`MatchService`): a FIFO queue, one socket per user (a second connection from the same user kicks the first via `replaced` then disconnect), and a `sessionId → [userA, userB]` map.
-
-Client → server events: `search`, `cancel`, `signal` (`{ data }` is opaquely relayed — SDP/ICE), `leave`.
-Server → client events: `searching`, `matched` (`{ sessionId, role: 'caller' | 'callee' }`), `signal`, `partner-left` (`{ reason: 'leave' | 'disconnect' }`), `cancelled`, `left`, `replaced`, `unauthorized`, `error`.
-
-Pairing rule: the user already in the queue is `callee`; the newcomer is `caller` and creates the SDP offer first.
+Each module that accepts uploads defines a `*.storage.ts` file that configures a `multer.diskStorage` destination and exposes a path-to-URL helper (e.g. `toAvatarPath`). Static serving maps `uploads/` → `/public/`.
