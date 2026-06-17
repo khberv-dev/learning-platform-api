@@ -68,6 +68,7 @@ export class CourseController {
   }
 
   @Get(':courseId/units/:unitId/lessons/:lessonId/tasks')
+  @Roles(UserRole.STUDENT, UserRole.ADMIN)
   @ApiOkResponse({ schema: { example: [taskExample] } })
   listTasks(
     @Param('courseId') courseId: string,
