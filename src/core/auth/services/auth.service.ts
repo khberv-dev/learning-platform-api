@@ -29,10 +29,18 @@ export class AuthService {
   }
 
   async signUp(data: SignUpRequest) {
-    const existingUser = await this.userService.findByPhoneNumber(data.phoneNumber);
+    const existingUser = await this.userService.findByPhoneNumberForAuthWithRoles(data.phoneNumber);
 
     if (existingUser) {
-      throw new BadRequestException('Boshqa telefon raqam kiriting');
+      if (existingUser.student) {
+        throw new BadRequestException('Bu telefon raqam allaqachon ro\'yxatdan o\'tgan');
+      }
+      if (!(await comparePassword(data.password, existingUser.password))) {
+        throw new BadRequestException("Login yoki parol noto'g'ri");
+      }
+      await this.userService.addStudentRole(existingUser.id);
+      const fullUser = await this.userService.findById(existingUser.id);
+      return { ...this.issueTokens(existingUser.id), roles: fullUser!.roles };
     }
 
     const passwordHash = await hashPassword(data.password);

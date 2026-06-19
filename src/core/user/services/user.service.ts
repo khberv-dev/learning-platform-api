@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from '@/core/user/entity/user.entity';
+import { Student } from '@/core/user/entity/student.entity';
 import { Repository } from 'typeorm';
 
 @Injectable()
@@ -26,6 +27,21 @@ export class UserService {
       .addSelect('user.password')
       .where('user.phoneNumber = :phoneNumber', { phoneNumber })
       .getOne();
+  }
+
+  findByPhoneNumberForAuthWithRoles(phoneNumber: string) {
+    return this.userRepo
+      .createQueryBuilder('user')
+      .addSelect('user.password')
+      .leftJoinAndSelect('user.student', 'student')
+      .leftJoinAndSelect('user.teacher', 'teacher')
+      .leftJoinAndSelect('user.admin', 'admin')
+      .where('user.phoneNumber = :phoneNumber', { phoneNumber })
+      .getOne();
+  }
+
+  addStudentRole(userId: string) {
+    return this.userRepo.save({ id: userId, student: new Student() });
   }
 
   findByPhoneNumber(phoneNumber: string) {
