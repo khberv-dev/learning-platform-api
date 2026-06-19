@@ -7,7 +7,7 @@ import { UserService } from '@/core/user/services/user.service';
 import { SignUpRequest } from '@/core/auth/dto/sign-up-request.dto';
 import { SignInRequest } from '@/core/auth/dto/sign-in-request.dto';
 import { SendOtpDto } from '@/core/auth/dto/send-otp.dto';
-import { VerifyOtpDto } from '@/core/auth/dto/verify-otp.dto';
+import { RecoverPasswordDto } from '@/core/auth/dto/recover-password.dto';
 import { Otp } from '@/core/auth/entity/otp.entity';
 import { comparePassword, hashPassword } from '@/shared/utils/hash.util';
 import { Student } from '@/core/user/entity/student.entity';
@@ -37,7 +37,20 @@ export class AuthService {
     return { accessToken, refreshToken };
   }
 
+  private async consumeOtp(phoneNumber: string, code: string): Promise<void> {
+    const otp = await this.otpRepo.findOne({
+      where: { phoneNumber, code, used: false },
+      order: { createdAt: 'DESC' },
+    });
+    if (!otp || otp.expiresAt < new Date()) {
+      throw new BadRequestException("OTP noto'g'ri yoki muddati o'tgan");
+    }
+    await this.otpRepo.update(otp.id, { used: true });
+  }
+
   async signUp(data: SignUpRequest) {
+    await this.consumeOtp(data.phoneNumber, data.code);
+
     const existingUser = await this.userService.findByPhoneNumberForAuthWithRoles(data.phoneNumber);
 
     if (existingUser) {
@@ -94,22 +107,15 @@ export class AuthService {
     return { message: 'OTP yuborildi' };
   }
 
-  async verifyOtp(dto: VerifyOtpDto) {
-    const otp = await this.otpRepo.findOne({
-      where: { phoneNumber: dto.phoneNumber, code: dto.code, used: false },
-      order: { createdAt: 'DESC' },
-    });
-
-    if (!otp || otp.expiresAt < new Date()) {
-      throw new BadRequestException("OTP noto'g'ri yoki muddati o'tgan");
-    }
-
-    await this.otpRepo.update(otp.id, { used: true });
+  async recoverPassword(dto: RecoverPasswordDto): Promise<{ message: string }> {
+    await this.consumeOtp(dto.phoneNumber, dto.code);
 
     const user = await this.userService.findByPhoneNumber(dto.phoneNumber);
-    if (!user) throw new NotFoundException("Foydalanuvchi topilmadi. Avval ro'yxatdan o'ting");
+    if (!user) throw new NotFoundException("Foydalanuvchi topilmadi");
 
-    const fullUser = await this.userService.findById(user.id);
-    return { ...this.issueTokens(user.id), roles: fullUser!.roles };
+    const passwordHash = await hashPassword(dto.newPassword);
+    await this.userService.updatePassword(user.id, passwordHash);
+
+    return { message: 'Parol yangilandi' };
   }
 }

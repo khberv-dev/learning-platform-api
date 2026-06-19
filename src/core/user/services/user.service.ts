@@ -85,4 +85,8 @@ export class UserService {
   save(user: Partial<User>) {
     return this.userRepo.save(user);
   }
+
+  async updatePassword(userId: string, passwordHash: string): Promise<void> {
+    await this.userRepo.update(userId, { password: passwordHash });
+  }
 }

@@ -4,7 +4,7 @@ import { AuthService } from '@/core/auth/services/auth.service';
 import { SignUpRequest } from '@/core/auth/dto/sign-up-request.dto';
 import { SignInRequest } from '@/core/auth/dto/sign-in-request.dto';
 import { SendOtpDto } from '@/core/auth/dto/send-otp.dto';
-import { VerifyOtpDto } from '@/core/auth/dto/verify-otp.dto';
+import { RecoverPasswordDto } from '@/core/auth/dto/recover-password.dto';
 import { Public } from '@/common/decorators/public.decorator';
 import { JwtRefreshGuard } from '@/common/guards/jwt-refresh.guard';
 
@@ -55,9 +55,9 @@ export class AuthController {
   }
 
   @Public()
-  @Post('otp/verify')
-  @ApiCreatedResponse({ schema: { example: tokenExample } })
-  verifyOtp(@Body() dto: VerifyOtpDto) {
-    return this.authService.verifyOtp(dto);
+  @Post('recover-password')
+  @ApiCreatedResponse({ schema: { example: { message: 'Parol yangilandi' } } })
+  recoverPassword(@Body() dto: RecoverPasswordDto) {
+    return this.authService.recoverPassword(dto);
   }
 }
