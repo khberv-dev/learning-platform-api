@@ -3,6 +3,8 @@ import { ApiBearerAuth, ApiCreatedResponse, ApiTags } from '@nestjs/swagger';
 import { AuthService } from '@/core/auth/services/auth.service';
 import { SignUpRequest } from '@/core/auth/dto/sign-up-request.dto';
 import { SignInRequest } from '@/core/auth/dto/sign-in-request.dto';
+import { SendOtpDto } from '@/core/auth/dto/send-otp.dto';
+import { VerifyOtpDto } from '@/core/auth/dto/verify-otp.dto';
 import { Public } from '@/common/decorators/public.decorator';
 import { JwtRefreshGuard } from '@/common/guards/jwt-refresh.guard';
 
@@ -43,5 +45,19 @@ export class AuthController {
   @ApiCreatedResponse({ schema: { example: refreshExample } })
   refresh(@Request() req) {
     return this.authService.refresh(req.user);
+  }
+
+  @Public()
+  @Post('otp/send')
+  @ApiCreatedResponse({ schema: { example: { message: 'OTP yuborildi' } } })
+  sendOtp(@Body() dto: SendOtpDto) {
+    return this.authService.sendOtp(dto);
+  }
+
+  @Public()
+  @Post('otp/verify')
+  @ApiCreatedResponse({ schema: { example: tokenExample } })
+  verifyOtp(@Body() dto: VerifyOtpDto) {
+    return this.authService.verifyOtp(dto);
   }
 }

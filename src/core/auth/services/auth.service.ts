@@ -1,12 +1,20 @@
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { UserService } from '@/core/user/services/user.service';
 import { SignUpRequest } from '@/core/auth/dto/sign-up-request.dto';
 import { SignInRequest } from '@/core/auth/dto/sign-in-request.dto';
+import { SendOtpDto } from '@/core/auth/dto/send-otp.dto';
+import { VerifyOtpDto } from '@/core/auth/dto/verify-otp.dto';
+import { Otp } from '@/core/auth/entity/otp.entity';
 import { comparePassword, hashPassword } from '@/shared/utils/hash.util';
 import { Student } from '@/core/user/entity/student.entity';
 import { User } from '@/core/user/entity/user.entity';
+
+const OTP_CODE = '666666';
+const OTP_TTL_MS = 5 * 60 * 1000;
 
 @Injectable()
 export class AuthService {
@@ -14,6 +22,7 @@ export class AuthService {
     private readonly userService: UserService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    @InjectRepository(Otp) private readonly otpRepo: Repository<Otp>,
   ) {}
 
   issueTokens(userId: string) {
@@ -77,5 +86,30 @@ export class AuthService {
 
   refresh(user: Pick<User, 'id'>) {
     return this.issueTokens(user.id);
+  }
+
+  async sendOtp(dto: SendOtpDto): Promise<{ message: string }> {
+    const expiresAt = new Date(Date.now() + OTP_TTL_MS);
+    await this.otpRepo.save({ phoneNumber: dto.phoneNumber, code: OTP_CODE, expiresAt, used: false });
+    return { message: 'OTP yuborildi' };
+  }
+
+  async verifyOtp(dto: VerifyOtpDto) {
+    const otp = await this.otpRepo.findOne({
+      where: { phoneNumber: dto.phoneNumber, code: dto.code, used: false },
+      order: { createdAt: 'DESC' },
+    });
+
+    if (!otp || otp.expiresAt < new Date()) {
+      throw new BadRequestException("OTP noto'g'ri yoki muddati o'tgan");
+    }
+
+    await this.otpRepo.update(otp.id, { used: true });
+
+    const user = await this.userService.findByPhoneNumber(dto.phoneNumber);
+    if (!user) throw new NotFoundException("Foydalanuvchi topilmadi. Avval ro'yxatdan o'ting");
+
+    const fullUser = await this.userService.findById(user.id);
+    return { ...this.issueTokens(user.id), roles: fullUser!.roles };
   }
 }
