@@ -15,7 +15,7 @@ import { UserService } from '@/core/user/services/user.service';
 import { MatchService } from '@/core/match/services/match.service';
 
 interface AuthedSocket extends Socket {
-  data: { userId: string };
+  data: { userId: string; firstName: string; lastName: string | null; avatar: string | null };
 }
 
 @WebSocketGateway({ namespace: '/match', cors: { origin: '*' } })
@@ -46,6 +46,9 @@ export class MatchGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
       if (!user) return next(new Error('Foydalanuvchi topilmadi'));
 
       socket.data.userId = user.id;
+      socket.data.firstName = user.firstName;
+      socket.data.lastName = user.lastName ?? null;
+      socket.data.avatar = user.avatar ?? null;
       next();
     });
   }
@@ -83,14 +86,16 @@ export class MatchGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
         socket.emit('searching');
         return;
       case 'joined': {
-        const partnerSocket = this.matchService.getSocket(outcome.result.partnerId);
+        const partnerSocket = this.matchService.getSocket(outcome.result.partnerId) as AuthedSocket | null;
         if (!partnerSocket) {
           await this.matchService.end(socket.data.userId, 'leave');
           socket.emit('error', { message: 'Juftlik topilmadi' });
           return;
         }
-        socket.emit('matched', { sessionId: outcome.result.sessionId, role: 'caller' });
-        partnerSocket.emit('matched', { sessionId: outcome.result.sessionId, role: 'callee' });
+        const peerOfCaller = { id: partnerSocket.data.userId, firstName: partnerSocket.data.firstName, lastName: partnerSocket.data.lastName, avatar: partnerSocket.data.avatar };
+        const peerOfCallee = { id: socket.data.userId, firstName: socket.data.firstName, lastName: socket.data.lastName, avatar: socket.data.avatar };
+        socket.emit('matched', { sessionId: outcome.result.sessionId, role: 'caller', peer: peerOfCaller });
+        partnerSocket.emit('matched', { sessionId: outcome.result.sessionId, role: 'callee', peer: peerOfCallee });
         return;
       }
     }
