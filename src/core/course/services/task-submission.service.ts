@@ -4,6 +4,8 @@ import { In, Repository } from 'typeorm';
 import { TaskSubmission } from '@/core/course/entity/task-submission.entity';
 import { Task } from '@/core/course/entity/task.entity';
 import { Student } from '@/core/user/entity/student.entity';
+import { Progress } from '@/core/enrollment/entity/progress.entity';
+import { Enrollment } from '@/core/enrollment/entity/enrollment.entity';
 
 @Injectable()
 export class TaskSubmissionService {
@@ -11,6 +13,8 @@ export class TaskSubmissionService {
     @InjectRepository(TaskSubmission) private readonly submissionRepo: Repository<TaskSubmission>,
     @InjectRepository(Task) private readonly taskRepo: Repository<Task>,
     @InjectRepository(Student) private readonly studentRepo: Repository<Student>,
+    @InjectRepository(Progress) private readonly progressRepo: Repository<Progress>,
+    @InjectRepository(Enrollment) private readonly enrollmentRepo: Repository<Enrollment>,
   ) {}
 
   async submit(studentUserId: string, answers: Record<string, string>) {
@@ -18,7 +22,7 @@ export class TaskSubmissionService {
     if (!student) throw new NotFoundException('Talaba topilmadi');
 
     const taskIds = Object.keys(answers);
-    const tasks = await this.taskRepo.findBy({ id: In(taskIds) });
+    const tasks = await this.taskRepo.find({ where: { id: In(taskIds) }, relations: { lesson: true } });
 
     const taskMap = new Map(tasks.map((t) => [t.id, t]));
 
@@ -34,21 +38,46 @@ export class TaskSubmissionService {
           where: { student: { id: student.id }, task: { id: taskId } },
         });
 
-        return this.submissionRepo.save({
-          ...existing,
-          student,
-          task,
-          answer: studentAnswer,
-          isCorrect,
-        });
+        return this.submissionRepo.save({ ...existing, student, task, answer: studentAnswer, isCorrect });
       }),
     );
+
+    // recalculate progress for every affected lesson
+    const lessonIds = [...new Set(tasks.map((t) => t.lesson.id))];
+    await Promise.all(lessonIds.map((lessonId) => this.upsertLessonProgress(student, lessonId)));
 
     return submissions.map((s) => ({
       taskId: s.task.id,
       answer: s.answer,
       isCorrect: s.isCorrect,
     }));
+  }
+
+  private async upsertLessonProgress(student: Student, lessonId: string): Promise<void> {
+    const totalTasks = await this.taskRepo.count({ where: { lesson: { id: lessonId } } });
+    if (totalTasks === 0) return;
+
+    const correctCount = await this.submissionRepo.count({
+      where: { student: { id: student.id }, task: { lesson: { id: lessonId } }, isCorrect: true },
+    });
+
+    const lessonProgress = Math.round((correctCount / totalTasks) * 100);
+
+    const enrollment = await this.enrollmentRepo.findOne({
+      where: { student: { id: student.id }, course: { units: { lessons: { id: lessonId } } } },
+    });
+    if (!enrollment) return;
+
+    const existing = await this.progressRepo.findOne({
+      where: { enrollment: { id: enrollment.id }, lesson: { id: lessonId } },
+    });
+
+    await this.progressRepo.save({
+      ...existing,
+      enrollment,
+      lesson: { id: lessonId },
+      progress: lessonProgress,
+    });
   }
 
   async getLessonResults(studentUserId: string, lessonId: string) {
