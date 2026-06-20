@@ -50,4 +50,34 @@ export class TaskSubmissionService {
       isCorrect: s.isCorrect,
     }));
   }
+
+  async getLessonResults(studentUserId: string, lessonId: string) {
+    const student = await this.studentRepo.findOne({ where: { user: { id: studentUserId } } });
+    if (!student) throw new NotFoundException('Talaba topilmadi');
+
+    const tasks = await this.taskRepo.find({
+      where: { lesson: { id: lessonId } },
+      order: { createdAt: 'ASC' },
+    });
+
+    const submissions = await this.submissionRepo.find({
+      where: { student: { id: student.id }, task: { id: In(tasks.map((t) => t.id)) } },
+      relations: { task: true },
+    });
+
+    const submissionMap = new Map(submissions.map((s) => [s.task.id, s]));
+
+    return tasks.map((task) => {
+      const submission = submissionMap.get(task.id) ?? null;
+      return {
+        taskId: task.id,
+        task: task.task,
+        options: task.options,
+        answer: task.answer,
+        submission: submission
+          ? { answer: submission.answer, isCorrect: submission.isCorrect, submittedAt: submission.createdAt }
+          : null,
+      };
+    });
+  }
 }
