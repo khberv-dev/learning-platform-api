@@ -125,6 +125,14 @@ export class ChatService {
     return this.messageRepo.findOne({ where: { id: message.id }, relations: { sender: true } });
   }
 
+  async createDirectRoom(userIdA: string, userIdB: string): Promise<ChatRoom> {
+    const users = await this.userRepo.find({ where: { id: In([userIdA, userIdB]) } });
+    return this.roomRepo.save({
+      isGroup: false,
+      members: users.map((u) => ({ user: u }) as ChatMember),
+    });
+  }
+
   async listRoomIdsForUser(userId: string): Promise<string[]> {
     const members = await this.memberRepo.find({
       where: { user: { id: userId } },

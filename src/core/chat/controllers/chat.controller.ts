@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  Body,
   Controller,
   Get,
   Param,
@@ -8,6 +7,7 @@ import {
   Query,
   UploadedFile,
   UseInterceptors,
+  Body,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
@@ -21,7 +21,6 @@ import {
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { ChatService } from '@/core/chat/services/chat.service';
 import { ChatGateway } from '@/core/chat/gateways/chat.gateway';
-import { CreateRoomDto } from '@/core/chat/dto/create-room.dto';
 import { SendMessageDto } from '@/core/chat/dto/send-message.dto';
 import { PaginationQuery } from '@/common/dto/pagination-query.dto';
 import { CHAT_FILE_MAX_BYTES, chatFileStorage } from '@/core/chat/storage/chat-file.storage';
@@ -87,12 +86,6 @@ export class ChatController {
     private readonly chatService: ChatService,
     private readonly chatGateway: ChatGateway,
   ) {}
-
-  @Post('rooms')
-  @ApiCreatedResponse({ schema: { example: roomExample } })
-  createRoom(@CurrentUser() user: { id: string }, @Body() dto: CreateRoomDto) {
-    return this.chatService.createRoom(user.id, dto);
-  }
 
   @Get('rooms')
   @ApiOkResponse({ schema: { example: roomListExample } })

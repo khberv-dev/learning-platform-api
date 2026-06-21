@@ -10,7 +10,4 @@ export class CreateAssignmentDto {
   @IsDateString()
   startDate: string;
 
-  @ApiProperty({ example: '2026-08-10T09:00:00.000Z' })
-  @IsDateString()
-  endDate: string;
 }

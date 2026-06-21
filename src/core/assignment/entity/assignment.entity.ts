@@ -27,9 +27,6 @@ export class Assignment {
   @Column({ name: 'start_date', type: 'timestamp' })
   startDate: Date;
 
-  @Column({ name: 'end_date', type: 'timestamp' })
-  endDate: Date;
-
   @Column({ type: 'enum', enum: AssignmentStatus, default: AssignmentStatus.PENDING })
   status: AssignmentStatus;
 
