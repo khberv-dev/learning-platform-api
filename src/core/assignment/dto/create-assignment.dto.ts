@@ -1,5 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsDateString, IsUUID } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsDateString, IsObject, IsOptional, IsUUID } from 'class-validator';
 
 export class CreateAssignmentDto {
   @ApiProperty()
@@ -10,4 +10,11 @@ export class CreateAssignmentDto {
   @IsDateString()
   startDate: string;
 
+  @ApiPropertyOptional({
+    example: { Mon: ['10:00'], Wed: ['14:00', '14:30'] },
+    description: "Mentorning jadvalidagi tanlangan vaqtlar. Haftada maksimal 3 ta slot.",
+  })
+  @IsObject()
+  @IsOptional()
+  selectedSchedule?: Record<string, string[]>;
 }

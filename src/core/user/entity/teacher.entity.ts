@@ -31,6 +31,9 @@ export class Teacher {
   @Column({ name: 'intro_video', nullable: true })
   introVideo: string;
 
+  @Column({ type: 'jsonb', nullable: true })
+  schedule: Record<string, string[]> | null;
+
   @OneToMany(() => TeacherStatusHistory, (history) => history.teacher)
   statusHistories: TeacherStatusHistory[];
 

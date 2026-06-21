@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { validateScheduleShape, countScheduleSlots } from '@/core/user/dto/set-schedule.dto';
 import { Teacher } from '@/core/user/entity/teacher.entity';
 import { TeacherStatusHistory } from '@/core/user/entity/teacher-status-history.entity';
 import { TeacherFeedback } from '@/core/user/entity/teacher-feedback.entity';
@@ -130,6 +131,29 @@ export class TeacherService {
     return this.teacherRepo.save({ ...teacher, introVideo: videoPath });
   }
 
+  async setSchedule(teacherUserId: string, schedule: Record<string, string[]>) {
+    const error = validateScheduleShape(schedule);
+    if (error) throw new BadRequestException(error);
+
+    const teacher = await this.teacherRepo.findOne({ where: { user: { id: teacherUserId } } });
+    if (!teacher) throw new NotFoundException("O'qituvchi topilmadi");
+
+    await this.teacherRepo.update(teacher.id, { schedule });
+    return { schedule };
+  }
+
+  async getSchedule(teacherId: string): Promise<Record<string, string[]>> {
+    const teacher = await this.teacherRepo.findOne({ where: { id: teacherId } });
+    if (!teacher) throw new NotFoundException("O'qituvchi topilmadi");
+    return teacher.schedule ?? {};
+  }
+
+  async getMySchedule(teacherUserId: string): Promise<Record<string, string[]>> {
+    const teacher = await this.teacherRepo.findOne({ where: { user: { id: teacherUserId } } });
+    if (!teacher) throw new NotFoundException("O'qituvchi topilmadi");
+    return teacher.schedule ?? {};
+  }
+
   async getSummaryForTeacher(teacherUserId: string) {
     const teacher = await this.teacherRepo.findOne({ where: { user: { id: teacherUserId } } });
     if (!teacher) throw new NotFoundException("O'qituvchi topilmadi");
@@ -144,7 +168,6 @@ export class TeacherService {
         .select('COUNT(DISTINCT a.student_id)', 'count')
         .where('a.teacher_id = :teacherId', { teacherId: teacher.id })
         .andWhere('a.status = :status', { status: AssignmentStatus.ACTIVE })
-        .andWhere('a.end_date > :now', { now })
         .getRawOne<{ count: string }>(),
       this.assignmentRepo
         .createQueryBuilder('a')

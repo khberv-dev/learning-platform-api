@@ -30,6 +30,9 @@ export class Assignment {
   @Column({ type: 'enum', enum: AssignmentStatus, default: AssignmentStatus.PENDING })
   status: AssignmentStatus;
 
+  @Column({ name: 'selected_schedule', type: 'jsonb', nullable: true })
+  selectedSchedule: Record<string, string[]> | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

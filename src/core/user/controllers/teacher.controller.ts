@@ -6,6 +6,7 @@ import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { UserRole } from '@/core/user/enum/user-role.enum';
 import { TeacherService } from '@/core/user/services/teacher.service';
 import { CreateFeedbackDto } from '@/core/user/dto/create-feedback.dto';
+import { SetScheduleDto } from '@/core/user/dto/set-schedule.dto';
 import { introVideoFileFilter, teacherIntroStorage, toIntroVideoPath } from '@/core/user/storage/teacher-intro.storage';
 
 const teacherExample = {
@@ -80,6 +81,27 @@ export class TeacherController {
   @ApiCreatedResponse({ schema: { example: feedbackExample } })
   addFeedback(@Param('id') id: string, @Body() dto: CreateFeedbackDto, @CurrentUser() user: { id: string }) {
     return this.teacherService.addFeedback(id, user.id, dto);
+  }
+
+  @Patch('me/schedule')
+  @Roles(UserRole.TEACHER)
+  @ApiOkResponse({ schema: { example: { schedule: { Mon: ['10:00', '10:30'], Wed: ['14:00'] } } } })
+  setSchedule(@CurrentUser() user: { id: string }, @Body() dto: SetScheduleDto) {
+    return this.teacherService.setSchedule(user.id, dto.schedule);
+  }
+
+  @Get('me/schedule')
+  @Roles(UserRole.TEACHER)
+  @ApiOkResponse({ schema: { example: { Mon: ['10:00', '10:30'], Wed: ['14:00'] } } })
+  getMySchedule(@CurrentUser() user: { id: string }) {
+    return this.teacherService.getMySchedule(user.id);
+  }
+
+  @Get(':id/schedule')
+  @Roles(UserRole.STUDENT)
+  @ApiOkResponse({ schema: { example: { Mon: ['10:00', '10:30'], Wed: ['14:00'] } } })
+  getSchedule(@Param('id') id: string) {
+    return this.teacherService.getSchedule(id);
   }
 
   @Patch('me')

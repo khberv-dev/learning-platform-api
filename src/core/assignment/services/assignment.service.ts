@@ -10,6 +10,7 @@ import { Enrollment } from '@/core/enrollment/entity/enrollment.entity';
 import { TeacherStatus } from '@/core/user/enum/teacher-status.enum';
 import { paginate, Paginated, PaginationQuery } from '@/common/dto/pagination-query.dto';
 import { ChatService } from '@/core/chat/services/chat.service';
+import { countScheduleSlots, validateScheduleShape } from '@/core/user/dto/set-schedule.dto';
 
 @Injectable()
 export class AssignmentService {
@@ -54,11 +55,32 @@ export class AssignmentService {
     const teacher = await this.teacherRepo.findOne({ where: { id: dto.teacherId, status: TeacherStatus.ACTIVE } });
     if (!teacher) throw new NotFoundException("O'qituvchi topilmadi");
 
+    let selectedSchedule: Record<string, string[]> | null = null;
+    if (dto.selectedSchedule) {
+      const shapeError = validateScheduleShape(dto.selectedSchedule);
+      if (shapeError) throw new BadRequestException(shapeError);
+
+      const totalSlots = countScheduleSlots(dto.selectedSchedule);
+      if (totalSlots > 3) throw new BadRequestException("Haftada maksimal 3 ta vaqt tanlash mumkin");
+
+      const mentorSchedule = teacher.schedule ?? {};
+      for (const [day, slots] of Object.entries(dto.selectedSchedule)) {
+        const available = mentorSchedule[day] ?? [];
+        for (const slot of slots) {
+          if (!available.includes(slot)) {
+            throw new BadRequestException(`${day} ${slot} mentorning jadvalida mavjud emas`);
+          }
+        }
+      }
+      selectedSchedule = dto.selectedSchedule;
+    }
+
     return this.assignmentRepo.save({
       student,
       teacher,
       startDate: new Date(dto.startDate),
       status: AssignmentStatus.PENDING,
+      selectedSchedule,
     });
   }
 
