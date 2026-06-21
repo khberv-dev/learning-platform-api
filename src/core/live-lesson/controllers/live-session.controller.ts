@@ -8,11 +8,16 @@ import { LiveSessionService } from '@/core/live-lesson/services/live-session.ser
 import { UploadLiveSessionDto } from '@/core/live-lesson/dto/upload-live-session.dto';
 import { liveSessionStorage, videoFileFilter, toVideoPath } from '@/core/live-lesson/storage/live-session.storage';
 
+const mentorExample = { id: 'u1', firstName: 'John', lastName: 'Doe', avatar: '/public/avatars/john.jpg' };
+
 const sessionExample = {
   id: 'ls000000-0000-0000-0000-000000000001',
   title: 'Speaking Practice — Session 1',
   videoPath: '/public/live-session/abc123.mp4',
-  enrollment: { id: 'en000000-0000-0000-0000-000000000001', course: { id: 'c1', title: 'English A1' } },
+  assignment: {
+    id: 'as000000-0000-0000-0000-000000000001',
+    teacher: { user: mentorExample },
+  },
   createdAt: '2026-06-21T10:00:00.000Z',
   updatedAt: '2026-06-21T10:00:00.000Z',
 };
@@ -23,7 +28,7 @@ const sessionExample = {
 export class LiveSessionController {
   constructor(private readonly liveSessionService: LiveSessionService) {}
 
-  @Post('enrollments/:enrollmentId')
+  @Post('assignments/:assignmentId')
   @Roles(UserRole.TEACHER)
   @UseInterceptors(FileInterceptor('file', { storage: liveSessionStorage, fileFilter: videoFileFilter }))
   @ApiConsumes('multipart/form-data')
@@ -40,11 +45,11 @@ export class LiveSessionController {
   @ApiCreatedResponse({ schema: { example: sessionExample } })
   upload(
     @CurrentUser() user: { id: string },
-    @Param('enrollmentId') enrollmentId: string,
+    @Param('assignmentId') assignmentId: string,
     @Body() dto: UploadLiveSessionDto,
     @UploadedFile() file: Express.Multer.File,
   ) {
-    return this.liveSessionService.upload(user.id, enrollmentId, dto.title, toVideoPath(file.filename));
+    return this.liveSessionService.upload(user.id, assignmentId, dto.title, toVideoPath(file.filename));
   }
 
   @Get('my')
@@ -54,14 +59,14 @@ export class LiveSessionController {
     return this.liveSessionService.listMySessions(user.id);
   }
 
-  @Get('enrollments/:enrollmentId')
+  @Get('assignments/:assignmentId')
   @Roles(UserRole.STUDENT)
   @ApiOkResponse({ schema: { example: [sessionExample] } })
-  listByEnrollment(
+  listByAssignment(
     @CurrentUser() user: { id: string },
-    @Param('enrollmentId') enrollmentId: string,
+    @Param('assignmentId') assignmentId: string,
   ) {
-    return this.liveSessionService.listByEnrollment(user.id, enrollmentId);
+    return this.liveSessionService.listByAssignment(user.id, assignmentId);
   }
 
   @Get(':id')

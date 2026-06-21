@@ -14,7 +14,11 @@ const lessonExample = {
   meetLink: 'https://meet.google.com/abc-defg-hij',
   startTime: '2026-05-20T15:00:00.000Z',
   endTime: '2026-05-20T16:00:00.000Z',
-  enrollment: { id: 'en000000-0000-0000-0000-000000000001', course: { id: 'c1', title: 'English A1' } },
+  assignment: {
+    id: 'as000000-0000-0000-0000-000000000001',
+    student: { user: { id: 'u1', firstName: 'Sevara', lastName: 'Karimova', avatar: null } },
+    teacher: { user: { id: 'u2', firstName: 'John', lastName: 'Doe', avatar: null } },
+  },
   createdAt: '2026-05-19T10:00:00.000Z',
   updatedAt: '2026-05-19T10:00:00.000Z',
 };
