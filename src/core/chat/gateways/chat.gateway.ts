@@ -65,6 +65,8 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     this.logger.log(`Disconnected user=${userId} socket=${socket.id}`);
   }
 
+  // ─── room management ──────────────────────────────────────────────────────
+
   @SubscribeMessage('join')
   async onJoin(@ConnectedSocket() socket: AuthedSocket, @MessageBody() body: { roomId: string }) {
     const roomIds = await this.chatService.listRoomIdsForUser(socket.data.userId);
@@ -82,6 +84,41 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     socket.leave(roomKey(body.roomId));
     socket.emit('left', { roomId: body.roomId });
   }
+
+  // ─── messaging ────────────────────────────────────────────────────────────
+
+  @SubscribeMessage('send')
+  async onSend(
+    @ConnectedSocket() socket: AuthedSocket,
+    @MessageBody() body: { roomId: string; text: string },
+  ) {
+    if (!body?.roomId || !body?.text?.trim()) {
+      socket.emit('error', { message: "Xabar matni yoki xona ID yo'q" });
+      return;
+    }
+    try {
+      const message = await this.chatService.sendText(socket.data.userId, body.roomId, body.text.trim());
+      this.broadcastMessage(body.roomId, message);
+    } catch (err: unknown) {
+      socket.emit('error', { message: (err as Error).message });
+    }
+  }
+
+  // ─── presence ─────────────────────────────────────────────────────────────
+
+  @SubscribeMessage('typing')
+  onTyping(@ConnectedSocket() socket: AuthedSocket, @MessageBody() body: { roomId: string }) {
+    if (!body?.roomId) return;
+    socket.to(roomKey(body.roomId)).emit('typing', { userId: socket.data.userId, roomId: body.roomId });
+  }
+
+  @SubscribeMessage('stop-typing')
+  onStopTyping(@ConnectedSocket() socket: AuthedSocket, @MessageBody() body: { roomId: string }) {
+    if (!body?.roomId) return;
+    socket.to(roomKey(body.roomId)).emit('stop-typing', { userId: socket.data.userId, roomId: body.roomId });
+  }
+
+  // ─── internal ─────────────────────────────────────────────────────────────
 
   broadcastMessage(roomId: string, message: ChatMessage | null) {
     if (!message) return;
