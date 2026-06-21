@@ -1,5 +1,5 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsDateString, IsNotEmpty, IsOptional, IsString, IsUUID, IsUrl } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
+import { IsDateString, IsNotEmpty, IsString, IsUUID, IsUrl } from 'class-validator';
 
 export class CreateLiveLessonDto {
   @ApiProperty({ example: 'Speaking Practice — Unit 3' })
@@ -19,19 +19,7 @@ export class CreateLiveLessonDto {
   @IsDateString()
   endTime: string;
 
-  @ApiPropertyOptional({
-    example: 'gr000000-0000-0000-0000-000000000001',
-    description: 'Required if assignmentId is not provided',
-  })
+  @ApiProperty({ example: 'en000000-0000-0000-0000-000000000001' })
   @IsUUID()
-  @IsOptional()
-  groupId?: string;
-
-  @ApiPropertyOptional({
-    example: 'as000000-0000-0000-0000-000000000001',
-    description: 'Required if groupId is not provided',
-  })
-  @IsUUID()
-  @IsOptional()
-  assignmentId?: string;
+  enrollmentId: string;
 }

@@ -14,14 +14,13 @@ const lessonExample = {
   meetLink: 'https://meet.google.com/abc-defg-hij',
   startTime: '2026-05-20T15:00:00.000Z',
   endTime: '2026-05-20T16:00:00.000Z',
-  group: { id: 'gr000000-0000-0000-0000-000000000001', name: 'IELTS Speaking Club', isActive: true },
-  assignment: null,
+  enrollment: { id: 'en000000-0000-0000-0000-000000000001', course: { id: 'c1', title: 'English A1' } },
   createdAt: '2026-05-19T10:00:00.000Z',
   updatedAt: '2026-05-19T10:00:00.000Z',
 };
 
 const lessonListExample = {
-  data: [lessonExample],
+  data: [{ ...lessonExample }],
   total: 4,
   page: 1,
   limit: 10,

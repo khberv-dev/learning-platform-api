@@ -3,9 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { LiveLesson } from '@/core/live-lesson/entity/live-lesson.entity';
 import { Teacher } from '@/core/user/entity/teacher.entity';
-import { Group } from '@/core/group/entity/group.entity';
-import { Assignment } from '@/core/assignment/entity/assignment.entity';
-import { AssignmentStatus } from '@/core/assignment/enum/assignment-status.enum';
+import { Enrollment } from '@/core/enrollment/entity/enrollment.entity';
 import { CreateLiveLessonDto } from '@/core/live-lesson/dto/create-live-lesson.dto';
 import { UpdateLiveLessonDto } from '@/core/live-lesson/dto/update-live-lesson.dto';
 import { Paginated, PaginationQuery, paginate } from '@/common/dto/pagination-query.dto';
@@ -15,8 +13,7 @@ export class LiveLessonService {
   constructor(
     @InjectRepository(LiveLesson) private readonly lessonRepo: Repository<LiveLesson>,
     @InjectRepository(Teacher) private readonly teacherRepo: Repository<Teacher>,
-    @InjectRepository(Group) private readonly groupRepo: Repository<Group>,
-    @InjectRepository(Assignment) private readonly assignmentRepo: Repository<Assignment>,
+    @InjectRepository(Enrollment) private readonly enrollmentRepo: Repository<Enrollment>,
   ) {}
 
   private async loadTeacher(teacherUserId: string) {
@@ -29,7 +26,7 @@ export class LiveLessonService {
     const teacher = await this.loadTeacher(teacherUserId);
     const lesson = await this.lessonRepo.findOne({
       where: { id: lessonId },
-      relations: { teacher: true, group: true, assignment: { student: { user: true } } },
+      relations: { teacher: true, enrollment: { student: { user: true }, course: true } },
     });
     if (!lesson) throw new NotFoundException('Dars topilmadi');
     if (lesson.teacher.id !== teacher.id) throw new ForbiddenException('Ruxsat berilmagan');
@@ -39,54 +36,23 @@ export class LiveLessonService {
   async create(teacherUserId: string, dto: CreateLiveLessonDto) {
     const teacher = await this.loadTeacher(teacherUserId);
 
-    const hasGroup = !!dto.groupId;
-    const hasAssignment = !!dto.assignmentId;
-    if (hasGroup === hasAssignment) {
-      throw new BadRequestException('Faqat groupId yoki assignmentId dan birini kiriting');
-    }
-
     const start = new Date(dto.startTime);
     const end = new Date(dto.endTime);
     if (end.getTime() <= start.getTime()) {
       throw new BadRequestException("Tugash vaqti boshlanish vaqtidan keyin bo'lishi kerak");
     }
 
-    let group: Group | null = null;
-    let assignment: Assignment | null = null;
+    const enrollment = await this.enrollmentRepo.findOne({ where: { id: dto.enrollmentId } });
+    if (!enrollment) throw new NotFoundException('Yozilish topilmadi');
 
-    if (hasGroup) {
-      group = await this.groupRepo.findOne({ where: { id: dto.groupId }, relations: { teacher: true } });
-      if (!group) throw new NotFoundException('Guruh topilmadi');
-      if (group.teacher.id !== teacher.id) throw new ForbiddenException('Guruh sizga tegishli emas');
-      if (!group.isActive) throw new BadRequestException('Guruh nofaol');
-    } else {
-      assignment = await this.assignmentRepo.findOne({
-        where: { id: dto.assignmentId },
-        relations: { teacher: true, student: { user: true } },
-      });
-      if (!assignment) throw new NotFoundException('Topshiriq topilmadi');
-      if (assignment.teacher.id !== teacher.id) throw new ForbiddenException('Topshiriq sizga tegishli emas');
-      if (assignment.status !== AssignmentStatus.ACTIVE || assignment.endDate.getTime() <= Date.now()) {
-        throw new BadRequestException('Topshiriq faol emas');
-      }
-    }
-
-    return this.lessonRepo.save({
-      teacher,
-      group,
-      assignment,
-      name: dto.name,
-      meetLink: dto.meetLink,
-      startTime: start,
-      endTime: end,
-    });
+    return this.lessonRepo.save({ teacher, enrollment, name: dto.name, meetLink: dto.meetLink, startTime: start, endTime: end });
   }
 
   async findAll(teacherUserId: string, query: PaginationQuery): Promise<Paginated<LiveLesson>> {
     const teacher = await this.loadTeacher(teacherUserId);
     const [data, total] = await this.lessonRepo.findAndCount({
       where: { teacher: { id: teacher.id } },
-      relations: { group: true, assignment: { student: { user: true } } },
+      relations: { enrollment: { student: { user: true }, course: true } },
       order: { startTime: 'ASC' },
       skip: query.skip,
       take: query.take,
