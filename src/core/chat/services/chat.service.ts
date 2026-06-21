@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { ChatRoom } from '@/core/chat/entity/chat-room.entity';
@@ -6,7 +6,7 @@ import { ChatMember } from '@/core/chat/entity/chat-member.entity';
 import { ChatMessage } from '@/core/chat/entity/chat-message.entity';
 import { MessageType } from '@/core/chat/enum/message-type.enum';
 import { User } from '@/core/user/entity/user.entity';
-import { CreateRoomDto } from '@/core/chat/dto/create-room.dto';
+import { Assignment } from '@/core/assignment/entity/assignment.entity';
 import { Paginated, PaginationQuery, paginate } from '@/common/dto/pagination-query.dto';
 import { toChatFilePath } from '@/core/chat/storage/chat-file.storage';
 
@@ -17,6 +17,7 @@ export class ChatService {
     @InjectRepository(ChatMember) private readonly memberRepo: Repository<ChatMember>,
     @InjectRepository(ChatMessage) private readonly messageRepo: Repository<ChatMessage>,
     @InjectRepository(User) private readonly userRepo: Repository<User>,
+    @InjectRepository(Assignment) private readonly assignmentRepo: Repository<Assignment>,
   ) {}
 
   private async assertMember(userId: string, roomId: string) {
@@ -27,25 +28,12 @@ export class ChatService {
     return member;
   }
 
-  async createRoom(creatorUserId: string, dto: CreateRoomDto) {
-    const memberIds = Array.from(new Set([creatorUserId, ...dto.memberIds]));
-    if (memberIds.length < 2) throw new BadRequestException('Kamida bitta boshqa foydalanuvchi kerak');
-
-    const users = await this.userRepo.find({ where: { id: In(memberIds) } });
-    if (users.length !== memberIds.length) throw new NotFoundException('Bazi foydalanuvchilar topilmadi');
-
-    return this.roomRepo.save({
-      name: dto.name,
-      isGroup: memberIds.length > 2,
-      members: users.map((u) => ({ user: u }) as ChatMember),
-    });
-  }
-
   async listRooms(userId: string, query: PaginationQuery): Promise<Paginated<ChatRoom>> {
     const [data, total] = await this.roomRepo
       .createQueryBuilder('room')
       .leftJoinAndSelect('room.members', 'member')
       .leftJoinAndSelect('member.user', 'user')
+      .leftJoinAndSelect('room.assignment', 'assignment')
       .where((qb) => {
         const sub = qb
           .subQuery()
@@ -68,10 +56,29 @@ export class ChatService {
     await this.assertMember(userId, roomId);
     const room = await this.roomRepo.findOne({
       where: { id: roomId },
-      relations: { members: { user: true } },
+      relations: {
+        assignment: { student: { user: true }, teacher: { user: true } },
+        members: { user: true },
+      },
     });
     if (!room) throw new NotFoundException('Chat topilmadi');
-    return room;
+
+    const student = room.assignment?.student?.user;
+    const teacher = room.assignment?.teacher?.user;
+
+    return {
+      id: room.id,
+      assignment: room.assignment ? { id: room.assignment.id } : null,
+      student: student ? { id: student.id, firstName: student.firstName, lastName: student.lastName, avatar: student.avatar } : null,
+      mentor: teacher ? { id: teacher.id, firstName: teacher.firstName, lastName: teacher.lastName, avatar: teacher.avatar } : null,
+      members: room.members.map((m) => ({
+        id: m.id,
+        user: { id: m.user.id, firstName: m.user.firstName, lastName: m.user.lastName, avatar: m.user.avatar },
+        joinedAt: m.joinedAt,
+      })),
+      createdAt: room.createdAt,
+      updatedAt: room.updatedAt,
+    };
   }
 
   async listMessages(userId: string, roomId: string, query: PaginationQuery): Promise<Paginated<ChatMessage>> {
@@ -125,10 +132,13 @@ export class ChatService {
     return this.messageRepo.findOne({ where: { id: message.id }, relations: { sender: true } });
   }
 
-  async createDirectRoom(userIdA: string, userIdB: string): Promise<ChatRoom> {
-    const users = await this.userRepo.find({ where: { id: In([userIdA, userIdB]) } });
+  async createDirectRoom(userIdA: string, userIdB: string, assignmentId: string): Promise<ChatRoom> {
+    const [users, assignment] = await Promise.all([
+      this.userRepo.find({ where: { id: In([userIdA, userIdB]) } }),
+      this.assignmentRepo.findOneOrFail({ where: { id: assignmentId } }),
+    ]);
     return this.roomRepo.save({
-      isGroup: false,
+      assignment,
       members: users.map((u) => ({ user: u }) as ChatMember),
     });
   }

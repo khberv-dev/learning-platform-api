@@ -132,7 +132,7 @@ export class AssignmentService {
       where: { id: teacher.id },
       relations: { user: true },
     });
-    await this.chatService.createDirectRoom(teacherWithUser.user.id, assignment.student.user.id);
+    await this.chatService.createDirectRoom(teacherWithUser.user.id, assignment.student.user.id, assignmentId);
 
     return (await this.attachIsActive([saved]))[0];
   }

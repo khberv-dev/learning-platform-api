@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Body,
   Controller,
   Get,
   Param,
@@ -7,7 +8,6 @@ import {
   Query,
   UploadedFile,
   UseInterceptors,
-  Body,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
@@ -27,12 +27,18 @@ import { CHAT_FILE_MAX_BYTES, chatFileStorage } from '@/core/chat/storage/chat-f
 
 const roomExample = {
   id: 'cr000000-0000-0000-0000-000000000001',
-  name: 'IELTS Speaking Club',
-  isGroup: true,
+  assignment: { id: 'as000000-0000-0000-0000-000000000001' },
+  student: { id: '11111111-2222-3333-4444-555555555551', firstName: 'Sevara', lastName: 'Karimova', avatar: null },
+  mentor: { id: '11111111-2222-3333-4444-555555555552', firstName: 'John', lastName: 'Doe', avatar: '/public/avatars/john.jpg' },
   members: [
     {
       id: 'cm000000-0000-0000-0000-000000000001',
-      user: { id: '11111111-2222-3333-4444-555555555555', firstName: 'Sevara', lastName: 'Karimova' },
+      user: { id: '11111111-2222-3333-4444-555555555551', firstName: 'Sevara', lastName: 'Karimova', avatar: null },
+      joinedAt: '2026-05-19T10:00:00.000Z',
+    },
+    {
+      id: 'cm000000-0000-0000-0000-000000000002',
+      user: { id: '11111111-2222-3333-4444-555555555552', firstName: 'John', lastName: 'Doe', avatar: '/public/avatars/john.jpg' },
       joinedAt: '2026-05-19T10:00:00.000Z',
     },
   ],
