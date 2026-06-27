@@ -16,6 +16,7 @@ import { LiveLessonModule } from '@/core/live-lesson/live-lesson.module';
 import { AssessmentModule } from '@/core/assessment/assessment.module';
 import { MatchModule } from '@/core/match/match.module';
 import { CallModule } from '@/core/call/call.module';
+import { StatsModule } from '@/core/stats/stats.module';
 import { JwtAccessGuard } from '@/common/guards/jwt-access.guard';
 import { RolesGuard } from '@/common/guards/roles.guard';
 
@@ -37,6 +38,7 @@ import { RolesGuard } from '@/common/guards/roles.guard';
     AssessmentModule,
     MatchModule,
     CallModule,
+    StatsModule,
   ],
   controllers: [AppController],
   providers: [
