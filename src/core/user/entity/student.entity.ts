@@ -27,6 +27,9 @@ export class Student {
   @Column({ type: 'int', default: 0 })
   coins: number;
 
+  @Column({ type: 'int', default: 0 })
+  balance: number;
+
   @Column({ type: 'enum', enum: StudentLevel, default: StudentLevel.A1 })
   level: StudentLevel;
 
