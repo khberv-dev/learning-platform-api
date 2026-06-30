@@ -131,6 +131,12 @@ export class TeacherService {
     return this.teacherRepo.save({ ...teacher, introVideo: videoPath });
   }
 
+  async updateIntroVideoById(teacherId: string, videoPath: string) {
+    const teacher = await this.teacherRepo.findOne({ where: { id: teacherId } });
+    if (!teacher) throw new NotFoundException("O'qituvchi topilmadi");
+    return this.teacherRepo.save({ ...teacher, introVideo: videoPath });
+  }
+
   async setSchedule(teacherUserId: string, schedule: Record<string, string[]>) {
     const error = validateScheduleShape(schedule);
     if (error) throw new BadRequestException(error);

@@ -7,12 +7,12 @@ export class Admin {
   id: string;
 
   @OneToOne(() => User, (user) => user.admin)
-  @JoinColumn({ name: 'user_id' })
+  @JoinColumn()
   user: User;
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn()
   createdAt: Date;
 
-  @UpdateDateColumn({ name: 'updated_at' })
+  @UpdateDateColumn()
   updatedAt: Date;
 }

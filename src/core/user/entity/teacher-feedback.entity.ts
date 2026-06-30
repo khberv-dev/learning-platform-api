@@ -16,11 +16,11 @@ export class TeacherFeedback {
   id: string;
 
   @ManyToOne(() => Teacher, (teacher) => teacher.feedbacks, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'teacher_id' })
+  @JoinColumn()
   teacher: Teacher;
 
   @ManyToOne(() => Student, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'student_id' })
+  @JoinColumn()
   student: Student;
 
   @Column({ type: 'text' })
@@ -29,9 +29,9 @@ export class TeacherFeedback {
   @Column({ type: 'smallint' })
   rate: number;
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn()
   createdAt: Date;
 
-  @UpdateDateColumn({ name: 'updated_at' })
+  @UpdateDateColumn()
   updatedAt: Date;
 }

@@ -20,15 +20,15 @@ export class Unit {
   title: string;
 
   @ManyToOne(() => Course, (course) => course.units, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'course_id' })
+  @JoinColumn()
   course: Course;
 
   @OneToMany(() => Lesson, (lesson) => lesson.unit)
   lessons: Lesson[];
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn()
   createdAt: Date;
 
-  @UpdateDateColumn({ name: 'updated_at' })
+  @UpdateDateColumn()
   updatedAt: Date;
 }

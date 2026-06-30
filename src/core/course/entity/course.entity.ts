@@ -19,7 +19,7 @@ export class Course {
   @Column({ type: 'int', default: 0 })
   price: number;
 
-  @Column({ name: 'is_active', default: false })
+  @Column({ default: false })
   isActive: boolean;
 
   @OneToMany(() => Unit, (unit) => unit.course)
@@ -28,9 +28,9 @@ export class Course {
   @OneToMany(() => Enrollment, (enrollment) => enrollment.course)
   enrollments: Enrollment[];
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn()
   createdAt: Date;
 
-  @UpdateDateColumn({ name: 'updated_at' })
+  @UpdateDateColumn()
   updatedAt: Date;
 }

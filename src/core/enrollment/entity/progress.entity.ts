@@ -16,19 +16,19 @@ export class Progress {
   id: string;
 
   @ManyToOne(() => Enrollment, (enrollment) => enrollment.progresses, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'enrollment_id' })
+  @JoinColumn()
   enrollment: Enrollment;
 
   @ManyToOne(() => Lesson, (lesson) => lesson.progresses, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'lesson_id' })
+  @JoinColumn()
   lesson: Lesson;
 
   @Column({ type: 'smallint' })
   progress: number;
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn()
   createdAt: Date;
 
-  @UpdateDateColumn({ name: 'updated_at' })
+  @UpdateDateColumn()
   updatedAt: Date;
 }

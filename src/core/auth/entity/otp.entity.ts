@@ -5,18 +5,18 @@ export class Otp {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ name: 'phone_number' })
+  @Column()
   phoneNumber: string;
 
   @Column()
   code: string;
 
-  @Column({ name: 'expires_at', type: 'timestamp' })
+  @Column({ type: 'timestamp' })
   expiresAt: Date;
 
   @Column({ default: false })
   used: boolean;
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn()
   createdAt: Date;
 }

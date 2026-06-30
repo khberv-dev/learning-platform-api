@@ -9,10 +9,10 @@ export class User {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ name: 'first_name' })
+  @Column()
   firstName: string;
 
-  @Column({ name: 'last_name', nullable: true })
+  @Column({ nullable: true })
   lastName: string;
 
   @Column({ nullable: true })
@@ -27,7 +27,7 @@ export class User {
   @Column({ select: false })
   password: string;
 
-  @Column({ name: 'is_active', default: true })
+  @Column({ default: true })
   isActive: boolean;
 
   @OneToOne(() => Student, (student) => student.user, { cascade: true })
@@ -39,10 +39,10 @@ export class User {
   @OneToOne(() => Admin, (admin) => admin.user, { cascade: true })
   admin: Admin;
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn()
   createdAt: Date;
 
-  @UpdateDateColumn({ name: 'updated_at' })
+  @UpdateDateColumn()
   updatedAt: Date;
 
   roles(): UserRole[] {

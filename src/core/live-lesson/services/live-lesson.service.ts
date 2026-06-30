@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { LiveLesson } from '@/core/live-lesson/entity/live-lesson.entity';
 import { Teacher } from '@/core/user/entity/teacher.entity';
+import { Student } from '@/core/user/entity/student.entity';
 import { Assignment } from '@/core/assignment/entity/assignment.entity';
 import { CreateLiveLessonDto } from '@/core/live-lesson/dto/create-live-lesson.dto';
 import { UpdateLiveLessonDto } from '@/core/live-lesson/dto/update-live-lesson.dto';
@@ -13,6 +14,7 @@ export class LiveLessonService {
   constructor(
     @InjectRepository(LiveLesson) private readonly lessonRepo: Repository<LiveLesson>,
     @InjectRepository(Teacher) private readonly teacherRepo: Repository<Teacher>,
+    @InjectRepository(Student) private readonly studentRepo: Repository<Student>,
     @InjectRepository(Assignment) private readonly assignmentRepo: Repository<Assignment>,
   ) {}
 
@@ -86,5 +88,19 @@ export class LiveLessonService {
   async remove(teacherUserId: string, lessonId: string) {
     const lesson = await this.loadOwned(teacherUserId, lessonId);
     await this.lessonRepo.remove(lesson);
+  }
+
+  async findForStudent(studentUserId: string, query: PaginationQuery): Promise<Paginated<LiveLesson>> {
+    const student = await this.studentRepo.findOne({ where: { user: { id: studentUserId } } });
+    if (!student) throw new NotFoundException('Talaba topilmadi');
+
+    const [data, total] = await this.lessonRepo.findAndCount({
+      where: { assignment: { student: { id: student.id } } },
+      relations: { assignment: { teacher: { user: true } }, teacher: { user: true } },
+      order: { startTime: 'ASC' },
+      skip: query.skip,
+      take: query.take,
+    });
+    return paginate(data, total, query);
   }
 }

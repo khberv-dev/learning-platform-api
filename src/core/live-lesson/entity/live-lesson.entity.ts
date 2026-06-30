@@ -18,26 +18,26 @@ export class LiveLesson {
   @Column()
   name: string;
 
-  @Column({ name: 'meet_link' })
+  @Column()
   meetLink: string;
 
-  @Column({ name: 'start_time', type: 'timestamp' })
+  @Column({ type: 'timestamp' })
   startTime: Date;
 
-  @Column({ name: 'end_time', type: 'timestamp' })
+  @Column({ type: 'timestamp' })
   endTime: Date;
 
   @ManyToOne(() => Teacher, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'teacher_id' })
+  @JoinColumn()
   teacher: Teacher;
 
   @ManyToOne(() => Assignment, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'assignment_id' })
+  @JoinColumn()
   assignment: Assignment;
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn()
   createdAt: Date;
 
-  @UpdateDateColumn({ name: 'updated_at' })
+  @UpdateDateColumn()
   updatedAt: Date;
 }

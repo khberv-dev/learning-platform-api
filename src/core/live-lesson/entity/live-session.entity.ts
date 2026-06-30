@@ -17,16 +17,16 @@ export class LiveSession {
   @Column()
   title: string;
 
-  @Column({ name: 'video_path' })
+  @Column()
   videoPath: string;
 
   @ManyToOne(() => Assignment, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'assignment_id' })
+  @JoinColumn()
   assignment: Assignment;
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn()
   createdAt: Date;
 
-  @UpdateDateColumn({ name: 'updated_at' })
+  @UpdateDateColumn()
   updatedAt: Date;
 }

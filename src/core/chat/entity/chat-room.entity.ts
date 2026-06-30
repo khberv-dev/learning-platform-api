@@ -9,7 +9,7 @@ export class ChatRoom {
   id: string;
 
   @OneToOne(() => Assignment, { onDelete: 'CASCADE', eager: false })
-  @JoinColumn({ name: 'assignment_id' })
+  @JoinColumn()
   assignment: Assignment;
 
   @OneToMany(() => ChatMember, (member) => member.chatRoom, { cascade: true })
@@ -18,9 +18,9 @@ export class ChatRoom {
   @OneToMany(() => ChatMessage, (message) => message.chatRoom)
   messages: ChatMessage[];
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn()
   createdAt: Date;
 
-  @UpdateDateColumn({ name: 'updated_at' })
+  @UpdateDateColumn()
   updatedAt: Date;
 }

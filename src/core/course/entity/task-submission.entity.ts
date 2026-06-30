@@ -15,19 +15,19 @@ export class TaskSubmission {
   id: string;
 
   @ManyToOne(() => Student, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'student_id' })
+  @JoinColumn()
   student: Student;
 
   @ManyToOne(() => Task, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'task_id' })
+  @JoinColumn()
   task: Task;
 
   @Column()
   answer: string;
 
-  @Column({ name: 'is_correct' })
+  @Column()
   isCorrect: boolean;
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn()
   createdAt: Date;
 }

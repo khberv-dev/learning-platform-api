@@ -1,5 +1,7 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Param, Patch, Post, Query, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { introVideoFileFilter, teacherIntroStorage, toIntroVideoPath } from '@/core/user/storage/teacher-intro.storage';
 import { Roles } from '@/common/decorators/roles.decorator';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { UserRole } from '@/core/user/enum/user-role.enum';
@@ -50,10 +52,10 @@ const teacherDetailExample = {
   ],
 };
 
-@ApiTags('teachers')
+@ApiTags('admin / teachers')
 @ApiBearerAuth()
 @Roles(UserRole.ADMIN)
-@Controller('teachers')
+@Controller('admin/teachers')
 export class AdminTeacherController {
   constructor(private readonly teacherService: TeacherService) {}
 
@@ -85,5 +87,16 @@ export class AdminTeacherController {
   @ApiOkResponse({ schema: { example: { ...teacherDetailExample, status: 'INACTIVE' } } })
   changeStatus(@Param('id') id: string, @Body() dto: ChangeTeacherStatusDto, @CurrentUser() user: { id: string }) {
     return this.teacherService.changeStatus(id, dto, user.id);
+  }
+
+  @Patch(':id/intro-video')
+  @UseInterceptors(FileInterceptor('video', { storage: teacherIntroStorage, fileFilter: introVideoFileFilter }))
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: { type: 'object', required: ['video'], properties: { video: { type: 'string', format: 'binary' } } },
+  })
+  @ApiOkResponse({ schema: { example: teacherExample } })
+  uploadIntroVideo(@Param('id') id: string, @UploadedFile() file: Express.Multer.File) {
+    return this.teacherService.updateIntroVideoById(id, toIntroVideoPath(file.filename));
   }
 }

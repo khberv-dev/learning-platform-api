@@ -7,10 +7,10 @@ export class EnrollmentHistory {
   id: string;
 
   @ManyToOne(() => Enrollment, (enrollment) => enrollment.histories, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'enrollment_id' })
+  @JoinColumn()
   enrollment: Enrollment;
 
-  @Column({ name: 'purchase_amount', type: 'decimal', precision: 10, scale: 2 })
+  @Column({ type: 'decimal', precision: 10, scale: 2 })
   purchaseAmount: number;
 
   @Column({ name: 'start_date', type: 'timestamp' })
@@ -19,6 +19,6 @@ export class EnrollmentHistory {
   @Column({ name: 'end_date', type: 'timestamp' })
   end: Date;
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn()
   createdAt: Date;
 }

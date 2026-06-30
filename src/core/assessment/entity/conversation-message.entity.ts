@@ -8,7 +8,7 @@ export class ConversationMessage {
   id: string;
 
   @ManyToOne(() => Conversation, (conversation) => conversation.messages, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'conversation_id' })
+  @JoinColumn()
   conversation: Conversation;
 
   @Column({ type: 'enum', enum: ConversationRole })
@@ -17,9 +17,9 @@ export class ConversationMessage {
   @Column({ type: 'text' })
   text: string;
 
-  @Column({ name: 'audio_path', nullable: true })
+  @Column({ nullable: true })
   audioPath: string;
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn()
   createdAt: Date;
 }

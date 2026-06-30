@@ -16,13 +16,13 @@ export class ChatMember {
   id: string;
 
   @ManyToOne(() => ChatRoom, (room) => room.members, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'chat_room_id' })
+  @JoinColumn()
   chatRoom: ChatRoom;
 
   @ManyToOne(() => User, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'user_id' })
+  @JoinColumn()
   user: User;
 
-  @CreateDateColumn({ name: 'joined_at' })
+  @CreateDateColumn()
   joinedAt: Date;
 }

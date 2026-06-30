@@ -19,7 +19,7 @@ export class Teacher {
   id: string;
 
   @OneToOne(() => User, (user) => user.teacher)
-  @JoinColumn({ name: 'user_id' })
+  @JoinColumn()
   user: User;
 
   @Column({ type: 'enum', enum: TeacherStatus, default: TeacherStatus.ACTIVE })
@@ -28,7 +28,7 @@ export class Teacher {
   @Column({ nullable: true })
   profession: string;
 
-  @Column({ name: 'intro_video', nullable: true })
+  @Column({ nullable: true })
   introVideo: string;
 
   @Column({ type: 'jsonb', nullable: true })
@@ -40,9 +40,9 @@ export class Teacher {
   @OneToMany(() => TeacherFeedback, (feedback) => feedback.teacher)
   feedbacks: TeacherFeedback[];
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn()
   createdAt: Date;
 
-  @UpdateDateColumn({ name: 'updated_at' })
+  @UpdateDateColumn()
   updatedAt: Date;
 }

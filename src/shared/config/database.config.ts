@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { DataSource } from 'typeorm';
+import { SnakeNamingStrategy } from '@/shared/config/snake-naming.strategy';
 
 export const dataSource = new DataSource({
   type: 'postgres',
@@ -9,5 +10,6 @@ export const dataSource = new DataSource({
   password: process.env.DB_PASSWORD,
   database: process.env.DB_DATABASE,
   synchronize: true,
+  namingStrategy: new SnakeNamingStrategy(),
   entities: ['dist/**/*.entity.js'],
 });

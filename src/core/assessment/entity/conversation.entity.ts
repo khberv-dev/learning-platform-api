@@ -16,15 +16,15 @@ export class Conversation {
   id: string;
 
   @ManyToOne(() => Student, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'student_id' })
+  @JoinColumn()
   student: Student;
 
   @OneToMany(() => ConversationMessage, (message) => message.conversation)
   messages: ConversationMessage[];
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn()
   createdAt: Date;
 
-  @UpdateDateColumn({ name: 'updated_at' })
+  @UpdateDateColumn()
   updatedAt: Date;
 }

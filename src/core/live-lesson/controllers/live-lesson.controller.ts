@@ -50,6 +50,13 @@ export class LiveLessonController {
     return this.liveLessonService.findAll(user.id, query);
   }
 
+  @Get('my')
+  @Roles(UserRole.STUDENT)
+  @ApiOkResponse({ schema: { example: lessonListExample } })
+  findMy(@CurrentUser() user: { id: string }, @Query() query: PaginationQuery) {
+    return this.liveLessonService.findForStudent(user.id, query);
+  }
+
   @Get(':id')
   @ApiOkResponse({ schema: { example: lessonExample } })
   findOne(@CurrentUser() user: { id: string }, @Param('id') id: string) {

@@ -18,7 +18,7 @@ export class Student {
   id: string;
 
   @OneToOne(() => User, (user) => user.student)
-  @JoinColumn({ name: 'user_id' })
+  @JoinColumn()
   user: User;
 
   @Column({ type: 'int', default: 0 })
@@ -36,9 +36,9 @@ export class Student {
   @OneToMany(() => Enrollment, (enrollment) => enrollment.student)
   enrollments: Enrollment[];
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn()
   createdAt: Date;
 
-  @UpdateDateColumn({ name: 'updated_at' })
+  @UpdateDateColumn()
   updatedAt: Date;
 }

@@ -52,6 +52,11 @@ export class AssignmentService {
     const student = await this.studentRepo.findOne({ where: { user: { id: studentUserId } } });
     if (!student) throw new NotFoundException('Talaba topilmadi');
 
+    const pending = await this.assignmentRepo.findOne({
+      where: { student: { id: student.id }, status: AssignmentStatus.PENDING },
+    });
+    if (pending) throw new BadRequestException('You have a pending request');
+
     const teacher = await this.teacherRepo.findOne({ where: { id: dto.teacherId, status: TeacherStatus.ACTIVE } });
     if (!teacher) throw new NotFoundException("O'qituvchi topilmadi");
 

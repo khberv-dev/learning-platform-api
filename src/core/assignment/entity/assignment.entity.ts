@@ -17,25 +17,25 @@ export class Assignment {
   id: string;
 
   @ManyToOne(() => Teacher, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'teacher_id' })
+  @JoinColumn()
   teacher: Teacher;
 
   @ManyToOne(() => Student, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'student_id' })
+  @JoinColumn()
   student: Student;
 
-  @Column({ name: 'start_date', type: 'timestamp' })
+  @Column({ type: 'timestamp' })
   startDate: Date;
 
   @Column({ type: 'enum', enum: AssignmentStatus, default: AssignmentStatus.PENDING })
   status: AssignmentStatus;
 
-  @Column({ name: 'selected_schedule', type: 'jsonb', nullable: true })
+  @Column({ type: 'jsonb', nullable: true })
   selectedSchedule: Record<string, string[]> | null;
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn()
   createdAt: Date;
 
-  @UpdateDateColumn({ name: 'updated_at' })
+  @UpdateDateColumn()
   updatedAt: Date;
 }

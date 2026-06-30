@@ -9,19 +9,19 @@ export class TeacherStatusHistory {
   id: string;
 
   @ManyToOne(() => Teacher, (teacher) => teacher.statusHistories, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'teacher_id' })
+  @JoinColumn()
   teacher: Teacher;
 
-  @Column({ name: 'old_status', type: 'enum', enum: TeacherStatus, nullable: true })
+  @Column({ type: 'enum', enum: TeacherStatus, nullable: true })
   oldStatus: TeacherStatus | null;
 
-  @Column({ name: 'new_status', type: 'enum', enum: TeacherStatus })
+  @Column({ type: 'enum', enum: TeacherStatus })
   newStatus: TeacherStatus;
 
   @ManyToOne(() => Admin, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'admin_id' })
   changedBy: Admin | null;
 
-  @CreateDateColumn({ name: 'changed_at' })
+  @CreateDateColumn()
   changedAt: Date;
 }

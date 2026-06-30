@@ -27,7 +27,7 @@ export class Lesson {
   media: string;
 
   @ManyToOne(() => Unit, (unit) => unit.lessons, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'unit_id' })
+  @JoinColumn()
   unit: Unit;
 
   @OneToMany(() => Progress, (progress) => progress.lesson)
@@ -36,9 +36,9 @@ export class Lesson {
   @OneToMany(() => Task, (task) => task.lesson)
   tasks: Task[];
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn()
   createdAt: Date;
 
-  @UpdateDateColumn({ name: 'updated_at' })
+  @UpdateDateColumn()
   updatedAt: Date;
 }

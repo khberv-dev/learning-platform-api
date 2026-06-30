@@ -15,25 +15,25 @@ export class Call {
   id: string;
 
   @ManyToOne(() => User, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'peer_a_id' })
+  @JoinColumn()
   peerA: User;
 
   @ManyToOne(() => User, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'peer_b_id' })
+  @JoinColumn()
   peerB: User;
 
-  @Column({ name: 'start_date', type: 'timestamp' })
+  @Column({ type: 'timestamp' })
   startDate: Date;
 
-  @Column({ name: 'end_date', type: 'timestamp', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   endDate: Date | null;
 
-  @Column({ name: 'duration_seconds', type: 'int', nullable: true })
+  @Column({ type: 'int', nullable: true })
   durationSeconds: number | null;
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn()
   createdAt: Date;
 
-  @UpdateDateColumn({ name: 'updated_at' })
+  @UpdateDateColumn()
   updatedAt: Date;
 }
