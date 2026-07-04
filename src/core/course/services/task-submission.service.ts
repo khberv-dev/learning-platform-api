@@ -17,13 +17,13 @@ export class TaskSubmissionService {
     @InjectRepository(Enrollment) private readonly enrollmentRepo: Repository<Enrollment>,
   ) {}
 
-  async submit(studentUserId: string, answers: Record<string, string>) {
+  // answers: { [taskId]: string[] } — one answer string per question in order
+  async submit(studentUserId: string, answers: Record<string, string[]>) {
     const student = await this.studentRepo.findOne({ where: { user: { id: studentUserId } } });
     if (!student) throw new NotFoundException('Talaba topilmadi');
 
     const taskIds = Object.keys(answers);
     const tasks = await this.taskRepo.find({ where: { id: In(taskIds) }, relations: { lesson: true } });
-
     const taskMap = new Map(tasks.map((t) => [t.id, t]));
 
     const submissions = await Promise.all(
@@ -31,24 +31,31 @@ export class TaskSubmissionService {
         const task = taskMap.get(taskId);
         if (!task) throw new NotFoundException(`Topshiriq topilmadi: ${taskId}`);
 
-        const studentAnswer = answers[taskId].toLowerCase();
-        const isCorrect = studentAnswer === task.answer.toLowerCase();
+        const studentAnswers = answers[taskId].map((a) => a.toLowerCase());
+        const isCorrect = task.questions.every(
+          (q, i) => studentAnswers[i] !== undefined && studentAnswers[i] === q.answer.toLowerCase(),
+        );
 
         const existing = await this.submissionRepo.findOne({
           where: { student: { id: student.id }, task: { id: taskId } },
         });
 
-        return this.submissionRepo.save({ ...existing, student, task, answer: studentAnswer, isCorrect });
+        return this.submissionRepo.save({
+          ...existing,
+          student,
+          task,
+          answer: JSON.stringify(studentAnswers),
+          isCorrect,
+        });
       }),
     );
 
-    // recalculate progress for every affected lesson
     const lessonIds = [...new Set(tasks.map((t) => t.lesson.id))];
     await Promise.all(lessonIds.map((lessonId) => this.upsertLessonProgress(student, lessonId)));
 
     return submissions.map((s) => ({
       taskId: s.task.id,
-      answer: s.answer,
+      answers: JSON.parse(s.answer),
       isCorrect: s.isCorrect,
     }));
   }
@@ -100,11 +107,15 @@ export class TaskSubmissionService {
       const submission = submissionMap.get(task.id) ?? null;
       return {
         taskId: task.id,
-        task: task.task,
-        options: task.options,
-        answer: task.answer,
+        questions: task.questions,
+        file: task.file,
+        fileType: task.fileType,
         submission: submission
-          ? { answer: submission.answer, isCorrect: submission.isCorrect, submittedAt: submission.createdAt }
+          ? {
+              answers: JSON.parse(submission.answer),
+              isCorrect: submission.isCorrect,
+              submittedAt: submission.createdAt,
+            }
           : null,
       };
     });

@@ -28,6 +28,8 @@ import { LessonService } from '@/core/course/services/lesson.service';
 import { TaskService } from '@/core/course/services/task.service';
 import { courseImageStorage, imageFileFilter, toImagePath } from '@/core/course/storage/course-image.storage';
 import { lessonMediaStorage, toMediaPath, videoFileFilter } from '@/core/course/storage/lesson-media.storage';
+import { audioFileFilter, taskAudioStorage, toAudioPath } from '@/core/course/storage/task-audio.storage';
+import { TaskFileType } from '@/core/course/enum/task-file-type.enum';
 import { CreateCourseDto } from '@/core/course/dto/create-course.dto';
 import { UpdateCourseDto } from '@/core/course/dto/update-course.dto';
 import { CreateUnitDto } from '@/core/course/dto/create-unit.dto';
@@ -98,9 +100,11 @@ const lessonExample = {
 
 const taskExample = {
   id: 't0000000-0000-0000-0000-000000000001',
-  task: 'Choose the correct greeting.',
-  options: ['Hello', 'Goodbye', 'Thank you', 'Sorry'],
-  answer: 'Hello',
+  questions: [
+    { question: 'Choose the correct greeting.', options: ['Hello', 'Goodbye', 'Thank you'], answer: 'Hello' },
+  ],
+  file: 'task-audio/uuid.mp3',
+  fileType: 'audio',
   createdAt: '2026-01-15T10:00:00.000Z',
   updatedAt: '2026-01-15T10:00:00.000Z',
 };
@@ -108,7 +112,7 @@ const taskExample = {
 @ApiTags('courses')
 @ApiBearerAuth()
 @Roles(UserRole.ADMIN)
-@Controller('courses')
+@Controller('admin/courses')
 export class AdminCourseController {
   constructor(
     private readonly courseService: CourseService,
@@ -214,6 +218,26 @@ export class AdminCourseController {
     return this.lessonService.updateLesson(courseId, unitId, lessonId, dto);
   }
 
+  @Patch(':courseId/units/:unitId/lessons/:lessonId/media')
+  @UseInterceptors(FileInterceptor('media', { storage: lessonMediaStorage, fileFilter: videoFileFilter }))
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['media'],
+      properties: { media: { type: 'string', format: 'binary' } },
+    },
+  })
+  @ApiOkResponse({ schema: { example: lessonExample } })
+  uploadLessonMedia(
+    @Param('courseId') courseId: string,
+    @Param('unitId') unitId: string,
+    @Param('lessonId') lessonId: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.lessonService.uploadMedia(courseId, unitId, lessonId, toMediaPath(file.filename));
+  }
+
   @Delete(':courseId/units/:unitId/lessons/:lessonId')
   @HttpCode(204)
   @ApiNoContentResponse()
@@ -258,6 +282,27 @@ export class AdminCourseController {
     @Body() dto: UpdateTaskDto,
   ) {
     return this.taskService.updateTask(courseId, unitId, lessonId, taskId, dto);
+  }
+
+  @Patch(':courseId/units/:unitId/lessons/:lessonId/tasks/:taskId/file')
+  @UseInterceptors(FileInterceptor('file', { storage: taskAudioStorage, fileFilter: audioFileFilter }))
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: { file: { type: 'string', format: 'binary' } },
+    },
+  })
+  @ApiOkResponse({ schema: { example: taskExample } })
+  uploadTaskFile(
+    @Param('courseId') courseId: string,
+    @Param('unitId') unitId: string,
+    @Param('lessonId') lessonId: string,
+    @Param('taskId') taskId: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.taskService.uploadFile(courseId, unitId, lessonId, taskId, toAudioPath(file.filename), TaskFileType.AUDIO);
   }
 
   @Delete(':courseId/units/:unitId/lessons/:lessonId/tasks/:taskId')

@@ -16,22 +16,22 @@ export class TaskSubmissionController {
   @ApiBody({
     schema: {
       type: 'object',
-      additionalProperties: { type: 'string' },
+      additionalProperties: { type: 'array', items: { type: 'string' } },
       example: {
-        'a1b2c3d4-0000-0000-0000-000000000001': 'hello',
-        'a1b2c3d4-0000-0000-0000-000000000002': 'goodbye',
+        'a1b2c3d4-0000-0000-0000-000000000001': ['hello', 'went'],
+        'a1b2c3d4-0000-0000-0000-000000000002': ['goodbye'],
       },
     },
   })
   @ApiCreatedResponse({
     schema: {
       example: [
-        { taskId: 'a1b2c3d4-0000-0000-0000-000000000001', answer: 'hello', isCorrect: true },
-        { taskId: 'a1b2c3d4-0000-0000-0000-000000000002', answer: 'goodbye', isCorrect: false },
+        { taskId: 'a1b2c3d4-0000-0000-0000-000000000001', answers: ['hello', 'went'], isCorrect: true },
+        { taskId: 'a1b2c3d4-0000-0000-0000-000000000002', answers: ['goodbye'], isCorrect: false },
       ],
     },
   })
-  submit(@CurrentUser() user: { id: string }, @Body() answers: Record<string, string>) {
+  submit(@CurrentUser() user: { id: string }, @Body() answers: Record<string, string[]>) {
     return this.taskSubmissionService.submit(user.id, answers);
   }
 
@@ -41,17 +41,13 @@ export class TaskSubmissionController {
       example: [
         {
           taskId: 'a1b2c3d4-0000-0000-0000-000000000001',
-          task: 'Choose the correct greeting.',
-          options: ['Hello', 'Goodbye', 'Thank you'],
-          answer: 'Hello',
-          submission: { answer: 'hello', isCorrect: true, submittedAt: '2026-06-20T10:00:00.000Z' },
-        },
-        {
-          taskId: 'a1b2c3d4-0000-0000-0000-000000000002',
-          task: 'What is the past tense of "go"?',
-          options: null,
-          answer: 'went',
-          submission: null,
+          questions: [
+            { question: 'Choose the correct greeting.', options: ['Hello', 'Goodbye', 'Thank you'], answer: 'Hello' },
+            { question: 'What is the past tense of "go"?', options: null, answer: 'went' },
+          ],
+          file: 'task-audio/uuid.mp3',
+          fileType: 'audio',
+          submission: { answers: ['hello', 'went'], isCorrect: true, submittedAt: '2026-06-20T10:00:00.000Z' },
         },
       ],
     },

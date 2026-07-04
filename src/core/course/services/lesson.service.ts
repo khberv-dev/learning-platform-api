@@ -29,6 +29,14 @@ export class LessonService {
     return this.lessonRepo.save({ ...lesson, ...dto });
   }
 
+  async uploadMedia(courseId: string, unitId: string, lessonId: string, media: string) {
+    const lesson = await this.lessonRepo.findOne({
+      where: { id: lessonId, unit: { id: unitId, course: { id: courseId } } },
+    });
+    if (!lesson) throw new NotFoundException('Dars topilmadi');
+    return this.lessonRepo.save({ ...lesson, media });
+  }
+
   async deleteLesson(courseId: string, unitId: string, lessonId: string) {
     const lesson = await this.lessonRepo.findOne({
       where: { id: lessonId, unit: { id: unitId, course: { id: courseId } } },
