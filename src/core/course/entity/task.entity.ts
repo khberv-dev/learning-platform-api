@@ -21,7 +21,7 @@ export class Task {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'jsonb' })
+  @Column({ type: 'jsonb', default: [] })
   questions: TaskQuestion[];
 
   @Column({ type: 'varchar', nullable: true })
