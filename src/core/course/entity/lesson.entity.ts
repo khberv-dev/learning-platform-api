@@ -11,6 +11,7 @@ import {
 import { Unit } from '@/core/course/entity/unit.entity';
 import { Progress } from '@/core/enrollment/entity/progress.entity';
 import { Task } from '@/core/course/entity/task.entity';
+import { Material } from '@/core/material/entity/material.entity';
 
 @Entity('lessons')
 export class Lesson {
@@ -35,6 +36,9 @@ export class Lesson {
 
   @OneToMany(() => Task, (task) => task.lesson)
   tasks: Task[];
+
+  @OneToMany(() => Material, (material) => material.lesson)
+  materials: Material[];
 
   @CreateDateColumn()
   createdAt: Date;

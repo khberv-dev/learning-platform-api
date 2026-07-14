@@ -17,6 +17,7 @@ import { AssessmentModule } from '@/core/assessment/assessment.module';
 import { MatchModule } from '@/core/match/match.module';
 import { CallModule } from '@/core/call/call.module';
 import { StatsModule } from '@/core/stats/stats.module';
+import { MaterialModule } from '@/core/material/material.module';
 import { JwtAccessGuard } from '@/common/guards/jwt-access.guard';
 import { RolesGuard } from '@/common/guards/roles.guard';
 
@@ -39,6 +40,7 @@ import { RolesGuard } from '@/common/guards/roles.guard';
     MatchModule,
     CallModule,
     StatsModule,
+    MaterialModule,
   ],
   controllers: [AppController],
   providers: [
