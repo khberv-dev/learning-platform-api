@@ -6,6 +6,7 @@ import { CreateCourseDto } from '@/core/course/dto/create-course.dto';
 import { UpdateCourseDto } from '@/core/course/dto/update-course.dto';
 
 export const COURSE_RELATIONS = { units: { lessons: true } } as const;
+export const COURSE_ORDER = { units: { lessons: { createdAt: 'ASC' } } } as const;
 
 @Injectable()
 export class CourseService {
@@ -21,17 +22,21 @@ export class CourseService {
   }
 
   async findAllCourses() {
-    const courses = await this.courseRepo.find({ relations: COURSE_RELATIONS });
+    const courses = await this.courseRepo.find({ relations: COURSE_RELATIONS, order: COURSE_ORDER });
     return courses.map((c) => this.withLessonsCount(c));
   }
 
   async findActiveCourses() {
-    const courses = await this.courseRepo.find({ where: { isActive: true }, relations: COURSE_RELATIONS });
+    const courses = await this.courseRepo.find({
+      where: { isActive: true },
+      relations: COURSE_RELATIONS,
+      order: COURSE_ORDER,
+    });
     return courses.map((c) => this.withLessonsCount(c));
   }
 
   async findOneCourse(id: string) {
-    const course = await this.courseRepo.findOne({ where: { id }, relations: COURSE_RELATIONS });
+    const course = await this.courseRepo.findOne({ where: { id }, relations: COURSE_RELATIONS, order: COURSE_ORDER });
     if (!course) throw new NotFoundException('Kurs topilmadi');
     return this.withLessonsCount(course);
   }
@@ -40,6 +45,7 @@ export class CourseService {
     const course = await this.courseRepo.findOne({
       where: { id, isActive: true },
       relations: COURSE_RELATIONS,
+      order: COURSE_ORDER,
     });
     if (!course) throw new NotFoundException('Kurs topilmadi');
     return this.withLessonsCount(course);
