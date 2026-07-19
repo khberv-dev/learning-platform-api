@@ -6,7 +6,7 @@ import { CreateCourseDto } from '@/core/course/dto/create-course.dto';
 import { UpdateCourseDto } from '@/core/course/dto/update-course.dto';
 
 export const COURSE_RELATIONS = { units: { lessons: true } } as const;
-export const COURSE_ORDER = { units: { lessons: { createdAt: 'ASC' } } } as const;
+export const COURSE_ORDER = { units: { createdAt: 'ASC', lessons: { createdAt: 'ASC' } } } as const;
 
 @Injectable()
 export class CourseService {
