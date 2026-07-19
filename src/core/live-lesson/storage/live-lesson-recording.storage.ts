@@ -4,10 +4,10 @@ import { extname } from 'path';
 import { randomUUID } from 'crypto';
 import { mkdirSync } from 'fs';
 
-const DEST = './uploads/live-session';
+const DEST = './uploads/live-lesson-recording';
 mkdirSync(DEST, { recursive: true });
 
-export const liveSessionStorage = diskStorage({
+export const liveLessonRecordingStorage = diskStorage({
   destination: DEST,
   filename: (_req, file, cb) => cb(null, `${randomUUID()}${extname(file.originalname)}`),
 });
@@ -23,4 +23,4 @@ export function videoFileFilter(
   cb(null, true);
 }
 
-export const toVideoPath = (filename: string) => `/live-session/${filename}`;
+export const toVideoUrl = (filename: string) => `/live-lesson-recording/${filename}`;

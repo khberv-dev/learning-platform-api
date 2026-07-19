@@ -4,16 +4,20 @@ import { ApiBearerAuth, ApiBody, ApiConsumes, ApiCreatedResponse, ApiOkResponse,
 import { Roles } from '@/common/decorators/roles.decorator';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { UserRole } from '@/core/user/enum/user-role.enum';
-import { LiveSessionService } from '@/core/live-lesson/services/live-session.service';
-import { UploadLiveSessionDto } from '@/core/live-lesson/dto/upload-live-session.dto';
-import { liveSessionStorage, videoFileFilter, toVideoPath } from '@/core/live-lesson/storage/live-session.storage';
+import { LiveLessonRecordingService } from '@/core/live-lesson/services/live-lesson-recording.service';
+import { UploadLiveLessonRecordingDto } from '@/core/live-lesson/dto/upload-live-lesson-recording.dto';
+import {
+  liveLessonRecordingStorage,
+  videoFileFilter,
+  toVideoUrl,
+} from '@/core/live-lesson/storage/live-lesson-recording.storage';
 
 const mentorExample = { id: 'u1', firstName: 'John', lastName: 'Doe', avatar: '/public/avatars/john.jpg' };
 
-const sessionExample = {
+const recordingExample = {
   id: 'ls000000-0000-0000-0000-000000000001',
   title: 'Speaking Practice — Session 1',
-  videoPath: '/public/live-session/abc123.mp4',
+  videoUrl: '/public/live-lesson-recording/abc123.mp4',
   assignment: {
     id: 'as000000-0000-0000-0000-000000000001',
     teacher: { user: mentorExample },
@@ -22,15 +26,15 @@ const sessionExample = {
   updatedAt: '2026-06-21T10:00:00.000Z',
 };
 
-@ApiTags('live-sessions')
+@ApiTags('live-lesson-recordings')
 @ApiBearerAuth()
-@Controller('live-sessions')
-export class LiveSessionController {
-  constructor(private readonly liveSessionService: LiveSessionService) {}
+@Controller('live-lesson-recordings')
+export class LiveLessonRecordingController {
+  constructor(private readonly liveLessonRecordingService: LiveLessonRecordingService) {}
 
   @Post('assignments/:assignmentId')
   @Roles(UserRole.TEACHER)
-  @UseInterceptors(FileInterceptor('file', { storage: liveSessionStorage, fileFilter: videoFileFilter }))
+  @UseInterceptors(FileInterceptor('file', { storage: liveLessonRecordingStorage, fileFilter: videoFileFilter }))
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -42,37 +46,34 @@ export class LiveSessionController {
       },
     },
   })
-  @ApiCreatedResponse({ schema: { example: sessionExample } })
+  @ApiCreatedResponse({ schema: { example: recordingExample } })
   upload(
     @CurrentUser() user: { id: string },
     @Param('assignmentId') assignmentId: string,
-    @Body() dto: UploadLiveSessionDto,
+    @Body() dto: UploadLiveLessonRecordingDto,
     @UploadedFile() file: Express.Multer.File,
   ) {
-    return this.liveSessionService.upload(user.id, assignmentId, dto.title, toVideoPath(file.filename));
+    return this.liveLessonRecordingService.upload(user.id, assignmentId, dto.title, toVideoUrl(file.filename));
   }
 
   @Get('my')
   @Roles(UserRole.STUDENT)
-  @ApiOkResponse({ schema: { example: [sessionExample] } })
-  listMySessions(@CurrentUser() user: { id: string }) {
-    return this.liveSessionService.listMySessions(user.id);
+  @ApiOkResponse({ schema: { example: [recordingExample] } })
+  listMyRecordings(@CurrentUser() user: { id: string }) {
+    return this.liveLessonRecordingService.listMyRecordings(user.id);
   }
 
   @Get('assignments/:assignmentId')
   @Roles(UserRole.STUDENT)
-  @ApiOkResponse({ schema: { example: [sessionExample] } })
-  listByAssignment(
-    @CurrentUser() user: { id: string },
-    @Param('assignmentId') assignmentId: string,
-  ) {
-    return this.liveSessionService.listByAssignment(user.id, assignmentId);
+  @ApiOkResponse({ schema: { example: [recordingExample] } })
+  listByAssignment(@CurrentUser() user: { id: string }, @Param('assignmentId') assignmentId: string) {
+    return this.liveLessonRecordingService.listByAssignment(user.id, assignmentId);
   }
 
   @Get(':id')
   @Roles(UserRole.STUDENT)
-  @ApiOkResponse({ schema: { example: sessionExample } })
+  @ApiOkResponse({ schema: { example: recordingExample } })
   findOne(@CurrentUser() user: { id: string }, @Param('id') id: string) {
-    return this.liveSessionService.findOne(user.id, id);
+    return this.liveLessonRecordingService.findOne(user.id, id);
   }
 }

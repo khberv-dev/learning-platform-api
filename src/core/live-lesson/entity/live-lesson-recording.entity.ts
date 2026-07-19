@@ -9,8 +9,8 @@ import {
 } from 'typeorm';
 import { Assignment } from '@/core/assignment/entity/assignment.entity';
 
-@Entity('live_sessions')
-export class LiveSession {
+@Entity('live_lesson_recordings')
+export class LiveLessonRecording {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
@@ -18,7 +18,7 @@ export class LiveSession {
   title: string;
 
   @Column()
-  videoPath: string;
+  videoUrl: string;
 
   @ManyToOne(() => Assignment, { onDelete: 'CASCADE' })
   @JoinColumn()

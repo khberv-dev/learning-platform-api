@@ -1,21 +1,26 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { LiveSession } from '@/core/live-lesson/entity/live-session.entity';
+import { LiveLessonRecording } from '@/core/live-lesson/entity/live-lesson-recording.entity';
 import { Teacher } from '@/core/user/entity/teacher.entity';
 import { Student } from '@/core/user/entity/student.entity';
 import { Assignment } from '@/core/assignment/entity/assignment.entity';
 
 @Injectable()
-export class LiveSessionService {
+export class LiveLessonRecordingService {
   constructor(
-    @InjectRepository(LiveSession) private readonly sessionRepo: Repository<LiveSession>,
+    @InjectRepository(LiveLessonRecording) private readonly recordingRepo: Repository<LiveLessonRecording>,
     @InjectRepository(Teacher) private readonly teacherRepo: Repository<Teacher>,
     @InjectRepository(Student) private readonly studentRepo: Repository<Student>,
     @InjectRepository(Assignment) private readonly assignmentRepo: Repository<Assignment>,
   ) {}
 
-  async upload(teacherUserId: string, assignmentId: string, title: string, videoPath: string): Promise<LiveSession> {
+  async upload(
+    teacherUserId: string,
+    assignmentId: string,
+    title: string,
+    videoUrl: string,
+  ): Promise<LiveLessonRecording> {
     const teacher = await this.teacherRepo.findOne({ where: { user: { id: teacherUserId } } });
     if (!teacher) throw new NotFoundException("O'qituvchi topilmadi");
 
@@ -26,21 +31,21 @@ export class LiveSessionService {
     if (!assignment) throw new NotFoundException('Topshiriq topilmadi');
     if (assignment.teacher.id !== teacher.id) throw new ForbiddenException('Ruxsat berilmagan');
 
-    return this.sessionRepo.save({ title, videoPath, assignment });
+    return this.recordingRepo.save({ title, videoUrl, assignment });
   }
 
-  async listMySessions(studentUserId: string): Promise<LiveSession[]> {
+  async listMyRecordings(studentUserId: string): Promise<LiveLessonRecording[]> {
     const student = await this.studentRepo.findOne({ where: { user: { id: studentUserId } } });
     if (!student) throw new NotFoundException('Talaba topilmadi');
 
-    return this.sessionRepo.find({
+    return this.recordingRepo.find({
       where: { assignment: { student: { id: student.id } } },
       relations: { assignment: { teacher: { user: true } } },
       order: { createdAt: 'DESC' },
     });
   }
 
-  async listByAssignment(studentUserId: string, assignmentId: string): Promise<LiveSession[]> {
+  async listByAssignment(studentUserId: string, assignmentId: string): Promise<LiveLessonRecording[]> {
     const student = await this.studentRepo.findOne({ where: { user: { id: studentUserId } } });
     if (!student) throw new NotFoundException('Talaba topilmadi');
 
@@ -51,24 +56,24 @@ export class LiveSessionService {
     if (!assignment) throw new NotFoundException('Topshiriq topilmadi');
     if (assignment.student.id !== student.id) throw new ForbiddenException('Ruxsat berilmagan');
 
-    return this.sessionRepo.find({
+    return this.recordingRepo.find({
       where: { assignment: { id: assignmentId } },
       relations: { assignment: { teacher: { user: true } } },
       order: { createdAt: 'ASC' },
     });
   }
 
-  async findOne(studentUserId: string, sessionId: string): Promise<LiveSession> {
+  async findOne(studentUserId: string, recordingId: string): Promise<LiveLessonRecording> {
     const student = await this.studentRepo.findOne({ where: { user: { id: studentUserId } } });
     if (!student) throw new NotFoundException('Talaba topilmadi');
 
-    const session = await this.sessionRepo.findOne({
-      where: { id: sessionId },
+    const recording = await this.recordingRepo.findOne({
+      where: { id: recordingId },
       relations: { assignment: { student: true, teacher: { user: true } } },
     });
-    if (!session) throw new NotFoundException('Yozuv topilmadi');
-    if (session.assignment.student.id !== student.id) throw new ForbiddenException('Ruxsat berilmagan');
+    if (!recording) throw new NotFoundException('Yozuv topilmadi');
+    if (recording.assignment.student.id !== student.id) throw new ForbiddenException('Ruxsat berilmagan');
 
-    return session;
+    return recording;
   }
 }

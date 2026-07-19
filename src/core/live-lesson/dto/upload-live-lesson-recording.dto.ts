@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmpty, IsString } from 'class-validator';
 
-export class UploadLiveSessionDto {
+export class UploadLiveLessonRecordingDto {
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
