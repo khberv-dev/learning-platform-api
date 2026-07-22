@@ -5,7 +5,7 @@ import { Task } from '@/core/course/entity/task.entity';
 import { Lesson } from '@/core/course/entity/lesson.entity';
 import { CreateTaskDto } from '@/core/course/dto/create-task.dto';
 import { UpdateTaskDto } from '@/core/course/dto/update-task.dto';
-import { TaskFileType } from '@/core/course/enum/task-file-type.enum';
+import { TaskContentType } from '@/core/course/enum/task-content-type.enum';
 
 @Injectable()
 export class TaskService {
@@ -25,9 +25,10 @@ export class TaskService {
   async createTask(courseId: string, unitId: string, lessonId: string, dto: CreateTaskDto): Promise<Task> {
     const lesson = await this.loadLesson(courseId, unitId, lessonId);
     return this.taskRepo.save({
+      name: dto.name ?? null,
       questions: dto.questions.map((q) => ({ ...q, options: q.options ?? null })),
       file: dto.file ?? null,
-      fileType: dto.fileType ?? null,
+      contentType: dto.file ? TaskContentType.TEXT : null,
       lesson,
     });
   }
@@ -40,21 +41,37 @@ export class TaskService {
     });
   }
 
-  async updateTask(courseId: string, unitId: string, lessonId: string, taskId: string, dto: UpdateTaskDto): Promise<Task> {
+  async updateTask(
+    courseId: string,
+    unitId: string,
+    lessonId: string,
+    taskId: string,
+    dto: UpdateTaskDto,
+  ): Promise<Task> {
     await this.loadLesson(courseId, unitId, lessonId);
     const task = await this.taskRepo.findOne({ where: { id: taskId, lesson: { id: lessonId } } });
     if (!task) throw new NotFoundException('Topshiriq topilmadi');
+    if (dto.name !== undefined) task.name = dto.name ?? null;
     if (dto.questions !== undefined) task.questions = dto.questions.map((q) => ({ ...q, options: q.options ?? null }));
-    if (dto.file !== undefined) task.file = dto.file ?? null;
-    if (dto.fileType !== undefined) task.fileType = dto.fileType ?? null;
+    if (dto.file !== undefined) {
+      task.file = dto.file ?? null;
+      task.contentType = dto.file ? TaskContentType.TEXT : null;
+    }
     return this.taskRepo.save(task);
   }
 
-  async uploadFile(courseId: string, unitId: string, lessonId: string, taskId: string, file: string, fileType: TaskFileType): Promise<Task> {
+  async uploadFile(
+    courseId: string,
+    unitId: string,
+    lessonId: string,
+    taskId: string,
+    file: string,
+    contentType: TaskContentType,
+  ): Promise<Task> {
     await this.loadLesson(courseId, unitId, lessonId);
     const task = await this.taskRepo.findOne({ where: { id: taskId, lesson: { id: lessonId } } });
     if (!task) throw new NotFoundException('Topshiriq topilmadi');
-    return this.taskRepo.save({ ...task, file, fileType });
+    return this.taskRepo.save({ ...task, file, contentType });
   }
 
   async deleteTask(courseId: string, unitId: string, lessonId: string, taskId: string): Promise<void> {

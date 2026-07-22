@@ -1,7 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsArray, IsEnum, IsNotEmpty, IsOptional, IsString, ValidateNested } from 'class-validator';
-import { TaskFileType } from '@/core/course/enum/task-file-type.enum';
+import { IsArray, IsNotEmpty, IsOptional, IsString, ValidateNested } from 'class-validator';
 
 export class TaskQuestionDto {
   @ApiProperty()
@@ -22,19 +21,19 @@ export class TaskQuestionDto {
 }
 
 export class CreateTaskDto {
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  name?: string | null;
+
   @ApiProperty({ type: [TaskQuestionDto] })
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => TaskQuestionDto)
   questions: TaskQuestionDto[];
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'Set to attach plain text content; content type is set to "text" automatically' })
   @IsString()
   @IsOptional()
   file?: string | null;
-
-  @ApiPropertyOptional({ enum: TaskFileType })
-  @IsEnum(TaskFileType)
-  @IsOptional()
-  fileType?: TaskFileType | null;
 }

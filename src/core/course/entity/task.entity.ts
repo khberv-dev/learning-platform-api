@@ -8,7 +8,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { Lesson } from '@/core/course/entity/lesson.entity';
-import { TaskFileType } from '@/core/course/enum/task-file-type.enum';
+import { TaskContentType } from '@/core/course/enum/task-content-type.enum';
 
 export interface TaskQuestion {
   question: string;
@@ -21,14 +21,17 @@ export class Task {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
+  @Column({ type: 'varchar', nullable: true })
+  name: string | null;
+
   @Column({ type: 'jsonb', default: [] })
   questions: TaskQuestion[];
 
   @Column({ type: 'varchar', nullable: true })
   file: string | null;
 
-  @Column({ type: 'enum', enum: TaskFileType, nullable: true })
-  fileType: TaskFileType | null;
+  @Column({ type: 'enum', enum: TaskContentType, nullable: true })
+  contentType: TaskContentType | null;
 
   @ManyToOne(() => Lesson, (lesson) => lesson.tasks, { onDelete: 'CASCADE' })
   @JoinColumn()

@@ -41,12 +41,13 @@ export class TaskSubmissionController {
       example: [
         {
           taskId: 'a1b2c3d4-0000-0000-0000-000000000001',
+          name: 'Greeting quiz',
           questions: [
             { question: 'Choose the correct greeting.', options: ['Hello', 'Goodbye', 'Thank you'], answer: 'Hello' },
             { question: 'What is the past tense of "go"?', options: null, answer: 'went' },
           ],
-          file: 'task-audio/uuid.mp3',
-          fileType: 'audio',
+          file: '/task-audio/uuid.mp3',
+          contentType: 'audio',
           submission: { answers: ['hello', 'went'], isCorrect: true, submittedAt: '2026-06-20T10:00:00.000Z' },
         },
       ],

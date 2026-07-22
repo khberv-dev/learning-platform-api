@@ -107,9 +107,10 @@ export class TaskSubmissionService {
       const submission = submissionMap.get(task.id) ?? null;
       return {
         taskId: task.id,
+        name: task.name,
         questions: task.questions,
         file: task.file,
-        fileType: task.fileType,
+        contentType: task.contentType,
         submission: submission
           ? {
               answers: JSON.parse(submission.answer),
