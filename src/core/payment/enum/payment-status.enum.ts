@@ -1,5 +1,5 @@
-export enum EnrollmentStatus {
+export enum PaymentStatus {
   CREATED = 'created',
-  ACTIVE = 'active',
+  PAID = 'paid',
   CANCELLED = 'cancelled',
 }

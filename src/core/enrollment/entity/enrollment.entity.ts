@@ -12,6 +12,7 @@ import { Student } from '@/core/user/entity/student.entity';
 import { Course } from '@/core/course/entity/course.entity';
 import { Progress } from '@/core/enrollment/entity/progress.entity';
 import { EnrollmentHistory } from '@/core/enrollment/entity/enrollment-history.entity';
+import { EnrollmentStatus } from '@/core/enrollment/enum/enrollment-status.enum';
 
 @Entity('enrollments')
 export class Enrollment {
@@ -26,11 +27,14 @@ export class Enrollment {
   @JoinColumn()
   course: Course;
 
-  @Column({ name: 'start_date', type: 'timestamp' })
-  start: Date;
+  @Column({ type: 'enum', enum: EnrollmentStatus, default: EnrollmentStatus.CREATED })
+  status: EnrollmentStatus;
 
-  @Column({ name: 'end_date', type: 'timestamp' })
-  end: Date;
+  @Column({ name: 'start_date', type: 'timestamp', nullable: true })
+  start: Date | null;
+
+  @Column({ name: 'end_date', type: 'timestamp', nullable: true })
+  end: Date | null;
 
   @OneToMany(() => Progress, (progress) => progress.enrollment)
   progresses: Progress[];

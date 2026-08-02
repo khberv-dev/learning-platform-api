@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { LessThanOrEqual, MoreThanOrEqual, Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Enrollment } from '@/core/enrollment/entity/enrollment.entity';
 import { EnrollmentHistory } from '@/core/enrollment/entity/enrollment-history.entity';
 import { EnrollmentStatus } from '@/core/enrollment/enum/enrollment-status.enum';
@@ -21,17 +21,12 @@ export class EnrollmentService {
     const student = await this.studentRepo.findOne({ where: { user: { id: userId } } });
     if (!student) return [];
 
-    const now = new Date();
-    const activeEnrollments = await this.enrollmentRepo.find({
-      where: {
-        student: { id: student.id },
-        start: LessThanOrEqual(now),
-        end: MoreThanOrEqual(now),
-      },
+    const taken = await this.enrollmentRepo.find({
+      where: { student: { id: student.id }, status: In([EnrollmentStatus.CREATED, EnrollmentStatus.ACTIVE]) },
       relations: { course: true },
     });
 
-    const enrolledCourseIds = new Set(activeEnrollments.map((e) => e.course.id));
+    const enrolledCourseIds = new Set(taken.map((e) => e.course.id));
     const activeCourses = await this.courseService.findActiveCourses();
     return activeCourses.filter((c) => !enrolledCourseIds.has(c.id));
   }
@@ -42,9 +37,9 @@ export class EnrollmentService {
 
     const now = new Date();
     const enrollments = await this.enrollmentRepo.find({
-      where: { student: { id: student.id } },
+      where: { student: { id: student.id }, status: EnrollmentStatus.ACTIVE },
       relations: { course: { units: { lessons: true } }, progresses: true },
-      order: { start: 'DESC' },
+      order: { createdAt: 'DESC' },
     });
 
     return enrollments.map((e) => {
@@ -55,7 +50,7 @@ export class EnrollmentService {
         ...e,
         lessonsCount,
         totalProgress,
-        status: now >= e.start && now <= e.end ? EnrollmentStatus.ACTIVE : EnrollmentStatus.EXPIRED,
+        isExpired: e.end !== null && now > e.end,
       };
     });
   }
@@ -79,6 +74,7 @@ export class EnrollmentService {
     const enrollment = await this.enrollmentRepo.save({
       student,
       course,
+      status: EnrollmentStatus.ACTIVE,
       start: new Date(dto.start),
       end: new Date(dto.end),
     });
