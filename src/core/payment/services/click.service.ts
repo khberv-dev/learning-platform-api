@@ -112,21 +112,29 @@ export class ClickService {
     return response;
   }
 
-  private prepareResponse(dto: ClickPrepareDto, error: ClickError, paymentId?: string): ClickPrepareResponse {
+  /**
+   * Javobdagi `merchant_trans_id` — foydalanuvchi (user) id. To'lov topilgan
+   * bo'lsa uning egasidan olinadi, aks holda so'rovdagi qiymat qaytariladi.
+   */
+  private merchantTransId(dto: ClickPrepareDto, payment?: Payment): string {
+    return payment?.user?.id ?? dto.merchant_trans_id ?? '';
+  }
+
+  private prepareResponse(dto: ClickPrepareDto, error: ClickError, payment?: Payment): ClickPrepareResponse {
     return this.logResponse('prepare', dto, {
       click_trans_id: dto.click_trans_id ?? '',
-      merchant_trans_id: dto.merchant_trans_id ?? '',
-      merchant_prepare_id: paymentId ?? null,
+      merchant_trans_id: this.merchantTransId(dto, payment),
+      merchant_prepare_id: payment?.id ?? null,
       error,
       error_note: CLICK_ERROR_NOTE[error],
     });
   }
 
-  private completeResponse(dto: ClickCompleteDto, error: ClickError, paymentId?: string): ClickCompleteResponse {
+  private completeResponse(dto: ClickCompleteDto, error: ClickError, payment?: Payment): ClickCompleteResponse {
     return this.logResponse('complete', dto, {
       click_trans_id: dto.click_trans_id ?? '',
-      merchant_trans_id: dto.merchant_trans_id ?? '',
-      merchant_confirm_id: paymentId ?? null,
+      merchant_trans_id: this.merchantTransId(dto, payment),
+      merchant_confirm_id: payment?.id ?? null,
       error,
       error_note: CLICK_ERROR_NOTE[error],
     });
@@ -168,19 +176,19 @@ export class ClickService {
     const payment = candidates.find((p) => this.amountMatches(p, dto.amount)) ?? candidates[0];
 
     if (!this.amountMatches(payment, dto.amount)) {
-      return this.prepareResponse(dto, ClickError.INCORRECT_AMOUNT, payment.id);
+      return this.prepareResponse(dto, ClickError.INCORRECT_AMOUNT, payment);
     }
 
     if (Number(dto.error) < 0) {
       await this.paymentService.markCancelled(payment);
-      return this.prepareResponse(dto, ClickError.TRANSACTION_CANCELLED, payment.id);
+      return this.prepareResponse(dto, ClickError.TRANSACTION_CANCELLED, payment);
     }
 
     payment.providerPaymentId = dto.click_trans_id;
     await this.paymentRepo.save(payment);
     this.logger.log(`[${dto.click_trans_id}] to'lov ${payment.id} ga provider id biriktirildi`);
 
-    return this.prepareResponse(dto, ClickError.SUCCESS, payment.id);
+    return this.prepareResponse(dto, ClickError.SUCCESS, payment);
   }
 
   /**
@@ -222,21 +230,21 @@ export class ClickService {
       return this.completeResponse(dto, ClickError.TRANSACTION_NOT_FOUND);
     }
     if (payment.providerPaymentId && payment.providerPaymentId !== dto.click_trans_id) {
-      return this.completeResponse(dto, ClickError.TRANSACTION_NOT_FOUND, payment.id);
+      return this.completeResponse(dto, ClickError.TRANSACTION_NOT_FOUND, payment);
     }
     if (payment.status === PaymentStatus.PAID) {
-      return this.completeResponse(dto, ClickError.ALREADY_PAID, payment.id);
+      return this.completeResponse(dto, ClickError.ALREADY_PAID, payment);
     }
     if (payment.status === PaymentStatus.CANCELLED) {
-      return this.completeResponse(dto, ClickError.TRANSACTION_CANCELLED, payment.id);
+      return this.completeResponse(dto, ClickError.TRANSACTION_CANCELLED, payment);
     }
     if (!this.amountMatches(payment, dto.amount)) {
-      return this.completeResponse(dto, ClickError.INCORRECT_AMOUNT, payment.id);
+      return this.completeResponse(dto, ClickError.INCORRECT_AMOUNT, payment);
     }
 
     if (Number(dto.error) < 0) {
       await this.paymentService.markCancelled(payment);
-      return this.completeResponse(dto, ClickError.TRANSACTION_CANCELLED, payment.id);
+      return this.completeResponse(dto, ClickError.TRANSACTION_CANCELLED, payment);
     }
 
     try {
@@ -246,9 +254,9 @@ export class ClickService {
       );
     } catch (error) {
       this.logger.error(`To'lovni tasdiqlashda xato (payment ${payment.id})`, error as Error);
-      return this.completeResponse(dto, ClickError.FAILED_TO_UPDATE_USER, payment.id);
+      return this.completeResponse(dto, ClickError.FAILED_TO_UPDATE_USER, payment);
     }
 
-    return this.completeResponse(dto, ClickError.SUCCESS, payment.id);
+    return this.completeResponse(dto, ClickError.SUCCESS, payment);
   }
 }
