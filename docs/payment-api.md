@@ -244,7 +244,7 @@ GET /api/payments/{paymentId}
 
 ## Bog'liq endpointlar
 
-- `GET /api/courses/available` — sotib olish mumkin bo'lgan faol kurslar. Kurs ro'yxatdan chiqadi, agar foydalanuvchida shu kurs uchun `created` (to'lov kutilmoqda) yoki **muddati tugamagan** `active` yozilish bo'lsa. **Muddati tugagan yozilish to'smaydi** — kurs qayta ro'yxatda paydo bo'ladi va uni qayta sotib olish mumkin.
+- `GET /api/courses/available` — sotib olish mumkin bo'lgan faol kurslar. Kurs ro'yxatdan **faqat** muddati tugamagan `active` yozilish bo'lganda chiqadi. `created` (to'lov kutilmoqda) va muddati tugagan yozilishlar to'smaydi — ular ro'yxatda qoladi. `created` kursga qayta `POST /api/payments/request` yuborilsa, yangi to'lov yaratilmaydi: mavjud kutilayotgan to'lov qaytariladi.
 - Muddati tugagan kurs qayta sotib olinganda **yangi yozilish yaratilmaydi**: mavjud yozilish `created` holatiga qaytadi (`start` / `end` tozalanadi), to'langach yangi muddat bilan `active` bo'ladi va `enrollment_histories` ga navbatdagi yozuv qo'shiladi. Shu tufayli kurs bo'yicha progress saqlanib qoladi.
 - `GET /api/courses/me` — **faqat `active`** yozilishlar. To'lov tasdiqlanmaguncha kurs bu ro'yxatda ko'rinmaydi. Har bir yozilishda `totalProgress` va `isExpired` bor.
 

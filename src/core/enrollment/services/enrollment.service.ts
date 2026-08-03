@@ -1,10 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { Enrollment } from '@/core/enrollment/entity/enrollment.entity';
 import { EnrollmentHistory } from '@/core/enrollment/entity/enrollment-history.entity';
 import { EnrollmentStatus } from '@/core/enrollment/enum/enrollment-status.enum';
-import { blocksNewPurchase, isEnrollmentExpired } from '@/core/enrollment/utils/enrollment.util';
+import { isEnrollmentExpired } from '@/core/enrollment/utils/enrollment.util';
 import { CreateEnrollmentDto } from '@/core/enrollment/dto/create-enrollment.dto';
 import { CourseService } from '@/core/course/services/course.service';
 import { Student } from '@/core/user/entity/student.entity';
@@ -22,14 +22,15 @@ export class EnrollmentService {
     const student = await this.studentRepo.findOne({ where: { user: { id: userId } } });
     if (!student) return [];
 
+    // Faqat muddati tugamagan faol yozilish kursni ro'yxatdan chiqaradi.
+    // `created` (to'lov kutilmoqda) va muddati tugaganlari to'smaydi.
     const taken = await this.enrollmentRepo.find({
-      where: { student: { id: student.id }, status: In([EnrollmentStatus.CREATED, EnrollmentStatus.ACTIVE]) },
+      where: { student: { id: student.id }, status: EnrollmentStatus.ACTIVE },
       relations: { course: true },
     });
 
-    // Muddati tugagan yozilishlar to'smaydi — kursni qayta sotib olish mumkin.
     const now = new Date();
-    const blockedCourseIds = new Set(taken.filter((e) => blocksNewPurchase(e, now)).map((e) => e.course.id));
+    const blockedCourseIds = new Set(taken.filter((e) => !isEnrollmentExpired(e, now)).map((e) => e.course.id));
     const activeCourses = await this.courseService.findActiveCourses();
     return activeCourses.filter((c) => !blockedCourseIds.has(c.id));
   }
