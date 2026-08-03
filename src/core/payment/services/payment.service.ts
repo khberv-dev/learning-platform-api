@@ -9,6 +9,7 @@ import { Student } from '@/core/user/entity/student.entity';
 import { Enrollment } from '@/core/enrollment/entity/enrollment.entity';
 import { EnrollmentHistory } from '@/core/enrollment/entity/enrollment-history.entity';
 import { EnrollmentStatus } from '@/core/enrollment/enum/enrollment-status.enum';
+import { isEnrollmentExpired } from '@/core/enrollment/utils/enrollment.util';
 import { RequestPaymentDto } from '@/core/payment/dto/request-payment.dto';
 import { SelectPaymentTypeDto } from '@/core/payment/dto/select-payment-type.dto';
 import { UpdatePaymentStatusDto } from '@/core/payment/dto/update-payment-status.dto';
@@ -74,11 +75,23 @@ export class PaymentService {
       relations: { course: true },
     });
 
-    if (existing?.status === EnrollmentStatus.ACTIVE) {
+    if (existing && existing.status === EnrollmentStatus.ACTIVE && !isEnrollmentExpired(existing)) {
       throw new BadRequestException('Siz allaqachon ushbu kursga yozilgansiz');
     }
 
-    const enrollment = existing ?? (await this.enrollmentRepo.save({ student, course: plan.course }));
+    let enrollment: Enrollment;
+    if (!existing) {
+      enrollment = await this.enrollmentRepo.save({ student, course: plan.course });
+    } else if (existing.status === EnrollmentStatus.ACTIVE) {
+      // Muddati tugagan yozilish qayta sotib olinmoqda: kutish holatiga qaytariladi.
+      // Eski muddat `enrollment_histories` da saqlanib qoladi.
+      existing.status = EnrollmentStatus.CREATED;
+      existing.start = null;
+      existing.end = null;
+      enrollment = await this.enrollmentRepo.save(existing);
+    } else {
+      enrollment = existing;
+    }
 
     let payment = await this.paymentRepo.findOne({
       where: { enrollment: { id: enrollment.id }, status: PaymentStatus.CREATED },

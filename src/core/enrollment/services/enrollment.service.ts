@@ -4,6 +4,7 @@ import { In, Repository } from 'typeorm';
 import { Enrollment } from '@/core/enrollment/entity/enrollment.entity';
 import { EnrollmentHistory } from '@/core/enrollment/entity/enrollment-history.entity';
 import { EnrollmentStatus } from '@/core/enrollment/enum/enrollment-status.enum';
+import { blocksNewPurchase, isEnrollmentExpired } from '@/core/enrollment/utils/enrollment.util';
 import { CreateEnrollmentDto } from '@/core/enrollment/dto/create-enrollment.dto';
 import { CourseService } from '@/core/course/services/course.service';
 import { Student } from '@/core/user/entity/student.entity';
@@ -26,9 +27,11 @@ export class EnrollmentService {
       relations: { course: true },
     });
 
-    const enrolledCourseIds = new Set(taken.map((e) => e.course.id));
+    // Muddati tugagan yozilishlar to'smaydi — kursni qayta sotib olish mumkin.
+    const now = new Date();
+    const blockedCourseIds = new Set(taken.filter((e) => blocksNewPurchase(e, now)).map((e) => e.course.id));
     const activeCourses = await this.courseService.findActiveCourses();
-    return activeCourses.filter((c) => !enrolledCourseIds.has(c.id));
+    return activeCourses.filter((c) => !blockedCourseIds.has(c.id));
   }
 
   async getMyCourses(userId: string) {
@@ -50,7 +53,7 @@ export class EnrollmentService {
         ...e,
         lessonsCount,
         totalProgress,
-        isExpired: e.end !== null && now > e.end,
+        isExpired: isEnrollmentExpired(e, now),
       };
     });
   }
