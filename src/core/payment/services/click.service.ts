@@ -13,6 +13,8 @@ import { PaymentService } from '@/core/payment/services/payment.service';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+const CLICK_RELATIONS = { plan: true, enrollment: { course: true }, user: true } as const;
+
 export interface ClickPrepareResponse {
   click_trans_id: string;
   merchant_trans_id: string;
@@ -113,6 +115,29 @@ export class ClickService {
   }
 
   /**
+   * `merchant_trans_id` — to'lov (payment) id yoki foydalanuvchi (user) id
+   * bo'lishi mumkin: qaysi biri to'lov sahifasining `transaction_param` iga
+   * qo'yilganiga bog'liq. Avval to'lov id sifatida qidiriladi (aniq moslik),
+   * topilmasa foydalanuvchining kutilayotgan to'lovlari ichidan tanlanadi.
+   */
+  private async resolvePendingPayment(merchantTransId: string, amount?: string): Promise<Payment | null> {
+    const byPaymentId = await this.paymentRepo.findOne({
+      where: { id: merchantTransId, status: PaymentStatus.CREATED },
+      relations: CLICK_RELATIONS,
+    });
+    if (byPaymentId) return byPaymentId;
+
+    const candidates = await this.paymentRepo.find({
+      where: { user: { id: merchantTransId }, status: PaymentStatus.CREATED },
+      relations: CLICK_RELATIONS,
+      order: { createdAt: 'DESC' },
+    });
+    if (candidates.length === 0) return null;
+
+    return candidates.find((p) => this.amountMatches(p, amount)) ?? candidates[0];
+  }
+
+  /**
    * Javobdagi `merchant_trans_id` — foydalanuvchi (user) id. To'lov topilgan
    * bo'lsa uning egasidan olinadi, aks holda so'rovdagi qiymat qaytariladi.
    */
@@ -163,17 +188,11 @@ export class ClickService {
       return this.prepareResponse(dto, ClickError.USER_NOT_FOUND);
     }
 
-    const candidates = await this.paymentRepo.find({
-      where: { user: { id: dto.merchant_trans_id }, status: PaymentStatus.CREATED },
-      relations: { plan: true, enrollment: { course: true }, user: true },
-      order: { createdAt: 'DESC' },
-    });
+    const payment = await this.resolvePendingPayment(dto.merchant_trans_id, dto.amount);
 
-    if (candidates.length === 0) {
+    if (!payment) {
       return this.prepareResponse(dto, ClickError.TRANSACTION_NOT_FOUND);
     }
-
-    const payment = candidates.find((p) => this.amountMatches(p, dto.amount)) ?? candidates[0];
 
     if (!this.amountMatches(payment, dto.amount)) {
       return this.prepareResponse(dto, ClickError.INCORRECT_AMOUNT, payment);
@@ -223,10 +242,11 @@ export class ClickService {
 
     const payment = await this.paymentRepo.findOne({
       where: { id: dto.merchant_prepare_id },
-      relations: { plan: true, enrollment: { course: true }, user: true },
+      relations: CLICK_RELATIONS,
     });
 
-    if (!payment || payment.user.id !== dto.merchant_trans_id) {
+    // merchant_trans_id prepare'dagidek to'lov id yoki foydalanuvchi id bo'lishi mumkin.
+    if (!payment || (payment.user.id !== dto.merchant_trans_id && payment.id !== dto.merchant_trans_id)) {
       return this.completeResponse(dto, ClickError.TRANSACTION_NOT_FOUND);
     }
     if (payment.providerPaymentId && payment.providerPaymentId !== dto.click_trans_id) {

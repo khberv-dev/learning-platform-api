@@ -276,8 +276,10 @@ POST /api/payment/click/prepare
 
 So'rov maydonlari: `click_trans_id`, `service_id`, `click_paydoc_id`, `merchant_trans_id`, `amount`, `action` (= `0`), `error`, `error_note`, `sign_time`, `sign_string`.
 
-- `merchant_trans_id` — **user id**.
-- Shu foydalanuvchining `created` holatidagi to'lovi topiladi (summasi mos keladigani, bo'lmasa eng oxirgisi).
+- `merchant_trans_id` — **to'lov (payment) id yoki foydalanuvchi (user) id**. Bu qiymat to'lov sahifasining `transaction_param` parametridan keladi.
+  - to'lov id bo'lsa — aniq to'lov topiladi (tavsiya etiladi);
+  - foydalanuvchi id bo'lsa — shu foydalanuvchining `created` holatidagi to'lovi topiladi (summasi mos keladigani, bo'lmasa eng oxirgisi).
+  - UUID bo'lmasa (masalan Click demo sahifasidagi `Demo`) — `-5` qaytariladi.
 - Topilgan to'lovga `providerPaymentId = click_trans_id` yoziladi.
 
 **Javob**
