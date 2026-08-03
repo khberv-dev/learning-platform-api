@@ -9,7 +9,7 @@ export class UpdatePaymentStatusDto {
 
   @ApiPropertyOptional({
     example: '2026-05-18T00:00:00.000Z',
-    description: "status=paid bo'lganda majburiy — kursga yozilish boshlanish sanasi",
+    description: 'Yozilish boshlanish sanasi. Berilmasa — hozirgi vaqt',
   })
   @IsDateString()
   @IsOptional()
@@ -17,7 +17,7 @@ export class UpdatePaymentStatusDto {
 
   @ApiPropertyOptional({
     example: '2026-08-18T00:00:00.000Z',
-    description: "status=paid bo'lganda majburiy — kursga yozilish tugash sanasi",
+    description: "Yozilish tugash sanasi. Berilmasa — boshlanishdan tarifdagi oylar soni qo'shiladi",
   })
   @IsDateString()
   @IsOptional()

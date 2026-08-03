@@ -33,6 +33,7 @@ Copy `.env` and populate these variables before running:
 | `GEMINI_API_KEY`, `GEMINI_MODEL`, `GEMINI_TTS_MODEL` | Google Gemini |
 | `GEMINI_TTS_VOICE` | optional, defaults to `Kore` |
 | `GEMINI_PROXY_URL` | optional outbound proxy for Gemini calls |
+| `CLICK_SERVICE_ID`, `CLICK_SECRET_KEY` | Click Merchant API; the secret signs `sign_string` on the prepare/complete webhooks |
 
 TypeORM runs with `synchronize: true` — schema is auto-migrated in dev. The data source reads from `dist/**/*.entity.js`, so the app must be built (or running via `nest start`) before the DB is used.
 

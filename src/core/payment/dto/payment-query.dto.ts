@@ -19,6 +19,11 @@ export class PaymentQuery extends PaginationQuery {
   @IsOptional()
   enrollmentId?: string;
 
+  @ApiPropertyOptional({ example: 'pl000000-0000-0000-0000-000000000001' })
+  @IsUUID()
+  @IsOptional()
+  planId?: string;
+
   @ApiPropertyOptional({ enum: PaymentStatus })
   @IsEnum(PaymentStatus)
   @IsOptional()

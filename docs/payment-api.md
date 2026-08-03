@@ -1,29 +1,33 @@
 # Payment API
 
-To'lov oqimi bo'yicha ilova (mobil / web client) uchun qo'llanma.
+Tarif (plan) tanlash, to'lov yaratish va Click orqali to'lash oqimi bo'yicha ilova (mobil / web client) uchun qo'llanma.
 
 - Base URL: `{HOST}/api`
-- Barcha so'rovlar `Authorization: Bearer <access_token>` sarlavhasini talab qiladi.
-- Ilova foydalanuvchisi uchun to'lov turlari ro'yxati **alohida endpoint orqali berilmaydi**. Ular faqat kurs uchun to'lov so'rovi yaratilganda qaytariladi.
+- Ilova endpointlari `Authorization: Bearer <access_token>` sarlavhasini talab qiladi.
+- Ilova foydalanuvchisi uchun to'lov turlari ro'yxati **alohida endpoint orqali berilmaydi**. Ular faqat to'lov so'rovi yaratilganda qaytariladi.
+- Click webhook'lari (`/api/payment/click/*`) — Click serverlari uchun, token talab qilmaydi.
 
 ## Umumiy oqim
 
 ```
-1. POST /api/payments/request { courseId }
+1. GET  /api/courses/{courseId}/plans
+   → kursning faol tariflari (narx, muddat, mentor bor/yo'q)
+
+2. POST /api/payments/request { planId }
    → enrollment (status: created) + payment (status: created) yaratiladi
    → javobda faol to'lov turlari qaytadi
 
-2. PATCH /api/payments/{paymentId}/payment-type { paymentTypeId }
-   → foydalanuvchi tanlagan to'lov turi to'lovga biriktiriladi
-   → javobdagi paymentType.url ga o'tkaziladi (tashqi to'lov sahifasi)
+3. PATCH /api/payments/{paymentId}/payment-type { paymentTypeId }
+   → tanlangan to'lov turi biriktiriladi, paymentType.url ga o'tkaziladi
 
-3. Foydalanuvchi tashqarida to'laydi
+4. Foydalanuvchi Click'da to'laydi:
+   Click → POST /api/payment/click/prepare   (provider_payment_id yoziladi)
+   Click → POST /api/payment/click/complete  (payment: paid, enrollment: active)
 
-4. Admin to'lovni tasdiqlaydi (PATCH /api/admin/payments/{id}/status)
-   → payment: paid, enrollment: active (start / end sanalari bilan)
-
-5. Ilova GET /api/payments/{id} yoki GET /api/payments/me orqali holatni tekshiradi
+5. Ilova GET /api/payments/{id} orqali holatni tekshiradi
 ```
+
+Admin to'lovni qo'lda ham tasdiqlashi mumkin (`PATCH /api/admin/payments/{id}/status`) — Click'siz (naqd, o'tkazma) to'lovlar uchun.
 
 ## Holatlar (statuslar)
 
@@ -31,8 +35,8 @@ To'lov oqimi bo'yicha ilova (mobil / web client) uchun qo'llanma.
 
 | Qiymat | Ma'nosi |
 |---|---|
-| `created` | To'lov so'rovi yaratilgan, hali tasdiqlanmagan (default) |
-| `paid` | Admin tomonidan tasdiqlangan |
+| `created` | To'lov so'rovi yaratilgan, hali to'lanmagan (default) |
+| `paid` | To'landi — Click tasdiqladi yoki admin qo'lda tasdiqladi |
 | `cancelled` | Bekor qilingan |
 
 ### Enrollment status
@@ -40,18 +44,51 @@ To'lov oqimi bo'yicha ilova (mobil / web client) uchun qo'llanma.
 | Qiymat | Ma'nosi |
 |---|---|
 | `created` | To'lov kutilmoqda — kurs kontenti hali ochilmagan (default) |
-| `active` | To'lov tasdiqlangan, `start` / `end` oralig'ida kurs ochiq |
+| `active` | To'langan, `start` / `end` oralig'ida kurs ochiq |
 | `cancelled` | Bekor qilingan |
 
-`created` holatidagi yozilishda `start` va `end` — `null`. Ular faqat to'lov tasdiqlanganda to'ldiriladi.
+`created` holatidagi yozilishda `start` va `end` — `null`. Ular to'lov tasdiqlanganda to'ldiriladi: `start` = tasdiqlangan vaqt, `end` = `start` + tarifdagi `month`.
 
 ---
 
-## Ilova (student) endpointlari
+## 1. Tariflar (plans)
 
-Rol: `STUDENT`.
+Har bir kursda bir nechta tarif bo'ladi: narx, necha oyga, mentor biriktiriladimi.
 
-### 1. Kurs uchun to'lov so'rovi
+```http
+GET /api/courses/{courseId}/plans
+```
+
+Rol: `STUDENT` / `TEACHER` / `ADMIN`. Faqat `isActive: true` tariflar qaytadi, `month` bo'yicha o'sish tartibida.
+
+**200 OK**
+
+```json
+[
+  {
+    "id": "pl000000-0000-0000-0000-000000000001",
+    "title": "Standart",
+    "price": 250000,
+    "month": 3,
+    "hasMentor": false,
+    "isActive": true,
+    "createdAt": "2026-01-15T10:00:00.000Z",
+    "updatedAt": "2026-01-15T10:00:00.000Z"
+  },
+  {
+    "id": "pl000000-0000-0000-0000-000000000002",
+    "title": "Mentor bilan",
+    "price": 700000,
+    "month": 6,
+    "hasMentor": true,
+    "isActive": true
+  }
+]
+```
+
+---
+
+## 2. To'lov so'rovi
 
 ```http
 POST /api/payments/request
@@ -59,16 +96,18 @@ Content-Type: application/json
 ```
 
 ```json
-{ "courseId": "c0000000-0000-0000-0000-000000000001" }
+{ "planId": "pl000000-0000-0000-0000-000000000001" }
 ```
+
+Kurs tarifdan olinadi — alohida `courseId` yuborilmaydi.
 
 Nima bo'ladi:
 
 - kurs uchun `created` holatidagi **enrollment** yaratiladi;
-- unga bog'langan `created` holatidagi **payment** yaratiladi;
-- javobda faol to'lov turlari (`isActive: true`) qaytariladi.
+- unga bog'langan `created` holatidagi **payment** yaratiladi (tanlangan tarif bilan);
+- javobda faol to'lov turlari qaytariladi.
 
-So'rov **idempotent**: agar ushbu kurs uchun allaqachon kutilayotgan (`created`) yozilish va to'lov bo'lsa, yangisi yaratilmaydi — mavjudi qaytariladi.
+So'rov **idempotent**: kurs uchun kutilayotgan to'lov mavjud bo'lsa, yangisi yaratilmaydi. Agar boshqa tarif yuborilsa, mavjud kutilayotgan to'lovning tarifi yangilanadi.
 
 **201 Created**
 
@@ -77,7 +116,15 @@ So'rov **idempotent**: agar ushbu kurs uchun allaqachon kutilayotgan (`created`)
   "payment": {
     "id": "pa000000-0000-0000-0000-000000000001",
     "status": "created",
+    "providerPaymentId": null,
     "paymentType": null,
+    "plan": {
+      "id": "pl000000-0000-0000-0000-000000000001",
+      "title": "Standart",
+      "price": 250000,
+      "month": 3,
+      "hasMentor": false
+    },
     "user": {
       "id": "f2c8a0e0-1111-2222-3333-444455556666",
       "firstName": "Sevara",
@@ -88,11 +135,7 @@ So'rov **idempotent**: agar ushbu kurs uchun allaqachon kutilayotgan (`created`)
       "status": "created",
       "start": null,
       "end": null,
-      "course": {
-        "id": "c0000000-0000-0000-0000-000000000001",
-        "title": "English A1",
-        "price": 250000
-      }
+      "course": { "id": "c0000000-0000-0000-0000-000000000001", "title": "English A1" }
     },
     "createdAt": "2026-05-18T10:00:00.000Z",
     "updatedAt": "2026-05-18T10:00:00.000Z"
@@ -100,33 +143,27 @@ So'rov **idempotent**: agar ushbu kurs uchun allaqachon kutilayotgan (`created`)
   "paymentTypes": [
     {
       "id": "pt000000-0000-0000-0000-000000000001",
-      "icon": "/payment-type/payme.png",
-      "title": "Payme",
-      "url": "https://payme.uz/checkout",
-      "isActive": true
-    },
-    {
-      "id": "pt000000-0000-0000-0000-000000000002",
       "icon": "/payment-type/click.png",
       "title": "Click",
-      "url": "https://click.uz/pay",
+      "url": "https://my.click.uz/services/pay?service_id=...",
       "isActive": true
     }
   ]
 }
 ```
 
-`icon` — nisbiy yo'l. To'liq manzil: `{HOST}/public` + `icon`, masalan `https://api.example.com/public/payment-type/payme.png`.
+`icon` — nisbiy yo'l. To'liq manzil: `{HOST}/public` + `icon`.
 
 **Xatolar**
 
 | Kod | Sabab |
 |---|---|
 | 404 | `Talaba topilmadi` — foydalanuvchida student profili yo'q |
-| 404 | `Kurs topilmadi` — kurs mavjud emas yoki faol emas |
+| 404 | `Tarif topilmadi` — tarif mavjud emas yoki faol emas |
+| 404 | `Kurs topilmadi` — tarifning kursi faol emas |
 | 400 | `Siz allaqachon ushbu kursga yozilgansiz` — kursda `active` yozilish bor |
 
-### 2. To'lov turini tanlash
+## 3. To'lov turini tanlash
 
 ```http
 PATCH /api/payments/{paymentId}/payment-type
@@ -137,26 +174,7 @@ Content-Type: application/json
 { "paymentTypeId": "pt000000-0000-0000-0000-000000000001" }
 ```
 
-**200 OK** — yangilangan to'lov qaytadi, `paymentType` to'ldirilgan holda:
-
-```json
-{
-  "id": "pa000000-0000-0000-0000-000000000001",
-  "status": "created",
-  "paymentType": {
-    "id": "pt000000-0000-0000-0000-000000000001",
-    "icon": "/payment-type/payme.png",
-    "title": "Payme",
-    "url": "https://payme.uz/checkout",
-    "isActive": true
-  },
-  "enrollment": { "id": "en000000-0000-0000-0000-000000000001", "status": "created" },
-  "createdAt": "2026-05-18T10:00:00.000Z",
-  "updatedAt": "2026-05-18T10:05:00.000Z"
-}
-```
-
-Ilova shundan so'ng foydalanuvchini `paymentType.url` ga yo'naltiradi.
+**200 OK** — `paymentType` to'ldirilgan to'lov qaytadi. Ilova foydalanuvchini `paymentType.url` ga yo'naltiradi.
 
 **Xatolar**
 
@@ -167,56 +185,26 @@ Ilova shundan so'ng foydalanuvchini `paymentType.url` ga yo'naltiradi.
 | 404 | `To'lov turi topilmadi` |
 | 400 | `To'lov turi faol emas` |
 
-### 3. Mening to'lovlarim
+## 4. To'lovlarni ko'rish
 
 ```http
 GET /api/payments/me?page=1&limit=10
-```
-
-**200 OK**
-
-```json
-{
-  "data": [
-    {
-      "id": "pa000000-0000-0000-0000-000000000001",
-      "status": "created",
-      "paymentType": { "id": "pt000000-0000-0000-0000-000000000001", "title": "Payme" },
-      "enrollment": {
-        "id": "en000000-0000-0000-0000-000000000001",
-        "status": "created",
-        "start": null,
-        "end": null,
-        "course": { "id": "c0000000-0000-0000-0000-000000000001", "title": "English A1" }
-      },
-      "createdAt": "2026-05-18T10:00:00.000Z",
-      "updatedAt": "2026-05-18T10:05:00.000Z"
-    }
-  ],
-  "total": 1,
-  "page": 1,
-  "limit": 10,
-  "totalPages": 1
-}
-```
-
-### 4. Bitta to'lov holati
-
-```http
 GET /api/payments/{paymentId}
 ```
 
-Faqat o'z to'lovini qaytaradi, aks holda `404 To'lov topilmadi`. To'lov tasdiqlanganini bilish uchun shu endpoint ishlatiladi:
+`GET /api/payments/{paymentId}` faqat o'z to'lovini qaytaradi, aks holda `404`. To'lov o'tganini shu yerdan bilish mumkin:
 
 ```json
 {
   "id": "pa000000-0000-0000-0000-000000000001",
   "status": "paid",
+  "providerPaymentId": "3086492419",
+  "plan": { "id": "pl000000-0000-0000-0000-000000000001", "title": "Standart", "month": 3 },
   "enrollment": {
     "id": "en000000-0000-0000-0000-000000000001",
     "status": "active",
-    "start": "2026-05-18T00:00:00.000Z",
-    "end": "2026-08-18T00:00:00.000Z",
+    "start": "2026-05-18T10:12:00.000Z",
+    "end": "2026-08-18T10:12:00.000Z",
     "course": { "id": "c0000000-0000-0000-0000-000000000001", "title": "English A1" }
   }
 }
@@ -227,8 +215,95 @@ Faqat o'z to'lovini qaytaradi, aks holda `404 To'lov topilmadi`. To'lov tasdiqla
 ## Bog'liq endpointlar
 
 - `GET /api/courses/available` — foydalanuvchida `created` yoki `active` yozilishi bo'lmagan faol kurslar. To'lov so'rovi yaratilgach kurs bu ro'yxatdan chiqadi.
-- `GET /api/courses/me` — **faqat `active` holatidagi** yozilishlar. To'lov tasdiqlanmaguncha (`created`) yoki bekor qilinganda (`cancelled`) kurs bu ro'yxatda ko'rinmaydi. Har bir yozilishda `totalProgress` va `isExpired` maydonlari bor; `isExpired` — `end` sanasi o'tganini bildiradi.
-- Kutilayotgan to'lovni kuzatish uchun `GET /api/payments/me` ishlatiladi — `created` yozilishlar faqat shu yerda ko'rinadi.
+- `GET /api/courses/me` — **faqat `active`** yozilishlar. To'lov tasdiqlanmaguncha kurs bu ro'yxatda ko'rinmaydi. Har bir yozilishda `totalProgress` va `isExpired` bor.
+
+---
+
+## Click Merchant API
+
+Ikkala endpoint ham Click serverlari tomonidan `application/x-www-form-urlencoded` bilan chaqiriladi, JWT talab qilinmaydi va **doim HTTP 200** qaytaradi — natija javob tanasidagi `error` maydonida.
+
+Sozlamalar (`.env`):
+
+| O'zgaruvchi | Izoh |
+|---|---|
+| `CLICK_SERVICE_ID` | Click'dagi service id. O'rnatilgan bo'lsa, kelgan `service_id` shu bilan solishtiriladi |
+| `CLICK_SECRET_KEY` | `sign_string` ni tekshirish uchun maxfiy kalit. **O'rnatilmasa barcha so'rovlar `-1` bilan rad etiladi** |
+
+Imzo:
+
+```
+prepare:  md5(click_trans_id + service_id + SECRET_KEY + merchant_trans_id + amount + action + sign_time)
+complete: md5(click_trans_id + service_id + SECRET_KEY + merchant_trans_id + merchant_prepare_id + amount + action + sign_time)
+```
+
+### 1-bosqich: Prepare
+
+```http
+POST /api/payment/click/prepare
+```
+
+So'rov maydonlari: `click_trans_id`, `service_id`, `click_paydoc_id`, `merchant_trans_id`, `amount`, `action` (= `0`), `error`, `error_note`, `sign_time`, `sign_string`.
+
+- `merchant_trans_id` — **user id**.
+- Shu foydalanuvchining `created` holatidagi to'lovi topiladi (summasi mos keladigani, bo'lmasa eng oxirgisi).
+- Topilgan to'lovga `providerPaymentId = click_trans_id` yoziladi.
+
+**Javob**
+
+```json
+{
+  "click_trans_id": "3086492419",
+  "merchant_trans_id": "f2c8a0e0-1111-2222-3333-444455556666",
+  "merchant_prepare_id": "pa000000-0000-0000-0000-000000000001",
+  "error": 0,
+  "error_note": "Success"
+}
+```
+
+`merchant_prepare_id` — **payment id**.
+
+### 2-bosqich: Complete
+
+```http
+POST /api/payment/click/complete
+```
+
+So'rov maydonlari: prepare'dagilar + `merchant_prepare_id` (= payment id), `action` (= `1`).
+
+- To'lov `merchant_prepare_id` bo'yicha topiladi va `merchant_trans_id` (user id) bilan tekshiriladi.
+- To'lov `paid` holatiga o'tadi, yozilish `active` bo'ladi (`start` = hozir, `end` = `start` + tarif `month`), `enrollment_histories` ga yozuv qo'shiladi.
+
+**Javob**
+
+```json
+{
+  "click_trans_id": "3086492419",
+  "merchant_trans_id": "f2c8a0e0-1111-2222-3333-444455556666",
+  "merchant_confirm_id": "pa000000-0000-0000-0000-000000000001",
+  "error": 0,
+  "error_note": "Success"
+}
+```
+
+`merchant_confirm_id` — **payment id**.
+
+### Xato kodlari
+
+| Kod | Izoh | Qachon |
+|---|---|---|
+| `0` | Success | Muvaffaqiyatli |
+| `-1` | SIGN CHECK FAILED! | `sign_string` mos emas yoki `CLICK_SECRET_KEY` sozlanmagan |
+| `-2` | Incorrect parameter amount | `amount` tarif narxiga teng emas |
+| `-3` | Action not found | `action` kutilgan qiymat emas (`0` / `1`) |
+| `-4` | Already paid | To'lov allaqachon `paid` (takroriy complete) |
+| `-5` | User does not exist | `merchant_trans_id` noto'g'ri formatda |
+| `-6` | Transaction does not exist | Kutilayotgan to'lov topilmadi yoki `click_trans_id` mos emas |
+| `-7` | Failed to update user | Yozilishni faollashtirishda ichki xato |
+| `-8` | Error in request from click | Majburiy maydon yo'q yoki `service_id` mos emas |
+| `-9` | Transaction cancelled | Click `error < 0` yubordi yoki to'lov bekor qilingan |
+
+`error_note` javobda qaytariladi (Click spetsifikatsiyasidagi standart maydon) — rasmlardagi 4 ta maydondan tashqari, xatolarni tekshirishni osonlashtirish uchun.
 
 ---
 
@@ -236,81 +311,61 @@ Faqat o'z to'lovini qaytaradi, aks holda `404 To'lov topilmadi`. To'lov tasdiqla
 
 Rol: `ADMIN`.
 
-### To'lovlar ro'yxati
+### Tariflar
+
+| Method | Route | Izoh |
+|---|---|---|
+| POST | `/api/admin/courses/{courseId}/plans` | `{ title, price, month, hasMentor?, isActive? }` |
+| GET | `/api/admin/courses/{courseId}/plans` | barchasi, nofaollari bilan |
+| GET | `/api/admin/courses/{courseId}/plans/{planId}` | bittasi |
+| PATCH | `/api/admin/courses/{courseId}/plans/{planId}` | barcha maydonlar ixtiyoriy |
+| PATCH | `/api/admin/courses/{courseId}/plans/{planId}/activate` | `isActive = true` |
+| PATCH | `/api/admin/courses/{courseId}/plans/{planId}/deactivate` | `isActive = false` |
+| DELETE | `/api/admin/courses/{courseId}/plans/{planId}` | `204` |
+
+### To'lovlar
 
 ```http
-GET /api/admin/payments?page=1&limit=10&status=created&userId=&paymentTypeId=&enrollmentId=
-```
-
-Barcha filtrlar ixtiyoriy. Sahifalangan javob qaytaradi.
-
-### Bitta to'lov
-
-```http
+GET /api/admin/payments?page=1&limit=10&status=created&userId=&planId=&paymentTypeId=&enrollmentId=
 GET /api/admin/payments/{id}
+DELETE /api/admin/payments/{id}
 ```
 
-### To'lovni tasdiqlash / bekor qilish
+### To'lovni qo'lda tasdiqlash / bekor qilish
 
 ```http
 PATCH /api/admin/payments/{id}/status
-Content-Type: application/json
 ```
-
-Tasdiqlash — `start` va `end` majburiy:
 
 ```json
-{
-  "status": "paid",
-  "start": "2026-05-18T00:00:00.000Z",
-  "end": "2026-08-18T00:00:00.000Z"
-}
+{ "status": "paid" }
 ```
 
-Natija:
-
-- payment → `paid`;
-- enrollment → `active`, `start` / `end` to'ldiriladi;
-- `enrollment_histories` ga yozuv qo'shiladi (`purchaseAmount` — kurs narxi).
-
-Bekor qilish:
+`start` va `end` ixtiyoriy: berilmasa `start` = hozir, `end` = `start` + tarifdagi `month`. Kerak bo'lsa qo'lda berish mumkin:
 
 ```json
-{ "status": "cancelled" }
+{ "status": "paid", "start": "2026-05-18T00:00:00.000Z", "end": "2026-08-18T00:00:00.000Z" }
 ```
 
-Natija: payment → `cancelled`, enrollment → `cancelled`.
+Bekor qilish: `{ "status": "cancelled" }` — payment va enrollment `cancelled` bo'ladi.
 
 **Xatolar**
 
 | Kod | Sabab |
 |---|---|
-| 400 | `To'lov holati allaqachon yakunlangan` — status `created` emas |
+| 400 | `To'lov holati allaqachon yakunlangan` |
 | 400 | `To'lov holati faqat 'paid' yoki 'cancelled' bo'lishi mumkin` |
-| 400 | `To'lovni tasdiqlash uchun boshlanish va tugash sanasi kerak` |
 | 400 | `Tugash sanasi boshlanish sanasidan keyin bo'lishi kerak` |
 | 404 | `To'lov topilmadi` |
 
-### To'lovni o'chirish
-
-```http
-DELETE /api/admin/payments/{id}
-```
-
-`204 No Content`.
-
----
-
-## To'lov turlari (faqat admin)
-
-To'lov turlarini boshqarish CRUD'i — ilova foydalanuvchisi uchun emas.
+### To'lov turlari
 
 | Method | Route | Izoh |
 |---|---|---|
-| POST | `/api/admin/payment-types` | `multipart/form-data`: `title`, `url`, `isActive?`, `icon?` (rasm fayli) |
-| GET | `/api/admin/payment-types` | barchasi, nofaollari bilan |
+| POST | `/api/admin/payment-types` | `multipart/form-data`: `title`, `url`, `isActive?`, `icon?` |
+| GET | `/api/admin/payment-types` | barchasi |
 | GET | `/api/admin/payment-types/{id}` | bittasi |
-| PATCH | `/api/admin/payment-types/{id}` | `multipart/form-data`, barcha maydonlar ixtiyoriy |
+| PATCH | `/api/admin/payment-types/{id}` | barcha maydonlar ixtiyoriy |
 | DELETE | `/api/admin/payment-types/{id}` | to'lovlari bor turni o'chirib bo'lmaydi (400) |
 
 Yuklangan `icon` fayllar `uploads/payment-type/` ga tushadi va `/public/payment-type/*` orqali beriladi.
