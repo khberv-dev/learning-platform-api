@@ -115,6 +115,7 @@ So'rov **idempotent**: kurs uchun kutilayotgan to'lov mavjud bo'lsa, yangisi yar
 {
   "payment": {
     "id": "pa000000-0000-0000-0000-000000000001",
+    "amount": 250000,
     "status": "created",
     "providerPaymentId": null,
     "paymentType": null,
@@ -175,7 +176,7 @@ Qo'llab-quvvatlanadigan o'rin egallovchilar:
 | `$paymentId` | to'lov (payment) id |
 | `$userId` | foydalanuvchi id |
 | `$userFullName` | ism va familiya (`firstName lastName`) |
-| `$amount` | tarif narxi |
+| `$amount` | to'lov summasi (`payment.amount`) |
 | `$planId`, `$planTitle`, `$planMonth` | tarif maydonlari |
 | `$enrollmentId` | yozilish id |
 | `$courseId`, `$courseTitle` | kurs maydonlari |
@@ -278,6 +279,7 @@ So'rov maydonlari: `click_trans_id`, `service_id`, `click_paydoc_id`, `merchant_
 
 - `merchant_trans_id` — **to'lov (payment) id yoki foydalanuvchi (user) id**. Bu qiymat to'lov sahifasining `transaction_param` parametridan keladi.
   - to'lov id bo'lsa — aniq to'lov topiladi (tavsiya etiladi);
+  - kelgan `amount` **`payment.amount`** bilan solishtiriladi — bu to'lov yaratilgan paytdagi tarif narxi. Tarif narxi keyin o'zgarsa ham, kutilayotgan to'lov eski summa bilan yopiladi.
   - foydalanuvchi id bo'lsa — shu foydalanuvchining `created` holatidagi to'lovi topiladi (summasi mos keladigani, bo'lmasa eng oxirgisi).
   - UUID bo'lmasa (masalan Click demo sahifasidagi `Demo`) — `-5` qaytariladi.
 - Topilgan to'lovga `providerPaymentId = click_trans_id` yoziladi.

@@ -34,6 +34,10 @@ export class Payment {
   @JoinColumn()
   plan: Plan | null;
 
+  /** To'lov summasi — yaratilgan paytdagi tarif narxi (keyin tarif o'zgarsa ham saqlanadi). */
+  @Column({ type: 'int', default: 0 })
+  amount: number;
+
   @Column({ type: 'enum', enum: PaymentStatus, default: PaymentStatus.CREATED })
   status: PaymentStatus;
 

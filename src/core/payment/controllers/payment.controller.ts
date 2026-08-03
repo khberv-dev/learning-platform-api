@@ -10,6 +10,7 @@ import { PaginationQuery } from '@/common/dto/pagination-query.dto';
 
 const paymentExample = {
   id: 'pa000000-0000-0000-0000-000000000001',
+  amount: 250000,
   status: 'created',
   paymentType: null,
   user: { id: 'f2c8a0e0-1111-2222-3333-444455556666', firstName: 'Sevara', lastName: 'Karimova' },

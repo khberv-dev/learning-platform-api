@@ -81,11 +81,9 @@ export class ClickService {
   }
 
   private amountMatches(payment: Payment, amount: string | undefined): boolean {
-    // Narx faqat tarifdan olinadi — tarifi yo'q to'lov summasi tekshirilmaydi.
-    const expected = payment.plan?.price;
-    if (expected === undefined) return false;
+    // To'lov yaratilgandagi summa bilan solishtiriladi — tarif keyin o'zgarsa ham.
     const received = Number(amount);
-    return Number.isFinite(received) && Math.abs(received - expected) < 0.01;
+    return Number.isFinite(received) && Math.abs(received - payment.amount) < 0.01;
   }
 
   /** Kelgan so'rovni to'liq log'ga yozadi (maxfiy kalitsiz). */

@@ -8,6 +8,7 @@ import { PaymentQuery } from '@/core/payment/dto/payment-query.dto';
 
 const paymentExample = {
   id: 'pa000000-0000-0000-0000-000000000001',
+  amount: 250000,
   status: 'created',
   paymentType: {
     id: 'pt000000-0000-0000-0000-000000000001',

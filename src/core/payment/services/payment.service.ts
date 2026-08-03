@@ -100,12 +100,13 @@ export class PaymentService {
 
     if (payment) {
       // Foydalanuvchi boshqa tarifni tanlagan bo'lsa, kutilayotgan to'lov yangilanadi.
-      if (payment.plan?.id !== plan.id) {
+      if (payment.plan?.id !== plan.id || payment.amount !== plan.price) {
         payment.plan = plan;
+        payment.amount = plan.price;
         payment = await this.paymentRepo.save(payment);
       }
     } else {
-      const created = await this.paymentRepo.save({ user: { id: userId }, enrollment, plan });
+      const created = await this.paymentRepo.save({ user: { id: userId }, enrollment, plan, amount: plan.price });
       payment = await this.findOnePayment(created.id);
     }
 
@@ -159,7 +160,7 @@ export class PaymentService {
       await this.enrollmentRepo.save(payment.enrollment);
       await this.historyRepo.save({
         enrollment: payment.enrollment,
-        purchaseAmount: payment.plan?.price ?? 0,
+        purchaseAmount: payment.amount,
         start: from,
         end: to,
       });

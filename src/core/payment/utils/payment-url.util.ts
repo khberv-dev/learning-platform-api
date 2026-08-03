@@ -17,7 +17,7 @@ export function buildPaymentUrl(template: string, payment: Payment): string {
     paymentId: payment.id,
     userId: payment.user?.id ?? '',
     userFullName: fullName,
-    amount: payment.plan ? String(payment.plan.price) : '',
+    amount: String(payment.amount),
     planId: payment.plan?.id ?? '',
     planTitle: payment.plan?.title ?? '',
     planMonth: payment.plan ? String(payment.plan.month) : '',
