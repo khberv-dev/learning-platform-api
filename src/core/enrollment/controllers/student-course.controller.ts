@@ -11,7 +11,6 @@ const availableCoursesExample = [
     title: 'English A2',
     description: "O'rta bosqich",
     image: '/public/course/eng-a2.png',
-    price: 300000,
     isActive: true,
   },
 ];

@@ -74,7 +74,8 @@ export class ClickService {
   }
 
   private amountMatches(payment: Payment, amount: string | undefined): boolean {
-    const expected = payment.plan?.price ?? payment.enrollment?.course.price;
+    // Narx faqat tarifdan olinadi — tarifi yo'q to'lov summasi tekshirilmaydi.
+    const expected = payment.plan?.price;
     if (expected === undefined) return false;
     const received = Number(amount);
     return Number.isFinite(received) && Math.abs(received - expected) < 0.01;

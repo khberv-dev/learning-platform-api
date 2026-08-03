@@ -14,6 +14,7 @@ import { SelectPaymentTypeDto } from '@/core/payment/dto/select-payment-type.dto
 import { UpdatePaymentStatusDto } from '@/core/payment/dto/update-payment-status.dto';
 import { PaymentQuery } from '@/core/payment/dto/payment-query.dto';
 import { Paginated, PaginationQuery, paginate } from '@/common/dto/pagination-query.dto';
+import { buildPaymentUrl } from '@/core/payment/utils/payment-url.util';
 
 const paymentRelations = {
   paymentType: true,
@@ -26,6 +27,15 @@ function addMonths(date: Date, months: number): Date {
   const result = new Date(date);
   result.setMonth(result.getMonth() + months);
   return result;
+}
+
+/** To'lovga biriktirilgan to'lov turining shablon url'ini to'ldirib qaytaradi. */
+function withResolvedUrl(payment: Payment): Payment {
+  if (!payment.paymentType) return payment;
+  return {
+    ...payment,
+    paymentType: { ...payment.paymentType, url: buildPaymentUrl(payment.paymentType.url, payment) },
+  };
 }
 
 @Injectable()
@@ -86,12 +96,15 @@ export class PaymentService {
       payment = await this.findOnePayment(created.id);
     }
 
-    const paymentTypes = await this.paymentTypeRepo.find({
+    const types = await this.paymentTypeRepo.find({
       where: { isActive: true },
       order: { createdAt: 'ASC' },
     });
 
-    return { payment, paymentTypes };
+    // Har bir to'lov turining url shabloni shu to'lov ma'lumotlari bilan to'ldiriladi.
+    const paymentTypes = types.map((type) => ({ ...type, url: buildPaymentUrl(type.url, payment) }));
+
+    return { payment: withResolvedUrl(payment), paymentTypes };
   }
 
   /** Foydalanuvchi tanlagan to'lov turini kutilayotgan to'lovga biriktiradi. */
@@ -110,7 +123,7 @@ export class PaymentService {
     if (!paymentType.isActive) throw new BadRequestException("To'lov turi faol emas");
 
     payment.paymentType = paymentType;
-    return this.paymentRepo.save(payment);
+    return withResolvedUrl(await this.paymentRepo.save(payment));
   }
 
   /**
@@ -133,7 +146,7 @@ export class PaymentService {
       await this.enrollmentRepo.save(payment.enrollment);
       await this.historyRepo.save({
         enrollment: payment.enrollment,
-        purchaseAmount: payment.plan?.price ?? payment.enrollment.course.price,
+        purchaseAmount: payment.plan?.price ?? 0,
         start: from,
         end: to,
       });
@@ -196,7 +209,7 @@ export class PaymentService {
       skip: query.skip,
       take: query.take,
     });
-    return paginate(data, total, query);
+    return paginate(data.map(withResolvedUrl), total, query);
   }
 
   async findOnePayment(id: string): Promise<Payment> {
@@ -211,7 +224,7 @@ export class PaymentService {
       relations: paymentRelations,
     });
     if (!payment) throw new NotFoundException("To'lov topilmadi");
-    return payment;
+    return withResolvedUrl(payment);
   }
 
   async deletePayment(id: string): Promise<void> {

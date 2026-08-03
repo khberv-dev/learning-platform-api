@@ -53,7 +53,6 @@ const courseFormSchema = (required: string[] = ['title']) => ({
     properties: {
       title: { type: 'string' },
       description: { type: 'string' },
-      price: { type: 'number' },
       isActive: { type: 'boolean' },
       image: { type: 'string', format: 'binary' },
     },
@@ -65,7 +64,6 @@ const courseExample = {
   title: 'English A1',
   description: 'Boshlangich ingliz tili kursi',
   image: '/public/course/eng-a1.png',
-  price: 0,
   isActive: true,
   createdAt: '2026-01-15T10:00:00.000Z',
   updatedAt: '2026-01-15T10:00:00.000Z',

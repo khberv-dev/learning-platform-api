@@ -18,7 +18,7 @@ const paymentExample = {
     status: 'created',
     start: null,
     end: null,
-    course: { id: 'c0000000-0000-0000-0000-000000000001', title: 'English A1', price: 250000 },
+    course: { id: 'c0000000-0000-0000-0000-000000000001', title: 'English A1' },
   },
   createdAt: '2026-05-18T10:00:00.000Z',
   updatedAt: '2026-05-18T10:00:00.000Z',

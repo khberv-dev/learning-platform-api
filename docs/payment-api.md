@@ -154,6 +154,36 @@ So'rov **idempotent**: kurs uchun kutilayotgan to'lov mavjud bo'lsa, yangisi yar
 
 `icon` — nisbiy yo'l. To'liq manzil: `{HOST}/public` + `icon`.
 
+### To'lov turi url shabloni
+
+To'lov turining `url` maydoni shablon bo'lib saqlanadi va ilovaga qaytarilishidan oldin shu to'lov ma'lumotlari bilan to'ldiriladi. Shablon:
+
+```
+https://my.click.uz/services/pay?merchant_id=62107&service_id=105315&merchant_user_id=$paymentId&transaction_param=$userFullName&amount=$amount
+```
+
+qaytariladigan url:
+
+```
+https://my.click.uz/services/pay?merchant_id=62107&service_id=105315&merchant_user_id=b74027af-53a4-4d60-8fd7-4aa0ce3d5640&transaction_param=Sevara%20Karimova&amount=250000
+```
+
+Qo'llab-quvvatlanadigan o'rin egallovchilar:
+
+| Token | Qiymat |
+|---|---|
+| `$paymentId` | to'lov (payment) id |
+| `$userId` | foydalanuvchi id |
+| `$userFullName` | ism va familiya (`firstName lastName`) |
+| `$amount` | tarif narxi |
+| `$planId`, `$planTitle`, `$planMonth` | tarif maydonlari |
+| `$enrollmentId` | yozilish id |
+| `$courseId`, `$courseTitle` | kurs maydonlari |
+
+Qiymatlar `encodeURIComponent` bilan kodlanadi (bo'sh joy → `%20`). Noma'lum `$xxx` tokenlar o'zgarishsiz qoladi, shunda shablondagi xato ko'rinib turadi.
+
+To'ldirish quyidagi javoblarda amalga oshiriladi: `POST /api/payments/request`, `PATCH /api/payments/{id}/payment-type`, `GET /api/payments/me`, `GET /api/payments/{id}`. Admin endpointlari `url` ni **xom shablon** ko'rinishida qaytaradi — tahrirlash uchun.
+
 **Xatolar**
 
 | Kod | Sabab |

@@ -10,7 +10,6 @@ const courseExample = {
   title: 'English A1',
   description: 'Boshlangich ingliz tili kursi',
   image: '/public/course/eng-a1.png',
-  price: 0,
   isActive: true,
   units: [
     {

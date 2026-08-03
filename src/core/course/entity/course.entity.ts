@@ -17,9 +17,6 @@ export class Course {
   @Column({ nullable: true })
   image: string;
 
-  @Column({ type: 'int', default: 0 })
-  price: number;
-
   @Column({ default: false })
   isActive: boolean;
 
