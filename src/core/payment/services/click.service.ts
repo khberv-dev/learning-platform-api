@@ -70,7 +70,12 @@ export class ClickService {
     ];
 
     const expected = createHash('md5').update(parts.join('')).digest('hex');
-    return expected === dto.sign_string?.toLowerCase();
+    const matches = expected === dto.sign_string?.toLowerCase();
+    if (!matches) {
+      // Maxfiy kalit hech qachon log'ga yozilmaydi — faqat hash'lar.
+      this.logger.warn(`[${dto.click_trans_id ?? '-'}] imzo mos emas: kutilgan=${expected} kelgan=${dto.sign_string}`);
+    }
+    return matches;
   }
 
   private amountMatches(payment: Payment, amount: string | undefined): boolean {
@@ -81,24 +86,50 @@ export class ClickService {
     return Number.isFinite(received) && Math.abs(received - expected) < 0.01;
   }
 
+  /** Kelgan so'rovni to'liq log'ga yozadi (maxfiy kalitsiz). */
+  private logRequest(stage: string, dto: ClickCompleteDto): void {
+    this.logger.log(
+      `[${dto.click_trans_id ?? '-'}] ${stage} <- ${JSON.stringify({
+        service_id: dto.service_id,
+        click_paydoc_id: dto.click_paydoc_id,
+        merchant_trans_id: dto.merchant_trans_id,
+        merchant_prepare_id: dto.merchant_prepare_id,
+        amount: dto.amount,
+        action: dto.action,
+        error: dto.error,
+        error_note: dto.error_note,
+        sign_time: dto.sign_time,
+        sign_string: dto.sign_string,
+      })}`,
+    );
+  }
+
+  /** Javobni log'ga yozadi: muvaffaqiyat — log, xato — warn. */
+  private logResponse<T extends { error: ClickError }>(stage: string, dto: ClickPrepareDto, response: T): T {
+    const line = `[${dto.click_trans_id ?? '-'}] ${stage} -> ${JSON.stringify(response)}`;
+    if (response.error === ClickError.SUCCESS) this.logger.log(line);
+    else this.logger.warn(line);
+    return response;
+  }
+
   private prepareResponse(dto: ClickPrepareDto, error: ClickError, paymentId?: string): ClickPrepareResponse {
-    return {
+    return this.logResponse('prepare', dto, {
       click_trans_id: dto.click_trans_id ?? '',
       merchant_trans_id: dto.merchant_trans_id ?? '',
       merchant_prepare_id: paymentId ?? null,
       error,
       error_note: CLICK_ERROR_NOTE[error],
-    };
+    });
   }
 
   private completeResponse(dto: ClickCompleteDto, error: ClickError, paymentId?: string): ClickCompleteResponse {
-    return {
+    return this.logResponse('complete', dto, {
       click_trans_id: dto.click_trans_id ?? '',
       merchant_trans_id: dto.merchant_trans_id ?? '',
       merchant_confirm_id: paymentId ?? null,
       error,
       error_note: CLICK_ERROR_NOTE[error],
-    };
+    });
   }
 
   /**
@@ -106,6 +137,8 @@ export class ClickService {
    * merchant_prepare_id sifatida to'lov (payment) id qaytaradi.
    */
   async prepare(dto: ClickPrepareDto): Promise<ClickPrepareResponse> {
+    this.logRequest('prepare', dto);
+
     if (!dto.click_trans_id || !dto.merchant_trans_id || !dto.amount || !dto.sign_time || !dto.sign_string) {
       return this.prepareResponse(dto, ClickError.BAD_REQUEST);
     }
@@ -145,6 +178,7 @@ export class ClickService {
 
     payment.providerPaymentId = dto.click_trans_id;
     await this.paymentRepo.save(payment);
+    this.logger.log(`[${dto.click_trans_id}] to'lov ${payment.id} ga provider id biriktirildi`);
 
     return this.prepareResponse(dto, ClickError.SUCCESS, payment.id);
   }
@@ -154,6 +188,8 @@ export class ClickService {
    * merchant_confirm_id sifatida to'lov (payment) id qaytariladi.
    */
   async complete(dto: ClickCompleteDto): Promise<ClickCompleteResponse> {
+    this.logRequest('complete', dto);
+
     if (
       !dto.click_trans_id ||
       !dto.merchant_trans_id ||
@@ -205,6 +241,9 @@ export class ClickService {
 
     try {
       await this.paymentService.markPaid(payment);
+      this.logger.log(
+        `[${dto.click_trans_id}] to'lov ${payment.id} tasdiqlandi, yozilish ${payment.enrollment?.id ?? '-'} faollashdi`,
+      );
     } catch (error) {
       this.logger.error(`To'lovni tasdiqlashda xato (payment ${payment.id})`, error as Error);
       return this.completeResponse(dto, ClickError.FAILED_TO_UPDATE_USER, payment.id);
