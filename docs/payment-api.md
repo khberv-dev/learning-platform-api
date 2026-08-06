@@ -393,6 +393,54 @@ Bekor qilish: `{ "status": "cancelled" }` — payment va enrollment `cancelled` 
 | 400 | `Tugash sanasi boshlanish sanasidan keyin bo'lishi kerak` |
 | 404 | `To'lov topilmadi` |
 
+### Talabani qo'lda yozish (to'lovsiz)
+
+To'lov yaratmasdan, yozilishni darhol `active` holatida ochadi — bepul kirish, naqd to'lov yoki aksiya uchun.
+
+```http
+POST /api/admin/enrollments
+Content-Type: application/json
+```
+
+Tarif bo'yicha (muddat va narx tarifdan olinadi):
+
+```json
+{
+  "studentId": "f2c8a0e0-1111-2222-3333-444455556666",
+  "planId": "pl000000-0000-0000-0000-000000000001"
+}
+```
+
+Tarifsiz, o'z muddati bilan (bepul):
+
+```json
+{
+  "studentId": "f2c8a0e0-1111-2222-3333-444455556666",
+  "courseId": "c0000000-0000-0000-0000-000000000001",
+  "start": "2026-09-01T00:00:00.000Z",
+  "end": "2027-03-01T00:00:00.000Z",
+  "purchaseAmount": 0
+}
+```
+
+| Maydon | Izoh |
+|---|---|
+| `studentId` | majburiy |
+| `planId` | kurs, muddat va narx shundan olinadi |
+| `courseId` | `planId` berilmasa majburiy; u holda `end` ham majburiy |
+| `start` | berilmasa — hozirgi vaqt |
+| `end` | berilmasa — `start` + tarifdagi `month` |
+| `purchaseAmount` | tarixga yoziladigan summa; berilmasa — tarif narxi, tarif ham bo'lmasa `0` |
+
+Xatti-harakati:
+
+- **to'lov (payment) yozuvi yaratilmaydi** — bu qo'lda berilgan kirish;
+- `enrollment_histories` ga yozuv qo'shiladi (bepul bo'lsa summa `0`);
+- talabada shu kurs uchun yozilish allaqachon bo'lsa (muddati tugagan yoki to'lov kutayotgan) — **yangisi yaratilmaydi**, mavjudi qayta faollashtiriladi, progress saqlanadi;
+- muddati tugamagan faol yozilish bo'lsa — `400 Talaba allaqachon ushbu kursga yozilgan`.
+
+Eski `POST /api/enrollments` yo'li moslik uchun ishlashda davom etadi va aynan shu amalni bajaradi.
+
 ### To'lov turlari
 
 | Method | Route | Izoh |

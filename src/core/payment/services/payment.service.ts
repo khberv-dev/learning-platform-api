@@ -9,7 +9,7 @@ import { Student } from '@/core/user/entity/student.entity';
 import { Enrollment } from '@/core/enrollment/entity/enrollment.entity';
 import { EnrollmentHistory } from '@/core/enrollment/entity/enrollment-history.entity';
 import { EnrollmentStatus } from '@/core/enrollment/enum/enrollment-status.enum';
-import { isEnrollmentExpired } from '@/core/enrollment/utils/enrollment.util';
+import { addMonths, isEnrollmentExpired } from '@/core/enrollment/utils/enrollment.util';
 import { RequestPaymentDto } from '@/core/payment/dto/request-payment.dto';
 import { SelectPaymentTypeDto } from '@/core/payment/dto/select-payment-type.dto';
 import { UpdatePaymentStatusDto } from '@/core/payment/dto/update-payment-status.dto';
@@ -23,12 +23,6 @@ const paymentRelations = {
   plan: true,
   enrollment: { course: true },
 } as const;
-
-function addMonths(date: Date, months: number): Date {
-  const result = new Date(date);
-  result.setMonth(result.getMonth() + months);
-  return result;
-}
 
 /** To'lovga biriktirilgan to'lov turining shablon url'ini to'ldirib qaytaradi. */
 function withResolvedUrl(payment: Payment): Payment {
