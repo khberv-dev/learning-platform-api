@@ -1,9 +1,16 @@
 import { randomInt } from 'crypto';
-import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  HttpException,
+  HttpStatus,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { MoreThan, Repository } from 'typeorm';
 import { UserService } from '@/core/user/services/user.service';
 import { SignUpRequest } from '@/core/auth/dto/sign-up-request.dto';
 import { SignInRequest } from '@/core/auth/dto/sign-in-request.dto';
@@ -14,8 +21,15 @@ import { comparePassword, hashPassword } from '@/shared/utils/hash.util';
 import { Student } from '@/core/user/entity/student.entity';
 import { User } from '@/core/user/entity/user.entity';
 import { NotificationService } from '@/core/notification/services/notification.service';
+import { SlidingWindowLimiter } from '@/core/auth/utils/sliding-window-limiter';
 
 const OTP_TTL_MS = 5 * 60 * 1000;
+
+/** Bitta raqamga ketma-ket kod so'rashlar orasidagi eng kam vaqt. */
+const OTP_RESEND_COOLDOWN_MS = 60 * 1000;
+/** Bitta raqamga bir soatda yuboriladigan maksimal kod soni. */
+const OTP_MAX_PER_PHONE_PER_HOUR = 5;
+const HOUR_MS = 60 * 60 * 1000;
 
 /** 100000–999999 oralig'idagi 6 xonali kod (crypto — bashorat qilib bo'lmaydi). */
 function generateOtpCode(): string {
@@ -30,7 +44,16 @@ export class AuthService {
     private readonly configService: ConfigService,
     private readonly notificationService: NotificationService,
     @InjectRepository(Otp) private readonly otpRepo: Repository<Otp>,
-  ) {}
+  ) {
+    // IP bo'yicha cheklov ixtiyoriy: reverse proxy ortida `trust proxy`
+    // sozlanmagan bo'lsa, barcha so'rovlar bitta IP dek ko'rinadi va haqiqiy
+    // foydalanuvchilarni bloklab qo'yishi mumkin. Shuning uchun faqat
+    // OTP_MAX_PER_IP_PER_HOUR berilganda yoqiladi.
+    const perIp = Number(this.configService.get<string>('OTP_MAX_PER_IP_PER_HOUR'));
+    this.ipLimiter = Number.isFinite(perIp) && perIp > 0 ? new SlidingWindowLimiter(perIp, HOUR_MS) : null;
+  }
+
+  private readonly ipLimiter: SlidingWindowLimiter | null;
 
   issueTokens(userId: string) {
     const payload = { sub: userId };
@@ -108,7 +131,38 @@ export class AuthService {
     return this.issueTokens(user.id);
   }
 
-  async sendOtp(dto: SendOtpDto): Promise<{ message: string }> {
+  /**
+   * Kod so'rash chastotasini cheklaydi — SMS byudjetini himoya qilish va
+   * takroriy so'rovlar bilan raqamni "bombardimon" qilishning oldini olish uchun.
+   */
+  private async assertOtpAllowed(phoneNumber: string, ip?: string): Promise<void> {
+    if (ip && this.ipLimiter?.hit(ip)) {
+      throw new HttpException("Juda ko'p so'rov yuborildi, keyinroq urinib ko'ring", HttpStatus.TOO_MANY_REQUESTS);
+    }
+
+    const last = await this.otpRepo.findOne({ where: { phoneNumber }, order: { createdAt: 'DESC' } });
+    if (last) {
+      const elapsed = Date.now() - last.createdAt.getTime();
+      if (elapsed < OTP_RESEND_COOLDOWN_MS) {
+        const wait = Math.ceil((OTP_RESEND_COOLDOWN_MS - elapsed) / 1000);
+        throw new HttpException(`Yangi kod so'rash uchun ${wait} soniya kuting`, HttpStatus.TOO_MANY_REQUESTS);
+      }
+    }
+
+    const sentLastHour = await this.otpRepo.count({
+      where: { phoneNumber, createdAt: MoreThan(new Date(Date.now() - HOUR_MS)) },
+    });
+    if (sentLastHour >= OTP_MAX_PER_PHONE_PER_HOUR) {
+      throw new HttpException(
+        "Kod so'rashlar soni oshib ketdi, bir soatdan keyin urinib ko'ring",
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+  }
+
+  async sendOtp(dto: SendOtpDto, ip?: string): Promise<{ message: string }> {
+    await this.assertOtpAllowed(dto.phoneNumber, ip);
+
     const code = generateOtpCode();
 
     // Avval SMS yuboriladi: yuborilmasa, foydalanuvchi ololmaydigan kod

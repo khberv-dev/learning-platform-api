@@ -1,5 +1,5 @@
-import { Body, Controller, Post, Request, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiCreatedResponse, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Ip, Post, Request, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiCreatedResponse, ApiTags, ApiTooManyRequestsResponse } from '@nestjs/swagger';
 import { AuthService } from '@/core/auth/services/auth.service';
 import { SignUpRequest } from '@/core/auth/dto/sign-up-request.dto';
 import { SignInRequest } from '@/core/auth/dto/sign-in-request.dto';
@@ -50,8 +50,12 @@ export class AuthController {
   @Public()
   @Post('otp/send')
   @ApiCreatedResponse({ schema: { example: { message: 'OTP yuborildi' } } })
-  sendOtp(@Body() dto: SendOtpDto) {
-    return this.authService.sendOtp(dto);
+  @ApiTooManyRequestsResponse({
+    description: "Bitta raqamga 60 soniyada bir marta va soatiga 5 martadan ko'p kod yuborilmaydi",
+    schema: { example: { message: "Yangi kod so'rash uchun 43 soniya kuting", statusCode: 429 } },
+  })
+  sendOtp(@Body() dto: SendOtpDto, @Ip() ip: string) {
+    return this.authService.sendOtp(dto, ip);
   }
 
   @Public()

@@ -35,6 +35,7 @@ Copy `.env` and populate these variables before running:
 | `GEMINI_PROXY_URL` | optional outbound proxy for Gemini calls |
 | `CLICK_SERVICE_ID`, `CLICK_SECRET_KEY` | Click Merchant API; the secret signs `sign_string` on the prepare/complete webhooks |
 | `ESKIZ_API_URL`, `ESKIZ_API_USER`, `ESKIZ_API_KEY` | Eskiz SMS gateway, used to deliver sign-up / password-recovery OTP codes |
+| `OTP_MAX_PER_IP_PER_HOUR` | optional per-IP cap on `POST /auth/otp/send`; unset disables it (needs `trust proxy` behind a reverse proxy) |
 
 TypeORM runs with `synchronize: true` — schema is auto-migrated in dev. The data source reads from `dist/**/*.entity.js`, so the app must be built (or running via `nest start`) before the DB is used.
 

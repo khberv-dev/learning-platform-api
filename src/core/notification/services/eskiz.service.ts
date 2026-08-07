@@ -4,6 +4,8 @@ import { ConfigService } from '@nestjs/config';
 // Eskiz tokenlari ~30 kun amal qiladi; biroz erta yangilanadi.
 const TOKEN_TTL_MS = 25 * 24 * 60 * 60 * 1000;
 const SMS_FROM = '4546';
+/** Provayder javob bermasa so'rov cheksiz osilib qolmasligi uchun. */
+const REQUEST_TIMEOUT_MS = 10_000;
 
 interface LoginResponse {
   data?: { token?: string };
@@ -68,7 +70,7 @@ export class EskizService {
     const { baseUrl, email, password } = this.credentials;
     const body = new URLSearchParams({ email, password });
 
-    const response = await fetch(`${baseUrl}/auth/login`, { method: 'POST', body });
+    const response = await this.request(`${baseUrl}/auth/login`, { method: 'POST', body });
     if (!response.ok) {
       const detail = await response.text();
       this.logger.error(`Eskiz login xatosi (${response.status}): ${detail}`);
@@ -87,11 +89,24 @@ export class EskizService {
 
   private post(path: string, body: URLSearchParams, token: string): Promise<Response> {
     const { baseUrl } = this.credentials;
-    return fetch(`${baseUrl}/${path}`, {
+    return this.request(`${baseUrl}/${path}`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
       body,
     });
+  }
+
+  /**
+   * Timeout bilan so'rov. Busiz provayder javob bermasa HTTP so'rov cheksiz
+   * kutib qoladi va ulanishlarni band qiladi.
+   */
+  private async request(url: string, init: RequestInit): Promise<Response> {
+    try {
+      return await fetch(url, { ...init, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+    } catch (error) {
+      this.logger.error(`Eskiz so'rovi bajarilmadi (${url}): ${(error as Error).message}`);
+      throw new ServiceUnavailableException("SMS provayderiga ulanib bo'lmadi");
+    }
   }
 
   /** Eskiz 998XXXXXXXXX kutadi — faqat raqamlar, `+` siz. */
