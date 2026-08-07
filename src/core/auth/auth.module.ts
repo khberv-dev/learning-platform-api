@@ -4,6 +4,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { UserModule } from '@/core/user/user.module';
+import { NotificationModule } from '@/core/notification/notification.module';
 import { Otp } from '@/core/auth/entity/otp.entity';
 import { AuthService } from '@/core/auth/services/auth.service';
 import { AuthController } from '@/core/auth/controllers/auth.controller';
@@ -24,6 +25,7 @@ import { JwtRefreshStrategy } from '@/core/auth/strategies/jwt-refresh.strategy'
       }),
     }),
     UserModule,
+    NotificationModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtAccessStrategy, JwtRefreshStrategy],

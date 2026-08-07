@@ -1,3 +1,4 @@
+import { randomInt } from 'crypto';
 import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -12,9 +13,14 @@ import { Otp } from '@/core/auth/entity/otp.entity';
 import { comparePassword, hashPassword } from '@/shared/utils/hash.util';
 import { Student } from '@/core/user/entity/student.entity';
 import { User } from '@/core/user/entity/user.entity';
+import { NotificationService } from '@/core/notification/services/notification.service';
 
-const OTP_CODE = '666666';
 const OTP_TTL_MS = 5 * 60 * 1000;
+
+/** 100000–999999 oralig'idagi 6 xonali kod (crypto — bashorat qilib bo'lmaydi). */
+function generateOtpCode(): string {
+  return String(randomInt(100_000, 1_000_000));
+}
 
 @Injectable()
 export class AuthService {
@@ -22,6 +28,7 @@ export class AuthService {
     private readonly userService: UserService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly notificationService: NotificationService,
     @InjectRepository(Otp) private readonly otpRepo: Repository<Otp>,
   ) {}
 
@@ -55,7 +62,7 @@ export class AuthService {
 
     if (existingUser) {
       if (existingUser.student) {
-        throw new BadRequestException('Bu telefon raqam allaqachon ro\'yxatdan o\'tgan');
+        throw new BadRequestException("Bu telefon raqam allaqachon ro'yxatdan o'tgan");
       }
       if (!(await comparePassword(data.password, existingUser.password))) {
         throw new BadRequestException("Login yoki parol noto'g'ri");
@@ -102,8 +109,15 @@ export class AuthService {
   }
 
   async sendOtp(dto: SendOtpDto): Promise<{ message: string }> {
+    const code = generateOtpCode();
+
+    // Avval SMS yuboriladi: yuborilmasa, foydalanuvchi ololmaydigan kod
+    // bazada qolib ketmaydi.
+    await this.notificationService.sendOtp(dto.phoneNumber, code);
+
     const expiresAt = new Date(Date.now() + OTP_TTL_MS);
-    await this.otpRepo.save({ phoneNumber: dto.phoneNumber, code: OTP_CODE, expiresAt, used: false });
+    await this.otpRepo.save({ phoneNumber: dto.phoneNumber, code, expiresAt, used: false });
+
     return { message: 'OTP yuborildi' };
   }
 
@@ -111,7 +125,7 @@ export class AuthService {
     await this.consumeOtp(dto.phoneNumber, dto.code);
 
     const user = await this.userService.findByPhoneNumber(dto.phoneNumber);
-    if (!user) throw new NotFoundException("Foydalanuvchi topilmadi");
+    if (!user) throw new NotFoundException('Foydalanuvchi topilmadi');
 
     const passwordHash = await hashPassword(dto.newPassword);
     await this.userService.updatePassword(user.id, passwordHash);
