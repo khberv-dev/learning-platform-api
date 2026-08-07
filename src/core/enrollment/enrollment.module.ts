@@ -16,5 +16,6 @@ import { AdminEnrollmentController } from '@/core/enrollment/controllers/admin-e
   imports: [TypeOrmModule.forFeature([Enrollment, Progress, EnrollmentHistory, Student, Course, Plan]), CourseModule],
   controllers: [StudentCourseController, EnrollmentController, AdminEnrollmentController],
   providers: [EnrollmentService],
+  exports: [EnrollmentService],
 })
 export class EnrollmentModule {}

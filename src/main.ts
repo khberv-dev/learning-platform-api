@@ -19,6 +19,7 @@ async function bootstrap() {
     .setTitle('Learning Platform API')
     .setVersion('0.0.1')
     .addBearerAuth()
+    .addApiKey({ type: 'apiKey', name: 'X-Auth', in: 'header' }, 'X-Auth')
     .build();
 
   const document = SwaggerModule.createDocument(app, swaggerConfig);
