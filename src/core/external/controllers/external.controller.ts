@@ -22,6 +22,23 @@ const studentListExample = {
   totalPages: 1,
 };
 
+const courseListExample = [
+  {
+    id: 'c0000000-0000-0000-0000-000000000001',
+    title: 'English A1',
+    description: "Boshlang'ich daraja",
+    plans: [
+      {
+        id: 'pl000000-0000-0000-0000-000000000001',
+        title: 'Standart',
+        price: 250000,
+        month: 3,
+        hasMentor: false,
+      },
+    ],
+  },
+];
+
 const enrollmentExample = {
   id: 'en000000-0000-0000-0000-000000000001',
   status: 'active',
@@ -44,6 +61,16 @@ export class ExternalController {
   @ApiOkResponse({ schema: { example: studentListExample } })
   searchStudents(@Query() query: SearchStudentsQuery) {
     return this.externalService.searchStudentsByPhone(query);
+  }
+
+  @Get('courses')
+  @ApiOperation({
+    summary: "Faol kurslar va tariflar ro'yxati",
+    description: "Yozilish ochishda kerak bo'ladigan `planId` / `courseId` shu yerdan olinadi.",
+  })
+  @ApiOkResponse({ schema: { example: courseListExample } })
+  listCourses() {
+    return this.externalService.listCourses();
   }
 
   @Post('enrollments')

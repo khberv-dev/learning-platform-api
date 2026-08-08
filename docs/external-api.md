@@ -74,7 +74,39 @@ Javobda faqat shu maydonlar bo'ladi — foydalanuvchi obyekti to'liq qaytarilmay
 | 400 | `Qidiruv uchun kamida 4 ta raqam kerak` |
 | 400 | `Qidiruv faqat raqamlardan iborat bo'lishi kerak` |
 
-## 2. Talabani kursga yozish (to'langan summa bilan)
+## 2. Kurslar va tariflar ro'yxati
+
+```http
+GET /api/external/courses
+X-Auth: iteach_...
+```
+
+Faqat **faol** kurslar va ularning **faol** tariflari. Kurs mazmuni (unit, lesson) qaytarilmaydi.
+
+**200 OK**
+
+```json
+[
+  {
+    "id": "c0000000-0000-0000-0000-000000000001",
+    "title": "English A1",
+    "description": "Boshlang'ich daraja",
+    "plans": [
+      {
+        "id": "pl000000-0000-0000-0000-000000000001",
+        "title": "Standart",
+        "price": 250000,
+        "month": 3,
+        "hasMentor": false
+      }
+    ]
+  }
+]
+```
+
+Tarifi yo'q kurslar ham qaytariladi (`plans: []`) — ular keyingi endpointda `courseId` + `end` bilan ochiladi.
+
+## 3. Talabani kursga yozish (to'langan summa bilan)
 
 ```http
 POST /api/external/enrollments
