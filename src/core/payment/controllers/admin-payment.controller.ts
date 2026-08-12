@@ -1,9 +1,8 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiNoContentResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Controller, Get, Param, Query } from '@nestjs/common';
+import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Roles } from '@/common/decorators/roles.decorator';
 import { UserRole } from '@/core/user/enum/user-role.enum';
 import { PaymentService } from '@/core/payment/services/payment.service';
-import { UpdatePaymentStatusDto } from '@/core/payment/dto/update-payment-status.dto';
 import { PaymentQuery } from '@/core/payment/dto/payment-query.dto';
 
 const paymentExample = {
@@ -37,6 +36,11 @@ const paymentListExample = {
   totalPages: 1,
 };
 
+/**
+ * Admin uchun to'lovlar — faqat ko'rish. To'lov holatini o'zgartirish yoki
+ * o'chirish yo'q: holat faqat to'lov tizimi (Click) webhook'lari orqali
+ * o'zgaradi.
+ */
 @ApiTags('payments')
 @ApiBearerAuth()
 @Roles(UserRole.ADMIN)
@@ -54,24 +58,5 @@ export class AdminPaymentController {
   @ApiOkResponse({ schema: { example: paymentExample } })
   findOnePayment(@Param('id') id: string) {
     return this.paymentService.findOnePayment(id);
-  }
-
-  @Patch(':id/status')
-  @ApiOperation({
-    summary: "To'lovni tasdiqlash yoki bekor qilish",
-    description:
-      "status=paid bo'lganda yozilish 'active' holatiga o'tadi (start va end majburiy) va to'lov tarixi yoziladi. " +
-      "status=cancelled bo'lganda yozilish 'cancelled' holatiga o'tadi.",
-  })
-  @ApiOkResponse({ schema: { example: { ...paymentExample, status: 'paid' } } })
-  updatePaymentStatus(@Param('id') id: string, @Body() dto: UpdatePaymentStatusDto) {
-    return this.paymentService.updatePaymentStatus(id, dto);
-  }
-
-  @Delete(':id')
-  @HttpCode(204)
-  @ApiNoContentResponse()
-  deletePayment(@Param('id') id: string) {
-    return this.paymentService.deletePayment(id);
   }
 }

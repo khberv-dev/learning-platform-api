@@ -12,7 +12,6 @@ import { EnrollmentStatus } from '@/core/enrollment/enum/enrollment-status.enum'
 import { addMonths, isEnrollmentExpired } from '@/core/enrollment/utils/enrollment.util';
 import { RequestPaymentDto } from '@/core/payment/dto/request-payment.dto';
 import { SelectPaymentTypeDto } from '@/core/payment/dto/select-payment-type.dto';
-import { UpdatePaymentStatusDto } from '@/core/payment/dto/update-payment-status.dto';
 import { PaymentQuery } from '@/core/payment/dto/payment-query.dto';
 import { Paginated, PaginationQuery, paginate } from '@/common/dto/pagination-query.dto';
 import { buildPaymentUrl } from '@/core/payment/utils/payment-url.util';
@@ -174,23 +173,6 @@ export class PaymentService {
     return this.paymentRepo.save(payment);
   }
 
-  /** Admin to'lovni qo'lda tasdiqlaydi yoki bekor qiladi. */
-  async updatePaymentStatus(paymentId: string, dto: UpdatePaymentStatusDto): Promise<Payment> {
-    const payment = await this.findOnePayment(paymentId);
-    if (payment.status !== PaymentStatus.CREATED) {
-      throw new BadRequestException("To'lov holati allaqachon yakunlangan");
-    }
-    if (dto.status === PaymentStatus.CREATED) {
-      throw new BadRequestException("To'lov holati faqat 'paid' yoki 'cancelled' bo'lishi mumkin");
-    }
-
-    if (dto.status === PaymentStatus.CANCELLED) {
-      return this.markCancelled(payment);
-    }
-
-    return this.markPaid(payment, dto.start ? new Date(dto.start) : undefined, dto.end ? new Date(dto.end) : undefined);
-  }
-
   async findAllPayments(query: PaymentQuery): Promise<Paginated<Payment>> {
     const where: FindOptionsWhere<Payment> = {};
     if (query.userId) where.user = { id: query.userId };
@@ -233,10 +215,5 @@ export class PaymentService {
     });
     if (!payment) throw new NotFoundException("To'lov topilmadi");
     return withResolvedUrl(payment);
-  }
-
-  async deletePayment(id: string): Promise<void> {
-    const payment = await this.findOnePayment(id);
-    await this.paymentRepo.remove(payment);
   }
 }

@@ -78,7 +78,7 @@ This is the most interconnected part of the codebase — `plan`, `payment`, and 
 2. `POST /api/payments/request { planId }` creates an `Enrollment` (`created`) and a `Payment` (`created`), and returns the active `PaymentType`s. Repeating the request reuses the pending payment, updating its plan/amount if the user picked a different plan.
 3. `Payment.amount` snapshots `plan.price` at creation time, so later price changes don't affect pending or historical payments. Click amount verification compares against this snapshot.
 4. Confirmation (`markPaid`) flips the enrollment to `active`, sets `start`/`end` (`end` defaults to `start + plan.month`), and appends an `EnrollmentHistory` row. Cancellation cascades to the enrollment.
-5. Admins can confirm or cancel manually via `PATCH /api/admin/payments/{id}/status` for cash/transfer payments.
+5. Admins have **read-only** access to payments (`GET /api/admin/payments`, `GET /api/admin/payments/:id`) — there is no approve, reject, or delete endpoint. Payment status changes only through the Click webhooks. For cash/transfer cases, admins bypass payments entirely via `POST /api/admin/enrollments`, which opens an enrollment directly.
 
 Re-purchasing an expired enrollment reuses the existing row: it is reset to `created` with null dates, and the previous term survives in `enrollment_histories`.
 

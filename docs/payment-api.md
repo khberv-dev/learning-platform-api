@@ -27,7 +27,7 @@ Tarif (plan) tanlash, to'lov yaratish va Click orqali to'lash oqimi bo'yicha ilo
 5. Ilova GET /api/payments/{id} orqali holatni tekshiradi
 ```
 
-Admin to'lovni qo'lda ham tasdiqlashi mumkin (`PATCH /api/admin/payments/{id}/status`) — Click'siz (naqd, o'tkazma) to'lovlar uchun.
+Admin to'lovlarni faqat **ko'ra oladi** — holatini o'zgartira yoki o'chira olmaydi. To'lov holati faqat Click webhook'lari orqali o'zgaradi. Click'siz (naqd, o'tkazma) holatlar uchun `POST /api/admin/enrollments` bilan talabani to'g'ridan-to'g'ri yozish kerak.
 
 ## Holatlar (statuslar)
 
@@ -36,7 +36,7 @@ Admin to'lovni qo'lda ham tasdiqlashi mumkin (`PATCH /api/admin/payments/{id}/st
 | Qiymat | Ma'nosi |
 |---|---|
 | `created` | To'lov so'rovi yaratilgan, hali to'lanmagan (default) |
-| `paid` | To'landi — Click tasdiqladi yoki admin qo'lda tasdiqladi |
+| `paid` | To'landi — Click tasdiqladi |
 | `cancelled` | Bekor qilingan |
 
 ### Enrollment status
@@ -360,37 +360,17 @@ Rol: `ADMIN`.
 
 ### To'lovlar
 
+Faqat ko'rish uchun — to'lovni tasdiqlash, bekor qilish yoki o'chirish endpointlari yo'q.
+
 ```http
 GET /api/admin/payments?page=1&limit=10&status=created&userId=&planId=&paymentTypeId=&enrollmentId=
 GET /api/admin/payments/{id}
-DELETE /api/admin/payments/{id}
 ```
-
-### To'lovni qo'lda tasdiqlash / bekor qilish
-
-```http
-PATCH /api/admin/payments/{id}/status
-```
-
-```json
-{ "status": "paid" }
-```
-
-`start` va `end` ixtiyoriy: berilmasa `start` = hozir, `end` = `start` + tarifdagi `month`. Kerak bo'lsa qo'lda berish mumkin:
-
-```json
-{ "status": "paid", "start": "2026-05-18T00:00:00.000Z", "end": "2026-08-18T00:00:00.000Z" }
-```
-
-Bekor qilish: `{ "status": "cancelled" }` — payment va enrollment `cancelled` bo'ladi.
 
 **Xatolar**
 
 | Kod | Sabab |
 |---|---|
-| 400 | `To'lov holati allaqachon yakunlangan` |
-| 400 | `To'lov holati faqat 'paid' yoki 'cancelled' bo'lishi mumkin` |
-| 400 | `Tugash sanasi boshlanish sanasidan keyin bo'lishi kerak` |
 | 404 | `To'lov topilmadi` |
 
 ### Talabani qo'lda yozish (to'lovsiz)
