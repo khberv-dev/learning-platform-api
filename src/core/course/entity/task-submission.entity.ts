@@ -1,15 +1,14 @@
-import {
-  Column,
-  CreateDateColumn,
-  Entity,
-  JoinColumn,
-  ManyToOne,
-  PrimaryGeneratedColumn,
-} from 'typeorm';
+import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn, Unique } from 'typeorm';
 import { Student } from '@/core/user/entity/student.entity';
 import { Task } from '@/core/course/entity/task.entity';
 
+/**
+ * Har bir talaba har bir topshiriq uchun bitta javob yozuvi saqlaydi.
+ * Unikal cheklov bir vaqtda kelgan so'rovlar nusxa yaratishining oldini oladi —
+ * nusxalar progress foizini 100 dan oshirib yuborardi.
+ */
 @Entity('task_submissions')
+@Unique('UQ_task_submission_student_task', ['student', 'task'])
 export class TaskSubmission {
   @PrimaryGeneratedColumn('uuid')
   id: string;

@@ -4,6 +4,7 @@ import { Roles } from '@/common/decorators/roles.decorator';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { UserRole } from '@/core/user/enum/user-role.enum';
 import { TaskSubmissionService } from '@/core/course/services/task-submission.service';
+import { parseSubmitTasksBody } from '@/core/course/dto/submit-tasks.dto';
 
 @ApiTags('task-submissions')
 @ApiBearerAuth()
@@ -31,8 +32,10 @@ export class TaskSubmissionController {
       ],
     },
   })
-  submit(@CurrentUser() user: { id: string }, @Body() answers: Record<string, string[]>) {
-    return this.taskSubmissionService.submit(user.id, answers);
+  submit(@CurrentUser() user: { id: string }, @Body() body: unknown) {
+    // Kalitlari dinamik bo'lgani uchun global ValidationPipe bu tanani
+    // tekshirmaydi — qo'lda tekshiriladi.
+    return this.taskSubmissionService.submit(user.id, parseSubmitTasksBody(body));
   }
 
   @Get('lessons/:lessonId')
@@ -43,8 +46,8 @@ export class TaskSubmissionController {
           taskId: 'a1b2c3d4-0000-0000-0000-000000000001',
           name: 'Greeting quiz',
           questions: [
-            { question: 'Choose the correct greeting.', options: ['Hello', 'Goodbye', 'Thank you'], answer: 'Hello' },
-            { question: 'What is the past tense of "go"?', options: null, answer: 'went' },
+            { question: 'Choose the correct greeting.', options: ['Hello', 'Goodbye', 'Thank you'] },
+            { question: 'What is the past tense of "go"?', options: null },
           ],
           file: '/task-audio/uuid.mp3',
           contentType: 'audio',

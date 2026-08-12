@@ -1,6 +1,7 @@
 import { Controller, Get, Param } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Roles } from '@/common/decorators/roles.decorator';
+import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { UserRole } from '@/core/user/enum/user-role.enum';
 import { CourseService } from '@/core/course/services/course.service';
 import { TaskService } from '@/core/course/services/task.service';
@@ -66,14 +67,22 @@ export class CourseController {
     return this.courseService.findOneActiveCourse(id);
   }
 
+  /**
+   * Talabaga to'g'ri javoblar ko'rsatilmaydi va faqat yozilgan kursi ochiq.
+   * Admin bu marshrutdan to'liq ma'lumot oladi (javob varaqasi bilan).
+   */
   @Get(':courseId/units/:unitId/lessons/:lessonId/tasks')
   @Roles(UserRole.STUDENT, UserRole.ADMIN)
   @ApiOkResponse({ schema: { example: [taskExample] } })
   listTasks(
+    @CurrentUser() user: { id: string; roles: UserRole[] },
     @Param('courseId') courseId: string,
     @Param('unitId') unitId: string,
     @Param('lessonId') lessonId: string,
   ) {
-    return this.taskService.listTasks(courseId, unitId, lessonId);
+    if (user.roles.includes(UserRole.ADMIN)) {
+      return this.taskService.listTasks(courseId, unitId, lessonId);
+    }
+    return this.taskService.listTasksForStudent(courseId, unitId, lessonId, user.id);
   }
 }

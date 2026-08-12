@@ -18,6 +18,7 @@ const availableCoursesExample = [
 const myCoursesExample = [
   {
     id: 'en000000-0000-0000-0000-000000000001',
+    status: 'active',
     start: '2026-05-18T00:00:00.000Z',
     end: '2026-08-18T00:00:00.000Z',
     course: {
@@ -25,7 +26,9 @@ const myCoursesExample = [
       title: 'English A1',
       image: '/public/course/eng-a1.png',
     },
-    progressPercent: 35,
+    lessonsCount: 12,
+    totalProgress: 35,
+    isExpired: false,
   },
 ];
 

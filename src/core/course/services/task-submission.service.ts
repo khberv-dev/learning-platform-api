@@ -1,24 +1,38 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import { TaskSubmission } from '@/core/course/entity/task-submission.entity';
-import { Task } from '@/core/course/entity/task.entity';
+import { Task, TaskQuestion } from '@/core/course/entity/task.entity';
+import { Lesson } from '@/core/course/entity/lesson.entity';
 import { Student } from '@/core/user/entity/student.entity';
 import { Progress } from '@/core/enrollment/entity/progress.entity';
 import { Enrollment } from '@/core/enrollment/entity/enrollment.entity';
+import { assertActiveEnrollmentForLesson } from '@/core/enrollment/utils/enrollment.util';
+import { SubmitTasksBody } from '@/core/course/dto/submit-tasks.dto';
+
+/** Javob varaqasi talabaga ko'rsatilmaydi — faqat savol va variantlar. */
+function stripAnswer(question: TaskQuestion) {
+  return { question: question.question, options: question.options };
+}
 
 @Injectable()
 export class TaskSubmissionService {
   constructor(
     @InjectRepository(TaskSubmission) private readonly submissionRepo: Repository<TaskSubmission>,
     @InjectRepository(Task) private readonly taskRepo: Repository<Task>,
+    @InjectRepository(Lesson) private readonly lessonRepo: Repository<Lesson>,
     @InjectRepository(Student) private readonly studentRepo: Repository<Student>,
-    @InjectRepository(Progress) private readonly progressRepo: Repository<Progress>,
     @InjectRepository(Enrollment) private readonly enrollmentRepo: Repository<Enrollment>,
+    private readonly dataSource: DataSource,
   ) {}
 
-  // answers: { [taskId]: string[] } — one answer string per question in order
-  async submit(studentUserId: string, answers: Record<string, string[]>) {
+  /**
+   * Topshiriq javoblarini saqlaydi va tegishli darslarning progressini yangilaydi.
+   *
+   * Hammasi bitta tranzaksiyada: bir topshiriq topilmasa, oldingilari ham
+   * saqlanmaydi — aks holda so'rov xato qaytarsa ham ma'lumot o'zgarib qolardi.
+   */
+  async submit(studentUserId: string, answers: SubmitTasksBody) {
     const student = await this.studentRepo.findOne({ where: { user: { id: studentUserId } } });
     if (!student) throw new NotFoundException('Talaba topilmadi');
 
@@ -26,60 +40,81 @@ export class TaskSubmissionService {
     const tasks = await this.taskRepo.find({ where: { id: In(taskIds) }, relations: { lesson: true } });
     const taskMap = new Map(tasks.map((t) => [t.id, t]));
 
-    const submissions = await Promise.all(
-      taskIds.map(async (taskId) => {
-        const task = taskMap.get(taskId);
-        if (!task) throw new NotFoundException(`Topshiriq topilmadi: ${taskId}`);
+    for (const taskId of taskIds) {
+      if (!taskMap.has(taskId)) throw new NotFoundException(`Topshiriq topilmadi: ${taskId}`);
+    }
 
-        const studentAnswers = answers[taskId].map((a) => a.toLowerCase());
-        const isCorrect = task.questions.every(
-          (q, i) => studentAnswers[i] !== undefined && studentAnswers[i] === q.answer.toLowerCase(),
-        );
-
-        const existing = await this.submissionRepo.findOne({
-          where: { student: { id: student.id }, task: { id: taskId } },
-        });
-
-        return this.submissionRepo.save({
-          ...existing,
-          student,
-          task,
-          answer: JSON.stringify(studentAnswers),
-          isCorrect,
-        });
-      }),
-    );
-
+    // Talaba faqat o'zi yozilgan kursning topshirig'ini yechishi mumkin.
     const lessonIds = [...new Set(tasks.map((t) => t.lesson.id))];
-    await Promise.all(lessonIds.map((lessonId) => this.upsertLessonProgress(student, lessonId)));
+    for (const lessonId of lessonIds) {
+      await assertActiveEnrollmentForLesson(this.enrollmentRepo, studentUserId, lessonId);
+    }
 
-    return submissions.map((s) => ({
-      taskId: s.task.id,
-      answers: JSON.parse(s.answer),
-      isCorrect: s.isCorrect,
-    }));
+    return this.dataSource.transaction(async (manager) => {
+      const results: { taskId: string; answers: string[]; isCorrect: boolean }[] = [];
+
+      for (const taskId of taskIds) {
+        const task = taskMap.get(taskId)!;
+        const studentAnswers = answers[taskId].map((a) => a.toLowerCase());
+
+        // Savoli yo'q topshiriqni yechib bo'lmaydi — `[].every()` doim `true`
+        // qaytargani uchun ilgari bunday topshiriq avtomatik "to'g'ri" bo'lardi.
+        const isCorrect =
+          task.questions.length > 0 &&
+          task.questions.every(
+            (q, i) => studentAnswers[i] !== undefined && studentAnswers[i] === q.answer.toLowerCase(),
+          );
+
+        // Unikal cheklovga tayangan upsert: parallel so'rovlar nusxa yaratmaydi.
+        await manager
+          .createQueryBuilder()
+          .insert()
+          .into(TaskSubmission)
+          .values({ student, task, answer: JSON.stringify(studentAnswers), isCorrect })
+          .orUpdate(['answer', 'is_correct'], ['student_id', 'task_id'])
+          .execute();
+
+        results.push({ taskId, answers: studentAnswers, isCorrect });
+      }
+
+      for (const lessonId of lessonIds) {
+        await this.upsertLessonProgress(manager, student, lessonId);
+      }
+
+      return results;
+    });
   }
 
-  private async upsertLessonProgress(student: Student, lessonId: string): Promise<void> {
-    const totalTasks = await this.taskRepo.count({ where: { lesson: { id: lessonId } } });
+  /**
+   * Dars progressi = to'g'ri yechilgan topshiriqlar ulushi (0–100).
+   * Savoli yo'q topshiriqlar hisobga olinmaydi — ularni yechib bo'lmaydi,
+   * shuning uchun ular bo'lsa ham progress 100 ga yeta oladi.
+   */
+  private async upsertLessonProgress(manager: EntityManager, student: Student, lessonId: string): Promise<void> {
+    const totalTasks = await manager
+      .createQueryBuilder(Task, 'task')
+      .leftJoin('task.lesson', 'lesson')
+      .where('lesson.id = :lessonId', { lessonId })
+      .andWhere('jsonb_array_length(task.questions) > 0')
+      .getCount();
     if (totalTasks === 0) return;
 
-    const correctCount = await this.submissionRepo.count({
+    const correctCount = await manager.getRepository(TaskSubmission).count({
       where: { student: { id: student.id }, task: { lesson: { id: lessonId } }, isCorrect: true },
     });
 
-    const lessonProgress = Math.round((correctCount / totalTasks) * 100);
+    const lessonProgress = Math.min(100, Math.round((correctCount / totalTasks) * 100));
 
-    const enrollment = await this.enrollmentRepo.findOne({
+    const enrollment = await manager.getRepository(Enrollment).findOne({
       where: { student: { id: student.id }, course: { units: { lessons: { id: lessonId } } } },
     });
     if (!enrollment) return;
 
-    const existing = await this.progressRepo.findOne({
+    const existing = await manager.getRepository(Progress).findOne({
       where: { enrollment: { id: enrollment.id }, lesson: { id: lessonId } },
     });
 
-    await this.progressRepo.save({
+    await manager.getRepository(Progress).save({
       ...existing,
       enrollment,
       lesson: { id: lessonId },
@@ -87,9 +122,15 @@ export class TaskSubmissionService {
     });
   }
 
+  /** Dars topshiriqlari va talabaning javoblari — to'g'ri javoblarsiz. */
   async getLessonResults(studentUserId: string, lessonId: string) {
     const student = await this.studentRepo.findOne({ where: { user: { id: studentUserId } } });
     if (!student) throw new NotFoundException('Talaba topilmadi');
+
+    const lesson = await this.lessonRepo.findOne({ where: { id: lessonId } });
+    if (!lesson) throw new NotFoundException('Dars topilmadi');
+
+    await assertActiveEnrollmentForLesson(this.enrollmentRepo, studentUserId, lessonId);
 
     const tasks = await this.taskRepo.find({
       where: { lesson: { id: lessonId } },
@@ -108,12 +149,12 @@ export class TaskSubmissionService {
       return {
         taskId: task.id,
         name: task.name,
-        questions: task.questions,
+        questions: task.questions.map(stripAnswer),
         file: task.file,
         contentType: task.contentType,
         submission: submission
           ? {
-              answers: JSON.parse(submission.answer),
+              answers: JSON.parse(submission.answer) as string[],
               isCorrect: submission.isCorrect,
               submittedAt: submission.createdAt,
             }

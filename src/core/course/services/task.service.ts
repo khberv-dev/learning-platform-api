@@ -3,6 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Task } from '@/core/course/entity/task.entity';
 import { Lesson } from '@/core/course/entity/lesson.entity';
+import { Enrollment } from '@/core/enrollment/entity/enrollment.entity';
+import { assertActiveEnrollmentForLesson } from '@/core/enrollment/utils/enrollment.util';
 import { CreateTaskDto } from '@/core/course/dto/create-task.dto';
 import { UpdateTaskDto } from '@/core/course/dto/update-task.dto';
 import { TaskContentType } from '@/core/course/enum/task-content-type.enum';
@@ -12,6 +14,7 @@ export class TaskService {
   constructor(
     @InjectRepository(Task) private readonly taskRepo: Repository<Task>,
     @InjectRepository(Lesson) private readonly lessonRepo: Repository<Lesson>,
+    @InjectRepository(Enrollment) private readonly enrollmentRepo: Repository<Enrollment>,
   ) {}
 
   private async loadLesson(courseId: string, unitId: string, lessonId: string): Promise<Lesson> {
@@ -39,6 +42,26 @@ export class TaskService {
       where: { lesson: { id: lessonId } },
       order: { createdAt: 'ASC' },
     });
+  }
+
+  /**
+   * Talaba uchun topshiriqlar ro'yxati: faqat yozilgan kursi bo'yicha va
+   * to'g'ri javoblarsiz. Admin uchun to'liq ma'lumot qaytariladi — u javob
+   * varaqasini ko'rishi kerak.
+   */
+  async listTasksForStudent(courseId: string, unitId: string, lessonId: string, studentUserId: string) {
+    await this.loadLesson(courseId, unitId, lessonId);
+    await assertActiveEnrollmentForLesson(this.enrollmentRepo, studentUserId, lessonId);
+
+    const tasks = await this.taskRepo.find({
+      where: { lesson: { id: lessonId } },
+      order: { createdAt: 'ASC' },
+    });
+
+    return tasks.map((task) => ({
+      ...task,
+      questions: task.questions.map((q) => ({ question: q.question, options: q.options })),
+    }));
   }
 
   async updateTask(
