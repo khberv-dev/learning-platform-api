@@ -24,8 +24,12 @@ import { Roles } from '@/common/decorators/roles.decorator';
 import { UserRole } from '@/core/user/enum/user-role.enum';
 import { MaterialService } from '@/core/material/services/material.service';
 import { CreateMaterialDto } from '@/core/material/dto/create-material.dto';
-import { materialStorage, materialFileFilter, toMaterialPath } from '@/core/material/storage/material.storage';
-import { MaterialType } from '@/core/material/enum/material-type.enum';
+import {
+  materialStorage,
+  materialFileFilter,
+  materialTypeFor,
+  toMaterialPath,
+} from '@/core/material/storage/material.storage';
 
 const materialExample = {
   id: 'm0000000-0000-0000-0000-000000000001',
@@ -52,7 +56,7 @@ export class AdminMaterialController {
       required: ['name', 'file'],
       properties: {
         name: { type: 'string' },
-        file: { type: 'string', format: 'binary' },
+        file: { type: 'string', format: 'binary', description: 'PDF yoki Word fayl (.pdf, .doc, .docx)' },
       },
     },
   })
@@ -63,7 +67,11 @@ export class AdminMaterialController {
     @UploadedFile() file: Express.Multer.File,
   ) {
     if (!file) throw new BadRequestException('Fayl yuborilmagan');
-    const type = file.mimetype === 'application/pdf' ? MaterialType.PDF : MaterialType.IMAGE;
+
+    // Fayl filtri yaroqsiz turlarni allaqachon rad etadi — bu qo'shimcha himoya.
+    const type = materialTypeFor(file);
+    if (!type) throw new BadRequestException('Faqat PDF yoki Word (doc, docx) fayllari qabul qilinadi');
+
     return this.materialService.createMaterial(lessonId, dto, toMaterialPath(file.filename), type);
   }
 
