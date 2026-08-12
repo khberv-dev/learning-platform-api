@@ -27,6 +27,14 @@ export class TaskSubmission {
   @Column()
   isCorrect: boolean;
 
+  /**
+   * Topshiriq birinchi marta o'tganda tanga va ball berilgani.
+   * Bir marta `true` bo'lgach o'zgarmaydi — topshiriqni qayta yechish yoki
+   * yiqilib qayta o'tish mukofotni takrorlamaydi.
+   */
+  @Column({ default: false })
+  rewarded: boolean;
+
   @CreateDateColumn()
   createdAt: Date;
 }

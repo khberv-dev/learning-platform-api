@@ -21,6 +21,10 @@ function stripAnswer(question: TaskQuestion) {
  */
 const PASS_PERCENT = 80;
 
+/** Topshiriq birinchi marta o'tganda beriladigan mukofot. */
+const COINS_PER_PASSED_TASK = 5;
+const POINTS_PER_PASSED_TASK = 10;
+
 /** Nechta savolga to'g'ri javob berilgan. */
 function countCorrect(questions: TaskQuestion[], answers: string[]): number {
   return questions.filter((q, i) => answers[i] !== undefined && answers[i] === q.answer.toLowerCase()).length;
@@ -55,6 +59,9 @@ export class TaskSubmissionService {
    * `isCorrect` — topshiriq o'tgan-o'tmagani: to'g'ri javoblar `PASS_PERCENT`
    * (80%) dan kam bo'lmasa `true`. Barcha savolga to'g'ri javob shart emas.
    *
+   * Topshiriq birinchi marta o'tganda talabaga tanga va ball qo'shiladi
+   * (`rewarded: true`). Qayta topshirishda mukofot takrorlanmaydi.
+   *
    * Hammasi bitta tranzaksiyada: bir topshiriq topilmasa, oldingilari ham
    * saqlanmaydi — aks holda so'rov xato qaytarsa ham ma'lumot o'zgarib qolardi.
    */
@@ -77,7 +84,8 @@ export class TaskSubmissionService {
     }
 
     return this.dataSource.transaction(async (manager) => {
-      const results: { taskId: string; answers: string[]; isCorrect: boolean }[] = [];
+      const results: { taskId: string; answers: string[]; isCorrect: boolean; rewarded: boolean }[] = [];
+      let rewardedCount = 0;
 
       for (const taskId of taskIds) {
         const task = taskMap.get(taskId)!;
@@ -86,6 +94,7 @@ export class TaskSubmissionService {
         const isCorrect = isTaskPassed(task.questions, studentAnswers);
 
         // Unikal cheklovga tayangan upsert: parallel so'rovlar nusxa yaratmaydi.
+        // `rewarded` bu yerda yangilanmaydi — bir marta berilgan mukofot saqlanadi.
         await manager
           .createQueryBuilder()
           .insert()
@@ -94,7 +103,15 @@ export class TaskSubmissionService {
           .orUpdate(['answer', 'is_correct'], ['student_id', 'task_id'])
           .execute();
 
-        results.push({ taskId, answers: studentAnswers, isCorrect });
+        const rewarded = isCorrect && (await this.claimReward(manager, student.id, taskId));
+        if (rewarded) rewardedCount++;
+
+        results.push({ taskId, answers: studentAnswers, isCorrect, rewarded });
+      }
+
+      if (rewardedCount > 0) {
+        await manager.increment(Student, { id: student.id }, 'coins', COINS_PER_PASSED_TASK * rewardedCount);
+        await manager.increment(Student, { id: student.id }, 'points', POINTS_PER_PASSED_TASK * rewardedCount);
       }
 
       for (const lessonId of lessonIds) {
@@ -103,6 +120,27 @@ export class TaskSubmissionService {
 
       return results;
     });
+  }
+
+  /**
+   * Mukofotni "band qiladi": `rewarded` ni faqat hali berilmagan bo'lsa `true`
+   * qiladi va shu yozuvni o'zgartira olgan bo'lsa `true` qaytaradi.
+   *
+   * Shart bitta UPDATE ichida tekshirilgani uchun bir vaqtda kelgan so'rovlardan
+   * faqat bittasi yozuvni o'zgartira oladi — mukofot ikki marta berilmaydi.
+   */
+  private async claimReward(manager: EntityManager, studentId: string, taskId: string): Promise<boolean> {
+    const result = await manager
+      .createQueryBuilder()
+      .update(TaskSubmission)
+      .set({ rewarded: true })
+      .where('student_id = :studentId', { studentId })
+      .andWhere('task_id = :taskId', { taskId })
+      .andWhere('is_correct = true')
+      .andWhere('rewarded = false')
+      .execute();
+
+    return result.affected === 1;
   }
 
   /**

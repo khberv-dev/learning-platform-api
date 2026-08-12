@@ -18,7 +18,10 @@ export class TaskSubmissionController {
     summary: 'Topshiriq javoblarini yuborish',
     description:
       "`isCorrect` — topshiriq o'tgan-o'tmagani: to'g'ri javoblar 80% dan kam " +
-      "bo'lmasa `true`. Savoli yo'q topshiriq hech qachon o'tmaydi.",
+      "bo'lmasa `true`. Savoli yo'q topshiriq hech qachon o'tmaydi.\n\n" +
+      '`rewarded` — shu topshirish uchun mukofot berilgani: topshiriq birinchi ' +
+      "marta o'tganda talabaga +5 tanga va +10 ball qo'shiladi. " +
+      'Qayta topshirishda mukofot takrorlanmaydi.',
   })
   @ApiBody({
     schema: {
@@ -33,8 +36,8 @@ export class TaskSubmissionController {
   @ApiCreatedResponse({
     schema: {
       example: [
-        { taskId: 'a1b2c3d4-0000-0000-0000-000000000001', answers: ['hello', 'went'], isCorrect: true },
-        { taskId: 'a1b2c3d4-0000-0000-0000-000000000002', answers: ['goodbye'], isCorrect: false },
+        { taskId: 'a1b2c3d4-0000-0000-0000-000000000001', answers: ['hello', 'went'], isCorrect: true, rewarded: true },
+        { taskId: 'a1b2c3d4-0000-0000-0000-000000000002', answers: ['goodbye'], isCorrect: false, rewarded: false },
       ],
     },
   })
