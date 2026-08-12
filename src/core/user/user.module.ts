@@ -20,6 +20,10 @@ import { AdminTeacherController } from '@/core/user/controllers/admin-teacher.co
   imports: [
     TypeOrmModule.forFeature([User, Teacher, TeacherStatusHistory, TeacherFeedback, Admin, Student, Assignment]),
   ],
+  // TARTIB MUHIM: `StudentController` (`students/me`) `AdminStudentController`
+  // (`students/:id`) dan oldin turishi shart. Ikkalasi ham `students` prefiksida,
+  // shuning uchun tartib almashsa `students/me` admin uchun mo'ljallangan
+  // `:id` marshrutiga tushib qoladi va talabalar 403 xatosini oladi.
   controllers: [UserController, StudentController, AdminStudentController, TeacherController, AdminTeacherController],
   providers: [UserService, TeacherService, StudentService],
   exports: [UserService],
