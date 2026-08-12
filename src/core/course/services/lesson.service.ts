@@ -13,6 +13,20 @@ export class LessonService {
     @InjectRepository(Unit) private readonly unitRepo: Repository<Unit>,
   ) {}
 
+  /**
+   * Bo'lim darslari. Kurs javobidan darslar olib tashlangani uchun admin
+   * panel darslarni shu yerdan oladi.
+   */
+  async listLessons(courseId: string, unitId: string) {
+    const unit = await this.unitRepo.findOne({ where: { id: unitId, course: { id: courseId } } });
+    if (!unit) throw new NotFoundException("Bo'lim topilmadi");
+
+    return this.lessonRepo.find({
+      where: { unit: { id: unitId } },
+      order: { createdAt: 'ASC' },
+    });
+  }
+
   async createLesson(courseId: string, unitId: string, dto: CreateLessonDto, media?: string) {
     const unit = await this.unitRepo.findOne({
       where: { id: unitId, course: { id: courseId } },

@@ -18,6 +18,7 @@ import {
   ApiCreatedResponse,
   ApiNoContentResponse,
   ApiOkResponse,
+  ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
 import { Roles } from '@/common/decorators/roles.decorator';
@@ -69,19 +70,27 @@ const courseExample = {
   updatedAt: '2026-01-15T10:00:00.000Z',
 };
 
+/** Ro'yxat: bo'lim va darslarsiz, faqat sanoqlar. */
+const courseListItemExample = {
+  ...courseExample,
+  unitsCount: 12,
+  lessonsCount: 41,
+};
+
+/** Bitta kurs: bo'limlar bor, lekin darslar ichida emas — faqat sanoqlari. */
 const courseWithUnitsExample = {
   ...courseExample,
   units: [
     {
       id: 'u0000000-0000-0000-0000-000000000001',
       title: 'Unit 1: Greetings',
-      lessons: [],
-      lessonsCount: 0,
+      lessonsCount: 3,
       createdAt: '2026-01-15T10:00:00.000Z',
       updatedAt: '2026-01-15T10:00:00.000Z',
     },
   ],
-  lessonsCount: 0,
+  unitsCount: 1,
+  lessonsCount: 3,
 };
 
 const unitExample = {
@@ -136,12 +145,22 @@ export class AdminCourseController {
   }
 
   @Get()
-  @ApiOkResponse({ schema: { example: [courseWithUnitsExample] } })
+  @ApiOperation({
+    summary: "Kurslar ro'yxati",
+    description: "Bo'lim va darslar qaytarilmaydi — faqat `unitsCount` va `lessonsCount`.",
+  })
+  @ApiOkResponse({ schema: { example: [courseListItemExample] } })
   findAllCourses() {
     return this.courseService.findAllCourses();
   }
 
   @Get(':id')
+  @ApiOperation({
+    summary: 'Bitta kurs',
+    description:
+      "Bo'limlar ro'yxati bilan, lekin darslar ichida emas — har bir bo'limda " +
+      'faqat `lessonsCount`. Darslar: `GET /admin/courses/:courseId/units/:unitId/lessons`.',
+  })
   @ApiOkResponse({ schema: { example: courseWithUnitsExample } })
   findOneCourse(@Param('id') id: string) {
     return this.courseService.findOneCourse(id);
@@ -185,6 +204,13 @@ export class AdminCourseController {
   }
 
   // ── Lesson ────────────────────────────────────────────────────────────────
+
+  @Get(':courseId/units/:unitId/lessons')
+  @ApiOperation({ summary: "Bo'lim darslari" })
+  @ApiOkResponse({ schema: { example: [lessonExample] } })
+  listLessons(@Param('courseId') courseId: string, @Param('unitId') unitId: string) {
+    return this.lessonService.listLessons(courseId, unitId);
+  }
 
   @Post(':courseId/units/:unitId/lessons')
   @UseInterceptors(FileInterceptor('media', { storage: lessonMediaStorage, fileFilter: videoFileFilter }))
