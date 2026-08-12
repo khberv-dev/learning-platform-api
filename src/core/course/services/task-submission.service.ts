@@ -15,6 +15,29 @@ function stripAnswer(question: TaskQuestion) {
   return { question: question.question, options: question.options };
 }
 
+/**
+ * Topshiriq "to'g'ri yechilgan" hisoblanishi uchun kerak bo'lgan eng kam ulush.
+ * Barcha savolga to'g'ri javob shart emas — 80% yetarli.
+ */
+const PASS_PERCENT = 80;
+
+/** Nechta savolga to'g'ri javob berilgan. */
+function countCorrect(questions: TaskQuestion[], answers: string[]): number {
+  return questions.filter((q, i) => answers[i] !== undefined && answers[i] === q.answer.toLowerCase()).length;
+}
+
+/**
+ * Topshiriq o'tdimi — to'g'ri javoblar ulushi `PASS_PERCENT` dan kam bo'lmasa.
+ * Butun sonlarda solishtiriladi: `correct / total >= 0.8` kasr sonlarda
+ * 16/20 kabi holatlarda ham xato natija berishi mumkin.
+ *
+ * Savoli yo'q topshiriqni yechib bo'lmaydi — u hech qachon o'tmaydi.
+ */
+function isTaskPassed(questions: TaskQuestion[], answers: string[]): boolean {
+  if (questions.length === 0) return false;
+  return countCorrect(questions, answers) * 100 >= questions.length * PASS_PERCENT;
+}
+
 @Injectable()
 export class TaskSubmissionService {
   constructor(
@@ -28,6 +51,9 @@ export class TaskSubmissionService {
 
   /**
    * Topshiriq javoblarini saqlaydi va tegishli darslarning progressini yangilaydi.
+   *
+   * `isCorrect` — topshiriq o'tgan-o'tmagani: to'g'ri javoblar `PASS_PERCENT`
+   * (80%) dan kam bo'lmasa `true`. Barcha savolga to'g'ri javob shart emas.
    *
    * Hammasi bitta tranzaksiyada: bir topshiriq topilmasa, oldingilari ham
    * saqlanmaydi — aks holda so'rov xato qaytarsa ham ma'lumot o'zgarib qolardi.
@@ -57,13 +83,7 @@ export class TaskSubmissionService {
         const task = taskMap.get(taskId)!;
         const studentAnswers = answers[taskId].map((a) => a.toLowerCase());
 
-        // Savoli yo'q topshiriqni yechib bo'lmaydi — `[].every()` doim `true`
-        // qaytargani uchun ilgari bunday topshiriq avtomatik "to'g'ri" bo'lardi.
-        const isCorrect =
-          task.questions.length > 0 &&
-          task.questions.every(
-            (q, i) => studentAnswers[i] !== undefined && studentAnswers[i] === q.answer.toLowerCase(),
-          );
+        const isCorrect = isTaskPassed(task.questions, studentAnswers);
 
         // Unikal cheklovga tayangan upsert: parallel so'rovlar nusxa yaratmaydi.
         await manager

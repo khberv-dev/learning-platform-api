@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Post } from '@nestjs/common';
-import { ApiBearerAuth, ApiBody, ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Roles } from '@/common/decorators/roles.decorator';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { UserRole } from '@/core/user/enum/user-role.enum';
@@ -14,6 +14,12 @@ export class TaskSubmissionController {
   constructor(private readonly taskSubmissionService: TaskSubmissionService) {}
 
   @Post()
+  @ApiOperation({
+    summary: 'Topshiriq javoblarini yuborish',
+    description:
+      "`isCorrect` — topshiriq o'tgan-o'tmagani: to'g'ri javoblar 80% dan kam " +
+      "bo'lmasa `true`. Savoli yo'q topshiriq hech qachon o'tmaydi.",
+  })
   @ApiBody({
     schema: {
       type: 'object',
