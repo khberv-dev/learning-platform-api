@@ -5,7 +5,7 @@ Tarif (plan) tanlash, to'lov yaratish va Click orqali to'lash oqimi bo'yicha ilo
 - Base URL: `{HOST}/api`
 - Ilova endpointlari `Authorization: Bearer <access_token>` sarlavhasini talab qiladi.
 - Ilova foydalanuvchisi uchun to'lov turlari ro'yxati **alohida endpoint orqali berilmaydi**. Ular faqat to'lov so'rovi yaratilganda qaytariladi.
-- Click webhook'lari (`/api/payment/click/*`) — Click serverlari uchun, token talab qilmaydi.
+- Click webhook'lari (`/api/payment/click/*`) va Payme endpointi (`/api/payment/payme`) — to'lov tizimlari serverlari uchun, token talab qilmaydi.
 
 ## Umumiy oqim
 
@@ -20,14 +20,19 @@ Tarif (plan) tanlash, to'lov yaratish va Click orqali to'lash oqimi bo'yicha ilo
 3. PATCH /api/payments/{paymentId}/payment-type { paymentTypeId }
    → tanlangan to'lov turi biriktiriladi, paymentType.url ga o'tkaziladi
 
-4. Foydalanuvchi Click'da to'laydi:
+4. Foydalanuvchi to'lov tizimida to'laydi:
    Click → POST /api/payment/click/prepare   (provider_payment_id yoziladi)
    Click → POST /api/payment/click/complete  (payment: paid, enrollment: active)
+
+   yoki
+
+   Payme → POST /api/payment/payme  CreateTransaction   (provider_payment_id yoziladi)
+   Payme → POST /api/payment/payme  PerformTransaction  (payment: paid, enrollment: active)
 
 5. Ilova GET /api/payments/{id} orqali holatni tekshiradi
 ```
 
-Admin to'lovlarni faqat **ko'ra oladi** — holatini o'zgartira yoki o'chira olmaydi. To'lov holati faqat Click webhook'lari orqali o'zgaradi. Click'siz (naqd, o'tkazma) holatlar uchun `POST /api/admin/enrollments` bilan talabani to'g'ridan-to'g'ri yozish kerak.
+Admin to'lovlarni faqat **ko'ra oladi** — holatini o'zgartira yoki o'chira olmaydi. To'lov holati faqat Click / Payme webhook'lari orqali o'zgaradi. Click'siz (naqd, o'tkazma) holatlar uchun `POST /api/admin/enrollments` bilan talabani to'g'ridan-to'g'ri yozish kerak.
 
 ## Holatlar (statuslar)
 
@@ -36,7 +41,7 @@ Admin to'lovlarni faqat **ko'ra oladi** — holatini o'zgartira yoki o'chira olm
 | Qiymat | Ma'nosi |
 |---|---|
 | `created` | To'lov so'rovi yaratilgan, hali to'lanmagan (default) |
-| `paid` | To'landi — Click tasdiqladi |
+| `paid` | To'landi — Click yoki Payme tasdiqladi |
 | `cancelled` | Bekor qilingan |
 
 ### Enrollment status
@@ -339,6 +344,108 @@ So'rov maydonlari: prepare'dagilar + `merchant_prepare_id` (= payment id), `acti
 | `-9` | Transaction cancelled | Click `error < 0` yubordi yoki to'lov bekor qilingan |
 
 `error_note` javobda qaytariladi (Click spetsifikatsiyasidagi standart maydon) — rasmlardagi 4 ta maydondan tashqari, xatolarni tekshirishni osonlashtirish uchun.
+
+---
+
+## Payme (Paycom) Merchant API
+
+Payme barcha metodlarni **bitta** endpointga JSON-RPC 2.0 formatida yuboradi. Javob **doim HTTP 200** — natija javob tanasidagi `result` yoki `error` da.
+
+```http
+POST /api/payment/payme
+Content-Type: application/json
+Authorization: Basic base64("Paycom:<PAYME_MERCHANT_KEY>")
+```
+
+Sozlamalar (`.env`):
+
+| O'zgaruvchi | Izoh |
+|---|---|
+| `PAYME_MERCHANT_KEY` | `Basic` sarlavhasidagi parol. **O'rnatilmasa barcha so'rovlar `-32504` bilan rad etiladi** |
+| `PAYME_ACCOUNT_FIELD` | Payme kabinetidagi hisob maydoni nomi; sukut bo'yicha `payment_id` |
+
+Hisob (account) maydonining qiymati — **to'lov (payment) id yoki foydalanuvchi (user) id**, Click'dagi kabi: avval to'lov id sifatida qidiriladi, topilmasa foydalanuvchining kutilayotgan to'lovlaridan summasi mos keladigani olinadi.
+
+**Summa tiyinda.** `payment.amount` so'mda saqlanadi, taqqoslash `payment.amount * 100` bo'yicha bajariladi (250 000 so'm → `25000000`).
+
+Tranzaksiya holati alohida `payme_transactions` jadvalida saqlanadi — Payme takroriy so'rovga **aynan o'sha javobni** kutadi.
+
+| `state` | Ma'nosi |
+|---|---|
+| `1` | Yaratilgan, to'lov kutilmoqda |
+| `2` | To'langan |
+| `-1` | To'lanmasdan bekor qilingan |
+| `-2` | To'langandan keyin bekor qilingan (qaytarim) |
+
+### Metodlar
+
+| Metod | Natija |
+|---|---|
+| `CheckPerformTransaction` | `{ allow: true }` |
+| `CreateTransaction` | `{ create_time, transaction, state }` |
+| `PerformTransaction` | `{ transaction, perform_time, state }` |
+| `CancelTransaction` | `{ transaction, cancel_time, state }` |
+| `CheckTransaction` | `{ create_time, perform_time, cancel_time, transaction, state, reason }` |
+| `GetStatement` | `{ transactions: [...] }` |
+
+`transaction` — bizdagi `payme_transactions.id`. Bo'sh vaqtlar `0` bo'lib qaytadi (`null` emas).
+
+So'rov:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "CreateTransaction",
+  "params": {
+    "id": "5e7301a1b2c3d4e5f6a7b8c9",
+    "time": 1786629137480,
+    "amount": 25000000,
+    "account": { "payment_id": "pa000000-0000-0000-0000-000000000001" }
+  }
+}
+```
+
+Javob:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "create_time": 1786629137480,
+    "transaction": "51d041fb-3a8a-43c9-9726-e9ee3e9f26bd",
+    "state": 1
+  }
+}
+```
+
+### Xatti-harakati
+
+- `CreateTransaction` **idempotent**: bir xil `id` bilan takror kelsa avvalgi `create_time` qaytadi. Ayni to'lov uchun boshqa `id` bilan kelsa va oldingi tranzaksiya hali kutilayotgan bo'lsa — `-31008`.
+- Kutilayotgan tranzaksiya **12 soatdan keyin** avtomatik bekor qilinadi (`state: -1`, `reason: 4`), keyingi `Create` / `Perform` so'rovi `-31008` oladi.
+- `PerformTransaction` to'lovni `paid` qiladi, yozilish `active` bo'ladi (`start` = hozir, `end` = `start` + tarif `month`) va `enrollment_histories` ga yozuv qo'shiladi — Click `complete` bilan bir xil.
+- `CancelTransaction`:
+  - **to'lanmagan** tranzaksiya (`state: 1`) bekor qilinsa — `state: -1`, ammo **to'lov `created` bo'lib qoladi**. Foydalanuvchi to'lovni yarim yo'lda tashlab ketgan bo'lishi mumkin; shu tufayli u qayta urinib ko'radi va yozilishdagi progress saqlanadi;
+  - **to'langan** tranzaksiya bekor qilinsa (qaytarim) — `state: -2`, to'lov `cancelled`, yozilish ham `cancelled`.
+- To'lov `paid` yoki `cancelled` bo'lgach `CheckPerformTransaction` `-31051` qaytaradi.
+
+### Xato kodlari
+
+| Kod | Qachon |
+|---|---|
+| `-32504` | `Authorization` sarlavhasi yo'q / kalit mos emas / `PAYME_MERCHANT_KEY` sozlanmagan |
+| `-32600` | So'rovda `method` yo'q |
+| `-32601` | Noma'lum metod |
+| `-32602` | `id`, `time`, `from`, `to` parametrlari yo'q yoki noto'g'ri turda |
+| `-31001` | Summa `payment.amount * 100` ga teng emas |
+| `-31003` | Tranzaksiya topilmadi |
+| `-31008` | Muddati o'tgan yoki holati mos kelmaydigan tranzaksiya; ayni to'lovda boshqa kutilayotgan tranzaksiya bor |
+| `-31050` | Hisobdagi id bo'yicha to'lov topilmadi (`data` — maydon nomi) |
+| `-31051` | To'lov allaqachon yakunlangan (`paid` / `cancelled`) |
+| `-31052` | Hisob maydoni yo'q yoki UUID emas |
+
+Xato xabari uch tilda qaytariladi: `{ "uz": ..., "ru": ..., "en": ... }`.
 
 ---
 

@@ -31,6 +31,8 @@ There are currently **no test files** in the repo (`*.spec.ts`), and `test/jest-
 | `GEMINI_TTS_VOICE` | optional, defaults to `Kore` |
 | `GEMINI_PROXY_URL` | optional outbound proxy, applied process-wide via `undici.setGlobalDispatcher` |
 | `CLICK_SERVICE_ID`, `CLICK_SECRET_KEY` | Click Merchant API; the secret signs `sign_string` on the prepare/complete webhooks |
+| `PAYME_MERCHANT_KEY` | Payme (Paycom) Merchant API; the password half of the `Basic` header Payme sends. Unset rejects every request with `-32504` |
+| `PAYME_ACCOUNT_FIELD` | optional, defaults to `payment_id` — the account field name configured in the Payme cabinet |
 | `ESKIZ_API_URL`, `ESKIZ_API_USER`, `ESKIZ_API_KEY` | Eskiz SMS gateway, used for sign-up / password-recovery OTP codes |
 | `OTP_MAX_PER_IP_PER_HOUR` | optional per-IP cap on `POST /auth/otp/send`; unset disables it (needs `trust proxy` behind a reverse proxy, otherwise all requests look like one IP) |
 | `EXTERNAL_API_KEY` | shared secret other services send as `X-Auth` to reach `/api/external/*` |
@@ -89,6 +91,16 @@ Re-purchasing an expired enrollment reuses the existing row: it is reset to `cre
 `/api/payment/click/prepare` and `/complete` are `@Public()` and `@ApiExcludeController()` — called by Click's servers, not clients. Authenticity rests entirely on the md5 `sign_string` check in `ClickService.verifySign`; if `CLICK_SECRET_KEY` is unset, all requests are rejected. Both directions are logged, never including the secret.
 
 `merchant_trans_id` may be either a payment id or a user id depending on what the payment page puts in `transaction_param`, so lookup tries payment id first, then falls back to the user's pending payments.
+
+### Payme webhooks
+
+`/api/payment/payme` is a single `@Public()` `@ApiExcludeController()` JSON-RPC 2.0 endpoint carrying all six Paycom methods (`CheckPerformTransaction`, `CreateTransaction`, `PerformTransaction`, `CancelTransaction`, `CheckTransaction`, `GetStatement`). Authenticity rests on the `Authorization: Basic base64("Paycom:<PAYME_MERCHANT_KEY>")` header, compared with `timingSafeEqual`; if the key is unset, all requests are rejected.
+
+Payme drives a transaction across several calls and expects the *same* answer on repeats, so state lives in its own `payme_transactions` table (`transactionId` unique, `state` per the Paycom spec: `1` created, `2` performed, `-1`/`-2` cancelled) rather than on `Payment`. Amounts arrive in **tiyin** — compared against `payment.amount * 100`. Pending transactions expire after 12 hours.
+
+The body is typed as an `interface` (not a DTO class) and read with `import type`, so the global `ValidationPipe` skips it: Payme expects every failure as an in-band JSON-RPC `error`, never an HTTP 400. The handler always returns HTTP 200.
+
+Cancelling an **unpaid** transaction leaves the payment `created` so the student can retry and keep their enrollment progress; cancelling a **performed** one (refund) runs `markCancelled`, which also cancels the enrollment.
 
 ### External API
 
