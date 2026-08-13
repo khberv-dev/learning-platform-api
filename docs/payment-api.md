@@ -181,7 +181,8 @@ Qo'llab-quvvatlanadigan o'rin egallovchilar:
 | `$paymentId` | to'lov (payment) id |
 | `$userId` | foydalanuvchi id |
 | `$userFullName` | ism va familiya (`firstName lastName`) |
-| `$amount` | to'lov summasi (`payment.amount`) |
+| `$amount` | to'lov summasi so'mda (`payment.amount`) |
+| `$amountTiyin` | to'lov summasi **tiyinda** (`payment.amount * 100`) — Payme havolasi uchun |
 | `$planId`, `$planTitle`, `$planMonth` | tarif maydonlari |
 | `$enrollmentId` | yozilish id |
 | `$courseId`, `$courseTitle` | kurs maydonlari |
@@ -367,6 +368,8 @@ Sozlamalar (`.env`):
 Hisob (account) maydonining qiymati — **to'lov (payment) id yoki foydalanuvchi (user) id**, Click'dagi kabi: avval to'lov id sifatida qidiriladi, topilmasa foydalanuvchining kutilayotgan to'lovlaridan summasi mos keladigani olinadi.
 
 **Summa tiyinda.** `payment.amount` so'mda saqlanadi, taqqoslash `payment.amount * 100` bo'yicha bajariladi (250 000 so'm → `25000000`).
+
+> To'lov havolasida ham summa **tiyinda** yuborilishi shart. To'lov turining `url` shablonida `$amount` (so'm) emas, `$amountTiyin` ishlatilsin — aks holda Payme `-31001` (`Summa noto'g'ri`) oladi. Mos kelmagan summa log'ga kutilgan va kelgan qiymat bilan yoziladi.
 
 Tranzaksiya holati alohida `payme_transactions` jadvalida saqlanadi — Payme takroriy so'rovga **aynan o'sha javobni** kutadi.
 

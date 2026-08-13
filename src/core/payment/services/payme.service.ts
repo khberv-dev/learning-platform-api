@@ -196,9 +196,18 @@ export class PaymeService {
     return pending.find((payment) => payment.amount * TIYIN_IN_SUM === params.amount) ?? pending[0];
   }
 
-  /** Summa to'lov yaratilgandagi tarif narxi bilan solishtiriladi. */
+  /**
+   * Summa to'lov yaratilgandagi tarif narxi bilan solishtiriladi.
+   * Kelgan qiymat **tiyinda** bo'lishi kerak: 250 000 so'm → `25000000`.
+   */
   private assertAmount(payment: Payment, amount: unknown): void {
-    if (typeof amount !== 'number' || !Number.isFinite(amount) || amount !== payment.amount * TIYIN_IN_SUM) {
+    const expected = payment.amount * TIYIN_IN_SUM;
+    if (typeof amount !== 'number' || !Number.isFinite(amount) || amount !== expected) {
+      // Eng ko'p uchraydigan sabab — to'lov havolasida summa so'mda yuborilgani.
+      this.logger.warn(
+        `To'lov ${payment.id}: summa mos emas — kutilgan ${expected} tiyin (${payment.amount} so'm), ` +
+          `kelgan ${JSON.stringify(amount)}`,
+      );
       throw new PaymeRpcError(PaymeError.WRONG_AMOUNT);
     }
   }

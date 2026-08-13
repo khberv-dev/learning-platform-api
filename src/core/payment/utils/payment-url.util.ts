@@ -18,6 +18,8 @@ export function buildPaymentUrl(template: string, payment: Payment): string {
     userId: payment.user?.id ?? '',
     userFullName: fullName,
     amount: String(payment.amount),
+    // Payme (Paycom) summani tiyinda kutadi: 250 000 so'm → 25000000.
+    amountTiyin: String(payment.amount * 100),
     planId: payment.plan?.id ?? '',
     planTitle: payment.plan?.title ?? '',
     planMonth: payment.plan ? String(payment.plan.month) : '',
