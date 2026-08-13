@@ -8,7 +8,7 @@ import { addMonths, isEnrollmentExpired } from '@/core/enrollment/utils/enrollme
 import { Course } from '@/core/course/entity/course.entity';
 import { Plan } from '@/core/plan/entity/plan.entity';
 import { CreateEnrollmentDto } from '@/core/enrollment/dto/create-enrollment.dto';
-import { CourseService } from '@/core/course/services/course.service';
+import { COURSE_ORDER, CourseService } from '@/core/course/services/course.service';
 import { Student } from '@/core/user/entity/student.entity';
 
 @Injectable()
@@ -47,7 +47,7 @@ export class EnrollmentService {
     const enrollments = await this.enrollmentRepo.find({
       where: { student: { id: student.id }, status: EnrollmentStatus.ACTIVE },
       relations: { course: { units: { lessons: true } }, progresses: true },
-      order: { createdAt: 'DESC' },
+      order: { createdAt: 'DESC', course: COURSE_ORDER },
     });
 
     return enrollments.map((e) => {

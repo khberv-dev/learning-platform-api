@@ -7,7 +7,15 @@ import { CreateCourseDto } from '@/core/course/dto/create-course.dto';
 import { UpdateCourseDto } from '@/core/course/dto/update-course.dto';
 
 export const COURSE_RELATIONS = { units: { lessons: true } } as const;
-export const COURSE_ORDER = { units: { createdAt: 'ASC', lessons: { createdAt: 'ASC' } } } as const;
+
+/**
+ * Bo'lim va darslar admin belgilagan `index` bo'yicha saralanadi.
+ * `createdAt` — ikkinchi mezon: `index` teng bo'lganda (masalan hammasi
+ * standart 0 bo'lsa) tartib avvalgidek yaratilish vaqti bo'yicha qoladi.
+ */
+export const UNIT_ORDER = { index: 'ASC', createdAt: 'ASC' } as const;
+export const LESSON_ORDER = { index: 'ASC', createdAt: 'ASC' } as const;
+export const COURSE_ORDER = { units: { ...UNIT_ORDER, lessons: LESSON_ORDER } } as const;
 
 @Injectable()
 export class CourseService {
@@ -65,7 +73,7 @@ export class CourseService {
     const course = await this.courseRepo.findOne({
       where: { id },
       relations: { units: true },
-      order: { units: { createdAt: 'ASC' } },
+      order: { units: UNIT_ORDER },
     });
     if (!course) throw new NotFoundException('Kurs topilmadi');
 

@@ -5,6 +5,7 @@ import { Lesson } from '@/core/course/entity/lesson.entity';
 import { Unit } from '@/core/course/entity/unit.entity';
 import { CreateLessonDto } from '@/core/course/dto/create-lesson.dto';
 import { UpdateLessonDto } from '@/core/course/dto/update-lesson.dto';
+import { LESSON_ORDER } from '@/core/course/services/course.service';
 
 @Injectable()
 export class LessonService {
@@ -23,7 +24,7 @@ export class LessonService {
 
     return this.lessonRepo.find({
       where: { unit: { id: unitId } },
-      order: { createdAt: 'ASC' },
+      order: LESSON_ORDER,
     });
   }
 

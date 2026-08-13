@@ -27,6 +27,14 @@ export class Lesson {
   @Column({ nullable: true })
   media: string;
 
+  /**
+   * Ko'rsatish tartibi — kichikdan kattaga (1, 2, 3...). Admin belgilaydi.
+   * Teng bo'lganda `createdAt` bo'yicha saralanadi, shuning uchun tartib
+   * belgilanmagan eski darslar avvalgi joyida qoladi.
+   */
+  @Column({ type: 'int', default: 0 })
+  index: number;
+
   @ManyToOne(() => Unit, (unit) => unit.lessons, { onDelete: 'CASCADE' })
   @JoinColumn()
   unit: Unit;

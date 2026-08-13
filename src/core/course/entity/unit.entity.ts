@@ -19,6 +19,14 @@ export class Unit {
   @Column()
   title: string;
 
+  /**
+   * Ko'rsatish tartibi — kichikdan kattaga (1, 2, 3...). Admin belgilaydi.
+   * Teng bo'lganda `createdAt` bo'yicha saralanadi, shuning uchun tartib
+   * belgilanmagan eski bo'limlar avvalgi joyida qoladi.
+   */
+  @Column({ type: 'int', default: 0 })
+  index: number;
+
   @ManyToOne(() => Course, (course) => course.units, { onDelete: 'CASCADE' })
   @JoinColumn()
   course: Course;

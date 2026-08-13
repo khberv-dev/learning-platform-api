@@ -84,6 +84,7 @@ const courseWithUnitsExample = {
     {
       id: 'u0000000-0000-0000-0000-000000000001',
       title: 'Unit 1: Greetings',
+      index: 1,
       lessonsCount: 3,
       createdAt: '2026-01-15T10:00:00.000Z',
       updatedAt: '2026-01-15T10:00:00.000Z',
@@ -96,6 +97,7 @@ const courseWithUnitsExample = {
 const unitExample = {
   id: 'u0000000-0000-0000-0000-000000000001',
   title: 'Unit 1: Greetings',
+  index: 1,
   createdAt: '2026-01-15T10:00:00.000Z',
   updatedAt: '2026-01-15T10:00:00.000Z',
 };
@@ -105,6 +107,7 @@ const lessonExample = {
   title: 'Hello!',
   description: 'Saying hello',
   media: '/public/lesson/hello.mp4',
+  index: 1,
   createdAt: '2026-01-15T10:00:00.000Z',
   updatedAt: '2026-01-15T10:00:00.000Z',
 };
@@ -222,6 +225,7 @@ export class AdminCourseController {
       properties: {
         title: { type: 'string' },
         description: { type: 'string' },
+        index: { type: 'integer', default: 0, description: "Ko'rsatish tartibi" },
         media: { type: 'string', format: 'binary' },
       },
     },
