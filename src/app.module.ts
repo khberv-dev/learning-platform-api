@@ -21,6 +21,7 @@ import { MaterialModule } from '@/core/material/material.module';
 import { PaymentModule } from '@/core/payment/payment.module';
 import { PlanModule } from '@/core/plan/plan.module';
 import { ExternalModule } from '@/core/external/external.module';
+import { SessionModule } from '@/core/session/session.module';
 import { JwtAccessGuard } from '@/common/guards/jwt-access.guard';
 import { RolesGuard } from '@/common/guards/roles.guard';
 
@@ -47,6 +48,7 @@ import { RolesGuard } from '@/common/guards/roles.guard';
     PaymentModule,
     PlanModule,
     ExternalModule,
+    SessionModule,
   ],
   controllers: [AppController],
   providers: [
