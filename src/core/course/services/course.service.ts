@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Course } from '@/core/course/entity/course.entity';
 import { Lesson } from '@/core/course/entity/lesson.entity';
+import { Unit } from '@/core/course/entity/unit.entity';
 import { CreateCourseDto } from '@/core/course/dto/create-course.dto';
 import { UpdateCourseDto } from '@/core/course/dto/update-course.dto';
 
@@ -94,6 +95,30 @@ export class CourseService {
       unitsCount: units.length,
       lessonsCount: units.reduce((sum, u) => sum + u.lessonsCount, 0),
     };
+  }
+
+  /**
+   * Kurs id -> bo'lim va darslar soni. Bitta guruhlangan so'rov.
+   *
+   * Sanoq uchun butun daraxtni yuklash shart emas — kurslar ro'yxatida
+   * (masalan talabaning kurslarida) faqat shu ikki son kerak bo'ladi.
+   */
+  async contentCountsByCourse(courseIds: string[]): Promise<Map<string, { unitsCount: number; lessonsCount: number }>> {
+    if (courseIds.length === 0) return new Map();
+
+    const rows = await this.courseRepo.manager
+      .createQueryBuilder(Unit, 'unit')
+      .leftJoin('unit.lessons', 'lesson')
+      .select('unit.course_id', 'courseId')
+      .addSelect('COUNT(DISTINCT unit.id)', 'unitsCount')
+      .addSelect('COUNT(lesson.id)', 'lessonsCount')
+      .where('unit.course_id IN (:...courseIds)', { courseIds })
+      .groupBy('unit.course_id')
+      .getRawMany<{ courseId: string; unitsCount: string; lessonsCount: string }>();
+
+    return new Map(
+      rows.map((r) => [r.courseId, { unitsCount: Number(r.unitsCount), lessonsCount: Number(r.lessonsCount) }]),
+    );
   }
 
   /** Bo'lim id -> darslar soni. Bitta guruhlangan so'rov. */

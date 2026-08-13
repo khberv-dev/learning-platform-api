@@ -8,7 +8,7 @@ import { addMonths, isEnrollmentExpired } from '@/core/enrollment/utils/enrollme
 import { Course } from '@/core/course/entity/course.entity';
 import { Plan } from '@/core/plan/entity/plan.entity';
 import { CreateEnrollmentDto } from '@/core/enrollment/dto/create-enrollment.dto';
-import { COURSE_ORDER, CourseService } from '@/core/course/services/course.service';
+import { CourseService } from '@/core/course/services/course.service';
 import { Student } from '@/core/user/entity/student.entity';
 
 @Injectable()
@@ -39,6 +39,12 @@ export class EnrollmentService {
     return activeCourses.filter((c) => !blockedCourseIds.has(c.id));
   }
 
+  /**
+   * Talabaning faol kurslari. Kurs mazmuni (bo'lim va darslar) yuklanmaydi —
+   * ilgari butun daraxt faqat `lessonsCount` ni hisoblash uchun o'qilardi va
+   * javobning deyarli hammasini egallardi. Ilova darslar ro'yxatini alohida
+   * `GET /api/courses/:id` orqali oladi.
+   */
   async getMyCourses(userId: string) {
     const student = await this.studentRepo.findOne({ where: { user: { id: userId } } });
     if (!student) return [];
@@ -46,16 +52,19 @@ export class EnrollmentService {
     const now = new Date();
     const enrollments = await this.enrollmentRepo.find({
       where: { student: { id: student.id }, status: EnrollmentStatus.ACTIVE },
-      relations: { course: { units: { lessons: true } }, progresses: true },
-      order: { createdAt: 'DESC', course: COURSE_ORDER },
+      relations: { course: true, progresses: true },
+      order: { createdAt: 'DESC' },
     });
 
+    const counts = await this.courseService.contentCountsByCourse(enrollments.map((e) => e.course.id));
+
     return enrollments.map((e) => {
-      const lessonsCount = e.course.units.reduce((sum, u) => sum + u.lessons.length, 0);
+      const { unitsCount = 0, lessonsCount = 0 } = counts.get(e.course.id) ?? {};
       const totalProgress =
         lessonsCount === 0 ? 0 : Math.round(e.progresses.reduce((sum, p) => sum + p.progress, 0) / lessonsCount);
       return {
         ...e,
+        unitsCount,
         lessonsCount,
         totalProgress,
         isExpired: isEnrollmentExpired(e, now),

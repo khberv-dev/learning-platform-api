@@ -1,5 +1,5 @@
 import { Controller, Get } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Roles } from '@/common/decorators/roles.decorator';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { UserRole } from '@/core/user/enum/user-role.enum';
@@ -24,8 +24,13 @@ const myCoursesExample = [
     course: {
       id: 'c0000000-0000-0000-0000-000000000001',
       title: 'English A1',
+      description: null,
       image: '/public/course/eng-a1.png',
+      isActive: true,
+      index: 0,
     },
+    progresses: [{ id: 'pr000000-0000-0000-0000-000000000001', progress: 100 }],
+    unitsCount: 12,
     lessonsCount: 12,
     totalProgress: 35,
     isExpired: false,
@@ -46,6 +51,12 @@ export class StudentCourseController {
   }
 
   @Get('me')
+  @ApiOperation({
+    summary: 'Talabaning faol kurslari',
+    description:
+      "Kurs mazmuni (bo'lim va darslar) qaytarilmaydi — faqat `unitsCount` va " +
+      '`lessonsCount`. Darslar: `GET /api/courses/:id`.',
+  })
   @ApiOkResponse({ schema: { example: myCoursesExample } })
   getMyCourses(@CurrentUser() user: { id: string }) {
     return this.enrollmentService.getMyCourses(user.id);
