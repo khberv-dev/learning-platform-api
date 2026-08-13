@@ -45,6 +45,12 @@ export class SessionService {
     return session;
   }
 
+  /** Tizimdan chiqishda chaqiriladi — qurilmaga endi push yuborilmaydi. */
+  async deleteSession(userId: string, id: string): Promise<void> {
+    const session = await this.findOneSession(userId, id);
+    await this.sessionRepo.remove(session);
+  }
+
   /** Foydalanuvchining barcha qurilmalaridagi FCM tokenlari — push yuborish uchun. */
   async listUserTokens(userId: string): Promise<string[]> {
     const sessions = await this.sessionRepo.find({ where: { user: { id: userId } }, select: { fcmToken: true } });

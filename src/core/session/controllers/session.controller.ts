@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
-import { ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Delete, Get, HttpCode, Param, Post } from '@nestjs/common';
+import { ApiBearerAuth, ApiCreatedResponse, ApiNoContentResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { SessionService } from '@/core/session/services/session.service';
 import { CreateSessionDto } from '@/core/session/dto/create-session.dto';
@@ -29,5 +29,12 @@ export class SessionController {
   @ApiOkResponse({ schema: { example: sessionExample } })
   findOneSession(@CurrentUser() user: { id: string }, @Param('id') id: string) {
     return this.sessionService.findOneSession(user.id, id);
+  }
+
+  @Delete(':id')
+  @HttpCode(204)
+  @ApiNoContentResponse()
+  async deleteSession(@CurrentUser() user: { id: string }, @Param('id') id: string) {
+    await this.sessionService.deleteSession(user.id, id);
   }
 }
