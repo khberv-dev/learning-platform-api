@@ -26,11 +26,17 @@ export class CreateTaskDto {
   @IsOptional()
   name?: string | null;
 
-  @ApiProperty({ type: [TaskQuestionDto] })
+  /**
+   * Berilmasa — bo'sh ro'yxat. Topshiriq avval yaratilib, savollar keyin
+   * bittalab qo'shilishi mumkin (`POST .../tasks/:taskId/questions`), shuning
+   * uchun yaratishda savol majburiy emas.
+   */
+  @ApiPropertyOptional({ type: [TaskQuestionDto], default: [] })
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => TaskQuestionDto)
-  questions: TaskQuestionDto[];
+  @IsOptional()
+  questions?: TaskQuestionDto[];
 
   @ApiPropertyOptional({ description: 'Set to attach plain text content; content type is set to "text" automatically' })
   @IsString()

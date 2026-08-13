@@ -5,6 +5,7 @@ import {
   Get,
   HttpCode,
   Param,
+  ParseIntPipe,
   Patch,
   Post,
   UploadedFile,
@@ -17,6 +18,7 @@ import {
   ApiConsumes,
   ApiCreatedResponse,
   ApiNoContentResponse,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
@@ -41,8 +43,9 @@ import { CreateUnitDto } from '@/core/course/dto/create-unit.dto';
 import { UpdateUnitDto } from '@/core/course/dto/update-unit.dto';
 import { CreateLessonDto } from '@/core/course/dto/create-lesson.dto';
 import { UpdateLessonDto } from '@/core/course/dto/update-lesson.dto';
-import { CreateTaskDto } from '@/core/course/dto/create-task.dto';
+import { CreateTaskDto, TaskQuestionDto } from '@/core/course/dto/create-task.dto';
 import { UpdateTaskDto } from '@/core/course/dto/update-task.dto';
+import { UpdateTaskQuestionDto } from '@/core/course/dto/update-task-question.dto';
 
 const courseUpload = () =>
   UseInterceptors(FileInterceptor('image', { storage: courseImageStorage, fileFilter: imageFileFilter }));
@@ -313,6 +316,54 @@ export class AdminCourseController {
     @Body() dto: UpdateTaskDto,
   ) {
     return this.taskService.updateTask(courseId, unitId, lessonId, taskId, dto);
+  }
+
+  // ── Task questions ────────────────────────────────────────────────────────
+  //
+  // Savollar `jsonb` massivda, o'z id'siz saqlanadi — shuning uchun massivdagi
+  // o'rni (`index`, 0 dan) bilan belgilanadi. Bitta savolni qo'shish uchun
+  // butun massivni qayta yuborish shart emas.
+
+  @Post(':courseId/units/:unitId/lessons/:lessonId/tasks/:taskId/questions')
+  @ApiOperation({ summary: "Topshiriqqa bitta savol qo'shish" })
+  @ApiCreatedResponse({ schema: { example: taskExample } })
+  addTaskQuestion(
+    @Param('courseId') courseId: string,
+    @Param('unitId') unitId: string,
+    @Param('lessonId') lessonId: string,
+    @Param('taskId') taskId: string,
+    @Body() dto: TaskQuestionDto,
+  ) {
+    return this.taskService.addQuestion(courseId, unitId, lessonId, taskId, dto);
+  }
+
+  @Patch(':courseId/units/:unitId/lessons/:lessonId/tasks/:taskId/questions/:index')
+  @ApiOperation({ summary: 'Bitta savolni tahrirlash' })
+  @ApiOkResponse({ schema: { example: taskExample } })
+  @ApiNotFoundResponse({ schema: { example: { message: 'Savol topilmadi', statusCode: 404 } } })
+  updateTaskQuestion(
+    @Param('courseId') courseId: string,
+    @Param('unitId') unitId: string,
+    @Param('lessonId') lessonId: string,
+    @Param('taskId') taskId: string,
+    @Param('index', ParseIntPipe) index: number,
+    @Body() dto: UpdateTaskQuestionDto,
+  ) {
+    return this.taskService.updateQuestion(courseId, unitId, lessonId, taskId, index, dto);
+  }
+
+  @Delete(':courseId/units/:unitId/lessons/:lessonId/tasks/:taskId/questions/:index')
+  @ApiOperation({ summary: "Bitta savolni o'chirish" })
+  @ApiOkResponse({ schema: { example: taskExample } })
+  @ApiNotFoundResponse({ schema: { example: { message: 'Savol topilmadi', statusCode: 404 } } })
+  deleteTaskQuestion(
+    @Param('courseId') courseId: string,
+    @Param('unitId') unitId: string,
+    @Param('lessonId') lessonId: string,
+    @Param('taskId') taskId: string,
+    @Param('index', ParseIntPipe) index: number,
+  ) {
+    return this.taskService.deleteQuestion(courseId, unitId, lessonId, taskId, index);
   }
 
   @Patch(':courseId/units/:unitId/lessons/:lessonId/tasks/:taskId/file')
