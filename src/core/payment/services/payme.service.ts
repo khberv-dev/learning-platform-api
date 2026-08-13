@@ -11,6 +11,7 @@ import { PAYME_ERROR_MESSAGE, PaymeError } from '@/core/payment/enum/payme-error
 import { PaymeCancelReason, PaymeTransactionState } from '@/core/payment/enum/payme-transaction-state.enum';
 import { PaymeParams, PaymeRequest, PaymeResponse, PaymeSuccessResponse } from '@/core/payment/dto/payme-request.dto';
 import { PaymentService } from '@/core/payment/services/payment.service';
+import { isEnrollmentExpired } from '@/core/enrollment/utils/enrollment.util';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -24,6 +25,12 @@ const TIYIN_IN_SUM = 100;
 
 /** Payme kabinetidagi hisob (account) maydonining sukut bo'yicha nomi. */
 const DEFAULT_ACCOUNT_FIELD = 'payment_id';
+
+/** PostgreSQL: unikal cheklov buzilgani. */
+const UNIQUE_VIOLATION = '23505';
+
+/** Chek turi: 0 — sotuv. */
+const RECEIPT_TYPE_SALE = 0;
 
 /** Ichki xato — `handle` uni JSON-RPC javobiga o'giradi. */
 class PaymeRpcError extends Error {
@@ -112,6 +119,11 @@ export class PaymeService {
     return response;
   }
 
+  /** POST bo'lmagan so'rov — spetsifikatsiya bo'yicha `-32300`. */
+  rejectNonPost(body: PaymeRequest): PaymeResponse {
+    return this.logResponse(body, this.failure(body?.id ?? null, PaymeError.NON_POST));
+  }
+
   /** JSON-RPC kirish nuqtasi. Har doim HTTP 200 — natija javob tanasida. */
   async handle(authorization: string | undefined, body: PaymeRequest): Promise<PaymeResponse> {
     this.logRequest(body);
@@ -142,6 +154,8 @@ export class PaymeService {
           return this.logResponse(body, this.success(id, await this.checkTransaction(params)));
         case PaymeMethod.GET_STATEMENT:
           return this.logResponse(body, this.success(id, await this.getStatement(params)));
+        case PaymeMethod.SET_FISCAL_DATA:
+          return this.logResponse(body, this.success(id, await this.setFiscalData(params)));
         default:
           return this.logResponse(body, this.failure(id, PaymeError.METHOD_NOT_FOUND));
       }
@@ -149,8 +163,10 @@ export class PaymeService {
       if (error instanceof PaymeRpcError) {
         return this.logResponse(body, this.failure(id, error.code, error.data));
       }
+      // Kutilmagan nosozlik — biznes qoidasi bo'yicha rad etish emas, shuning
+      // uchun `-31008` emas, `-32400` qaytariladi.
       this.logger.error(`Payme so'rovini bajarishda xato (${body.method})`, error as Error);
-      return this.logResponse(body, this.failure(id, PaymeError.UNABLE_TO_PERFORM));
+      return this.logResponse(body, this.failure(id, PaymeError.SYSTEM));
     }
   }
 
@@ -247,11 +263,53 @@ export class PaymeService {
   // ── Metodlar ────────────────────────────────────────────────────────────────
 
   /** To'lovni amalga oshirish mumkinligini tekshiradi. */
-  private async checkPerformTransaction(params: PaymeParams): Promise<{ allow: true }> {
+  private async checkPerformTransaction(params: PaymeParams) {
     const payment = await this.resolvePayment(params);
     this.assertAmount(payment, params.amount);
     this.assertPayable(payment);
-    return { allow: true };
+
+    const detail = this.buildFiscalDetail(payment);
+    return detail ? { allow: true, detail } : { allow: true };
+  }
+
+  /**
+   * Fiskalizatsiya uchun chek tafsiloti. Tarifda IKPU kodi bo'lmasa `null`
+   * qaytadi va `detail` javobga qo'shilmaydi — Payme uni ixtiyoriy deb qabul
+   * qiladi. Narx tiyinda, bitta pozitsiya (tarif) sifatida yuboriladi.
+   */
+  private buildFiscalDetail(payment: Payment) {
+    const plan = payment.plan;
+    if (!plan?.ikpu) return null;
+
+    return {
+      receipt_type: RECEIPT_TYPE_SALE,
+      items: [
+        {
+          title: [payment.enrollment?.course?.title, plan.title].filter(Boolean).join(' — ') || plan.title,
+          price: payment.amount * TIYIN_IN_SUM,
+          count: 1,
+          code: plan.ikpu,
+          ...(plan.packageCode ? { package_code: plan.packageCode } : {}),
+          vat_percent: plan.vatPercent ?? 0,
+        },
+      ],
+    };
+  }
+
+  /**
+   * Payme fiskal chek ma'lumotlarini yuboradi (chek muvaffaqiyatli holatga
+   * o'tgach). Spetsifikatsiya bo'yicha majburiy emas, ammo `fiscal_sign` va
+   * `qr_code_url` ni saqlab qo'yish — chekni keyin ko'rsatish imkonini beradi.
+   */
+  private async setFiscalData(params: PaymeParams) {
+    const transaction = await this.findTransaction(params);
+    const type = typeof params.type === 'string' ? params.type : 'PERFORM';
+
+    transaction.fiscalData = { ...(transaction.fiscalData ?? {}), [type]: params.fiscal_data ?? null };
+    await this.transactionRepo.save(transaction);
+    this.logger.log(`[${transaction.transactionId}] fiskal ma'lumot saqlandi (${type})`);
+
+    return { success: true };
   }
 
   /**
@@ -298,14 +356,23 @@ export class PaymeService {
       throw new PaymeRpcError(PaymeError.PAYMENT_IN_PROGRESS, this.accountField);
     }
 
-    const transaction = await this.transactionRepo.save({
-      transactionId: params.id,
-      payment,
-      amount: params.amount as number,
-      state: PaymeTransactionState.CREATED,
-      paymeTime,
-      createTime: new Date(),
-    });
+    let transaction: PaymeTransaction;
+    try {
+      transaction = await this.transactionRepo.save({
+        transactionId: params.id,
+        payment,
+        amount: params.amount as number,
+        state: PaymeTransactionState.CREATED,
+        paymeTime,
+        createTime: new Date(),
+      });
+    } catch (error) {
+      // Qisman unikal indeks: bir vaqtda kelgan ikkinchi so'rov shu yerda to'xtaydi.
+      if ((error as { code?: string })?.code === UNIQUE_VIOLATION) {
+        throw new PaymeRpcError(PaymeError.PAYMENT_IN_PROGRESS, this.accountField);
+      }
+      throw error;
+    }
 
     payment.providerPaymentId = params.id;
     await this.paymentRepo.save(payment);
@@ -336,7 +403,18 @@ export class PaymeService {
       throw new PaymeRpcError(PaymeError.UNABLE_TO_PERFORM);
     }
 
-    await this.paymentService.markPaid(transaction.payment);
+    // To'lov allaqachon yopilgan bo'lsa `markPaid` qayta chaqirilmaydi: aks holda
+    // `enrollment_histories` ga takroriy yozuv tushib, muddat yana bir marta
+    // uzayib ketardi. Bu holat `markPaid` bajarilib, tranzaksiya holati
+    // saqlanmay qolganda (Payme so'rovni qaytadan yuboradi) yuzaga keladi.
+    if (transaction.payment.status === PaymentStatus.PAID) {
+      this.logger.warn(
+        `[${transaction.transactionId}] to'lov ${transaction.payment.id} allaqachon yopilgan — ` +
+          `faqat tranzaksiya holati yangilanadi`,
+      );
+    } else {
+      await this.paymentService.markPaid(transaction.payment);
+    }
 
     transaction.state = PaymeTransactionState.PERFORMED;
     transaction.performTime = new Date();
@@ -376,6 +454,11 @@ export class PaymeService {
     }
 
     if (transaction.state === PaymeTransactionState.PERFORMED) {
+      // Muddati tugagan yozilish — xizmat to'liq ko'rsatilgan, qaytarib bo'lmaydi.
+      const enrollment = transaction.payment.enrollment;
+      if (enrollment && isEnrollmentExpired(enrollment)) {
+        throw new PaymeRpcError(PaymeError.UNABLE_TO_CANCEL);
+      }
       transaction.state = PaymeTransactionState.CANCELLED_AFTER_PERFORM;
       await this.paymentService.markCancelled(transaction.payment);
       this.logger.warn(
@@ -416,10 +499,12 @@ export class PaymeService {
     const to = this.toDate(params.to);
     if (!from || !to) throw new PaymeRpcError(PaymeError.INVALID_PARAMS);
 
+    // Oraliq Payme tomonidagi yaratilish vaqti (`time`) bo'yicha filtrlanadi —
+    // bizdagi `createTime` emas, aks holda solishtirish (sverka) mos kelmaydi.
     const transactions = await this.transactionRepo.find({
-      where: { createTime: Between(from, to) },
+      where: { paymeTime: Between(from, to) },
       relations: { payment: true },
-      order: { createTime: 'ASC' },
+      order: { paymeTime: 'ASC' },
     });
 
     return {

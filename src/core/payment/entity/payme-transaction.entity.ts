@@ -2,6 +2,7 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  Index,
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
@@ -15,6 +16,12 @@ import { PaymeTransactionState } from '@/core/payment/enum/payme-transaction-sta
  * (create → perform / cancel) va har bir bosqichda avvalgi javob qaytarilishini
  * kutadi, shuning uchun holat alohida jadvalda saqlanadi.
  */
+/**
+ * Bitta to'lovda ayni paytda faqat bitta kutilayotgan tranzaksiya bo'lishi mumkin.
+ * Qisman (partial) unikal indeks buni ma'lumotlar bazasi darajasida kafolatlaydi:
+ * ikkita so'rov bir vaqtda kelsa ham ikkinchisi rad etiladi.
+ */
+@Index(['payment'], { unique: true, where: `"state" = 1` })
 @Entity('payme_transactions')
 export class PaymeTransaction {
   @PrimaryGeneratedColumn('uuid')
@@ -51,6 +58,14 @@ export class PaymeTransaction {
 
   @Column({ type: 'timestamp', nullable: true })
   cancelTime: Date | null;
+
+  /**
+   * `SetFiscalData` orqali kelgan fiskal chek ma'lumotlari, turi bo'yicha
+   * kalitlangan: `{ PERFORM: {...}, CANCEL: {...} }`. Ichida `fiscal_sign`,
+   * `qr_code_url` va boshqalar bo'ladi.
+   */
+  @Column({ type: 'jsonb', nullable: true })
+  fiscalData: Record<string, unknown> | null;
 
   @CreateDateColumn()
   createdAt: Date;

@@ -27,6 +27,10 @@ export interface PaymeParams {
   /** GetStatement oralig'i — millisekundlarda. */
   from?: number;
   to?: number;
+  /** SetFiscalData: chek turi — `PERFORM` yoki `CANCEL`. */
+  type?: string;
+  /** SetFiscalData: fiskal chek ma'lumotlari (`fiscal_sign`, `qr_code_url`, ...). */
+  fiscal_data?: Record<string, unknown>;
 }
 
 export interface PaymeSuccessResponse<T> {

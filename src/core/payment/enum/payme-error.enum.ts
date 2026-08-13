@@ -1,7 +1,15 @@
 /** Payme (Paycom) Merchant API xato kodlari. */
 export enum PaymeError {
+  /** So'rov POST emas. */
+  NON_POST = -32300,
   /** JSON'ni o'qib bo'lmadi. */
   PARSE = -32700,
+  /**
+   * Ichki tizim xatosi. Kutilmagan nosozlik (masalan ma'lumotlar bazasi)
+   * shu kod bilan qaytariladi: `-31008` dan farqli o'laroq, bu Payme uchun
+   * vaqtinchalik nosozlik — biznes qoidasi bo'yicha rad etish emas.
+   */
+  SYSTEM = -32400,
   /** JSON-RPC so'rovi noto'g'ri. */
   INVALID_REQUEST = -32600,
   /** Bunday metod yo'q. */
@@ -37,6 +45,16 @@ export interface PaymeErrorMessage {
 }
 
 export const PAYME_ERROR_MESSAGE: Record<PaymeError, PaymeErrorMessage> = {
+  [PaymeError.NON_POST]: {
+    uz: "So'rov POST bo'lishi kerak",
+    ru: 'Запрос должен быть POST',
+    en: 'Request must be POST',
+  },
+  [PaymeError.SYSTEM]: {
+    uz: 'Tizim xatosi',
+    ru: 'Системная ошибка',
+    en: 'System error',
+  },
   [PaymeError.PARSE]: {
     uz: "So'rovni o'qib bo'lmadi",
     ru: 'Ошибка разбора запроса',

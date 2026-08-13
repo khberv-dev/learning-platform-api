@@ -384,12 +384,13 @@ Tranzaksiya holati alohida `payme_transactions` jadvalida saqlanadi — Payme ta
 
 | Metod | Natija |
 |---|---|
-| `CheckPerformTransaction` | `{ allow: true }` |
+| `CheckPerformTransaction` | `{ allow: true }` (+ `detail` — pastga qarang) |
 | `CreateTransaction` | `{ create_time, transaction, state }` |
 | `PerformTransaction` | `{ transaction, perform_time, state }` |
 | `CancelTransaction` | `{ transaction, cancel_time, state }` |
 | `CheckTransaction` | `{ create_time, perform_time, cancel_time, transaction, state, reason }` |
 | `GetStatement` | `{ transactions: [...] }` |
+| `SetFiscalData` | `{ success: true }` |
 
 `transaction` — bizdagi `payme_transactions.id`. Bo'sh vaqtlar `0` bo'lib qaytadi (`null` emas).
 
@@ -423,26 +424,69 @@ Javob:
 }
 ```
 
+### Fiskalizatsiya (soliq cheki)
+
+Tarifda (`plan`) IKPU / MXIK kodi to'ldirilgan bo'lsa, `CheckPerformTransaction` javobiga chek tafsiloti qo'shiladi:
+
+```json
+{
+  "allow": true,
+  "detail": {
+    "receipt_type": 0,
+    "items": [
+      {
+        "title": "English A1 — Standart",
+        "price": 25000000,
+        "count": 1,
+        "code": "10305001001000000",
+        "package_code": "1495525",
+        "vat_percent": 12
+      }
+    ]
+  }
+}
+```
+
+Kodlar tarifda saqlanadi va admin endpointlari orqali kiritiladi:
+
+| Maydon | Izoh |
+|---|---|
+| `ikpu` | `tasnif.soliq.uz` dagi 17 xonali IKPU / MXIK kodi |
+| `packageCode` | qadoq (package) kodi |
+| `vatPercent` | QQS stavkasi foizda; berilmasa `0` yuboriladi |
+
+`ikpu` bo'sh bo'lsa `detail` umuman qo'shilmaydi — Payme uni ixtiyoriy deb qabul qiladi. Fiskal chek majburiy bo'lgan merchantlar uchun bu maydonlarni to'ldirish shart.
+
+`SetFiscalData` — Payme chek fiskallashtirilgach `fiscal_sign`, `qr_code_url` va boshqa ma'lumotlarni yuboradi. Ular `payme_transactions.fiscal_data` ga tur bo'yicha (`PERFORM` / `CANCEL`) saqlanadi.
+
+`receivers` (to'lovni bo'lish) va `additional` maydonlari **ataylab qo'shilmagan**: spetsifikatsiya bo'yicha ular ixtiyoriy va yagona qabul qiluvchi bo'lganda tashlab ketiladi.
+
 ### Xatti-harakati
 
 - `CreateTransaction` **idempotent**: bir xil `id` bilan takror kelsa avvalgi `create_time` qaytadi. Ayni to'lov uchun boshqa `id` bilan kelsa va oldingi tranzaksiya hali kutilayotgan bo'lsa — `-31053`.
 - Kutilayotgan tranzaksiya **12 soatdan keyin** avtomatik bekor qilinadi (`state: -1`, `reason: 4`), keyingi `Create` / `Perform` so'rovi `-31008` oladi.
-- `PerformTransaction` to'lovni `paid` qiladi, yozilish `active` bo'ladi (`start` = hozir, `end` = `start` + tarif `month`) va `enrollment_histories` ga yozuv qo'shiladi — Click `complete` bilan bir xil.
+- `PerformTransaction` to'lovni `paid` qiladi, yozilish `active` bo'ladi (`start` = hozir, `end` = `start` + tarif `month`) va `enrollment_histories` ga yozuv qo'shiladi — Click `complete` bilan bir xil. To'lov allaqachon `paid` bo'lsa `markPaid` **qayta chaqirilmaydi**: Payme so'rovni takrorlaganda tarixga ikkinchi yozuv tushmaydi va muddat uzayib ketmaydi.
 - `CancelTransaction`:
   - **to'lanmagan** tranzaksiya (`state: 1`) bekor qilinsa — `state: -1`, ammo **to'lov `created` bo'lib qoladi**. Foydalanuvchi to'lovni yarim yo'lda tashlab ketgan bo'lishi mumkin; shu tufayli u qayta urinib ko'radi va yozilishdagi progress saqlanadi;
-  - **to'langan** tranzaksiya bekor qilinsa (qaytarim) — `state: -2`, to'lov `cancelled`, yozilish ham `cancelled`.
+  - **to'langan** tranzaksiya bekor qilinsa (qaytarim) — `state: -2`, to'lov `cancelled`, yozilish ham `cancelled`;
+  - yozilish **muddati tugagan** bo'lsa — xizmat to'liq ko'rsatilgan hisoblanadi va `-31007` qaytadi (spetsifikatsiyadagi "Заказ выполнен").
+- `GetStatement` oralig'i **Payme tomonidagi `time`** bo'yicha filtrlanadi (bizdagi `create_time` emas) va o'sish tartibida qaytadi — solishtirish (sverka) shu bo'yicha bajariladi.
+- Bitta to'lovda ayni paytda faqat bitta kutilayotgan tranzaksiya bo'la oladi; buni `payme_transactions` dagi qisman unikal indeks (`payment_id where state = 1`) kafolatlaydi.
 - To'lov `paid` yoki `cancelled` bo'lgach `CheckPerformTransaction` `-31051` qaytaradi.
 
 ### Xato kodlari
 
 | Kod | Qachon |
 |---|---|
+| `-32300` | So'rov `POST` emas |
+| `-32400` | Ichki tizim xatosi (masalan ma'lumotlar bazasi) — vaqtinchalik nosozlik |
 | `-32504` | `Authorization` sarlavhasi yo'q / kalit mos emas / `PAYME_MERCHANT_KEY` sozlanmagan |
 | `-32600` | So'rovda `method` yo'q |
 | `-32601` | Noma'lum metod |
 | `-32602` | `id`, `time`, `from`, `to` parametrlari yo'q yoki noto'g'ri turda |
 | `-31001` | Summa `payment.amount * 100` ga teng emas |
 | `-31003` | Tranzaksiya topilmadi |
+| `-31007` | To'langan tranzaksiyani bekor qilib bo'lmaydi — yozilish muddati tugagan (xizmat ko'rsatilgan) |
 | `-31008` | Muddati o'tgan yoki holati mos kelmaydigan tranzaksiya |
 | `-31050` | Hisobdagi id bo'yicha to'lov topilmadi (`data` — maydon nomi) |
 | `-31051` | To'lov allaqachon yakunlangan (`paid` / `cancelled`) |
@@ -463,7 +507,7 @@ Rol: `ADMIN`.
 
 | Method | Route | Izoh |
 |---|---|---|
-| POST | `/api/admin/courses/{courseId}/plans` | `{ title, price, month, hasMentor?, isActive? }` |
+| POST | `/api/admin/courses/{courseId}/plans` | `{ title, price, month, hasMentor?, isActive?, ikpu?, packageCode?, vatPercent? }` |
 | GET | `/api/admin/courses/{courseId}/plans` | barchasi, nofaollari bilan |
 | GET | `/api/admin/courses/{courseId}/plans/{planId}` | bittasi |
 | PATCH | `/api/admin/courses/{courseId}/plans/{planId}` | barcha maydonlar ixtiyoriy |

@@ -26,4 +26,23 @@ export class CreatePlanDto {
   @IsBoolean()
   @IsOptional()
   isActive?: boolean;
+
+  @ApiPropertyOptional({
+    example: '10305001001000000',
+    description: 'Fiskalizatsiya uchun IKPU / MXIK kodi (tasnif.soliq.uz). Berilmasa chek tafsiloti yuborilmaydi',
+  })
+  @IsString()
+  @IsOptional()
+  ikpu?: string;
+
+  @ApiPropertyOptional({ example: '1495525', description: 'Qadoq (package) kodi' })
+  @IsString()
+  @IsOptional()
+  packageCode?: string;
+
+  @ApiPropertyOptional({ example: 12, minimum: 0, description: 'QQS stavkasi (%)' })
+  @IsInt()
+  @Min(0)
+  @IsOptional()
+  vatPercent?: number;
 }

@@ -94,13 +94,21 @@ Re-purchasing an expired enrollment reuses the existing row: it is reset to `cre
 
 ### Payme webhooks
 
-`/api/payment/payme` is a single `@Public()` `@ApiExcludeController()` JSON-RPC 2.0 endpoint carrying all six Paycom methods (`CheckPerformTransaction`, `CreateTransaction`, `PerformTransaction`, `CancelTransaction`, `CheckTransaction`, `GetStatement`). Authenticity rests on the `Authorization: Basic base64("Paycom:<PAYME_MERCHANT_KEY>")` header, compared with `timingSafeEqual`; if the key is unset, all requests are rejected.
+`/api/payment/payme` is a single `@Public()` `@ApiExcludeController()` JSON-RPC 2.0 endpoint carrying all seven Paycom methods (`CheckPerformTransaction`, `CreateTransaction`, `PerformTransaction`, `CancelTransaction`, `CheckTransaction`, `GetStatement`, `SetFiscalData`). Authenticity rests on the `Authorization: Basic base64("Paycom:<PAYME_MERCHANT_KEY>")` header, compared with `timingSafeEqual`; if the key is unset, all requests are rejected. The route is `@All()`, not `@Post()`, because the spec wants `-32300` for a non-POST rather than Nest's 404.
 
 Payme drives a transaction across several calls and expects the *same* answer on repeats, so state lives in its own `payme_transactions` table (`transactionId` unique, `state` per the Paycom spec: `1` created, `2` performed, `-1`/`-2` cancelled) rather than on `Payment`. Amounts arrive in **tiyin** — compared against `payment.amount * 100`. Pending transactions expire after 12 hours.
 
 The body is typed as an `interface` (not a DTO class) and read with `import type`, so the global `ValidationPipe` skips it: Payme expects every failure as an in-band JSON-RPC `error`, never an HTTP 400. The handler always returns HTTP 200.
 
-Cancelling an **unpaid** transaction leaves the payment `created` so the student can retry and keep their enrollment progress; cancelling a **performed** one (refund) runs `markCancelled`, which also cancels the enrollment.
+Cancelling an **unpaid** transaction leaves the payment `created` so the student can retry and keep their enrollment progress; cancelling a **performed** one (refund) runs `markCancelled`, which also cancels the enrollment — unless the enrollment term has already elapsed (`isEnrollmentExpired`), which counts as the service being fully delivered and answers `-31007`.
+
+Three details that are easy to get wrong and are load-bearing:
+
+- `GetStatement` filters on `paymeTime` (Payme's own `time`), **not** the merchant-side `createTime` — reconciliation is keyed to Payme's clock.
+- `PerformTransaction` skips `markPaid` when the payment is already `paid`, so a Payme retry after a half-completed write can't append a second `enrollment_histories` row or extend the term again.
+- Unexpected exceptions answer `-32400` (system error), never `-31008` — the latter tells Payme the business state permanently forbids the operation, which would be wrong for a transient DB fault.
+
+Fiscalization is opt-in per plan: `Plan.ikpu` / `packageCode` / `vatPercent` feed the optional `detail` receipt block on `CheckPerformTransaction`, and `detail` is omitted entirely when `ikpu` is empty. `receivers` and `additional` are deliberately not sent.
 
 ### External API
 
