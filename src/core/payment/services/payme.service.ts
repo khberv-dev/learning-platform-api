@@ -235,6 +235,23 @@ export class PaymeService {
     }
   }
 
+  /**
+   * Shu to'lovda tugallanmagan tranzaksiya yo'qligini tekshiradi. Muddati
+   * o'tgani avtomatik bekor qilinadi va yo'lni bo'shatadi.
+   *
+   * Payme sandbox buni `CreateTransaction` da ham, `CheckPerformTransaction`
+   * da ham talab qiladi: hisobda kutilayotgan tranzaksiya bo'lsa, javob
+   * hisob (account) oralig'idagi xato bo'lishi kerak.
+   */
+  private async assertNoPendingTransaction(payment: Payment): Promise<void> {
+    const pending = await this.transactionRepo.findOne({
+      where: { payment: { id: payment.id }, state: PaymeTransactionState.CREATED },
+    });
+    if (pending && !(await this.cancelIfExpired(pending))) {
+      throw new PaymeRpcError(PaymeError.PAYMENT_IN_PROGRESS, this.accountField);
+    }
+  }
+
   private async findTransaction(params: PaymeParams): Promise<PaymeTransaction> {
     if (typeof params.id !== 'string' || !params.id) {
       throw new PaymeRpcError(PaymeError.INVALID_PARAMS);
@@ -267,6 +284,7 @@ export class PaymeService {
     const payment = await this.resolvePayment(params);
     this.assertAmount(payment, params.amount);
     this.assertPayable(payment);
+    await this.assertNoPendingTransaction(payment);
 
     const detail = this.buildFiscalDetail(payment);
     return detail ? { allow: true, detail } : { allow: true };
@@ -348,13 +366,7 @@ export class PaymeService {
     if (!paymeTime) throw new PaymeRpcError(PaymeError.INVALID_PARAMS);
 
     // Shu to'lov uchun boshqa kutilayotgan tranzaksiya bo'lsa, yangisi ochilmaydi.
-    // Payme sandbox bu holatda hisob (account) oralig'idagi xatoni kutadi.
-    const pending = await this.transactionRepo.findOne({
-      where: { payment: { id: payment.id }, state: PaymeTransactionState.CREATED },
-    });
-    if (pending && !(await this.cancelIfExpired(pending))) {
-      throw new PaymeRpcError(PaymeError.PAYMENT_IN_PROGRESS, this.accountField);
-    }
+    await this.assertNoPendingTransaction(payment);
 
     let transaction: PaymeTransaction;
     try {
