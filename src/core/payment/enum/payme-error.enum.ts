@@ -22,6 +22,11 @@ export enum PaymeError {
   ORDER_NOT_FOUND = -31050,
   ORDER_NOT_PAYABLE = -31051,
   INVALID_ACCOUNT = -31052,
+  /**
+   * To'lovda tugallanmagan tranzaksiya bor. Payme sandbox bu holatda aynan
+   * hisob (account) oralig'idagi xatoni kutadi, `-31008` ni emas.
+   */
+  PAYMENT_IN_PROGRESS = -31053,
 }
 
 /** Payme xato xabarini uch tilda kutadi. */
@@ -91,5 +96,10 @@ export const PAYME_ERROR_MESSAGE: Record<PaymeError, PaymeErrorMessage> = {
     uz: "Hisob raqami noto'g'ri",
     ru: 'Неверный номер счёта',
     en: 'Invalid account',
+  },
+  [PaymeError.PAYMENT_IN_PROGRESS]: {
+    uz: "Bu to'lov uchun tugallanmagan tranzaksiya mavjud",
+    ru: 'По этому платежу есть незавершённая транзакция',
+    en: 'Another transaction is already pending for this payment',
   },
 };

@@ -290,11 +290,12 @@ export class PaymeService {
     if (!paymeTime) throw new PaymeRpcError(PaymeError.INVALID_PARAMS);
 
     // Shu to'lov uchun boshqa kutilayotgan tranzaksiya bo'lsa, yangisi ochilmaydi.
+    // Payme sandbox bu holatda hisob (account) oralig'idagi xatoni kutadi.
     const pending = await this.transactionRepo.findOne({
       where: { payment: { id: payment.id }, state: PaymeTransactionState.CREATED },
     });
     if (pending && !(await this.cancelIfExpired(pending))) {
-      throw new PaymeRpcError(PaymeError.UNABLE_TO_PERFORM);
+      throw new PaymeRpcError(PaymeError.PAYMENT_IN_PROGRESS, this.accountField);
     }
 
     const transaction = await this.transactionRepo.save({

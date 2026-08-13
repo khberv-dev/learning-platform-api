@@ -425,7 +425,7 @@ Javob:
 
 ### Xatti-harakati
 
-- `CreateTransaction` **idempotent**: bir xil `id` bilan takror kelsa avvalgi `create_time` qaytadi. Ayni to'lov uchun boshqa `id` bilan kelsa va oldingi tranzaksiya hali kutilayotgan bo'lsa — `-31008`.
+- `CreateTransaction` **idempotent**: bir xil `id` bilan takror kelsa avvalgi `create_time` qaytadi. Ayni to'lov uchun boshqa `id` bilan kelsa va oldingi tranzaksiya hali kutilayotgan bo'lsa — `-31053`.
 - Kutilayotgan tranzaksiya **12 soatdan keyin** avtomatik bekor qilinadi (`state: -1`, `reason: 4`), keyingi `Create` / `Perform` so'rovi `-31008` oladi.
 - `PerformTransaction` to'lovni `paid` qiladi, yozilish `active` bo'ladi (`start` = hozir, `end` = `start` + tarif `month`) va `enrollment_histories` ga yozuv qo'shiladi — Click `complete` bilan bir xil.
 - `CancelTransaction`:
@@ -443,10 +443,13 @@ Javob:
 | `-32602` | `id`, `time`, `from`, `to` parametrlari yo'q yoki noto'g'ri turda |
 | `-31001` | Summa `payment.amount * 100` ga teng emas |
 | `-31003` | Tranzaksiya topilmadi |
-| `-31008` | Muddati o'tgan yoki holati mos kelmaydigan tranzaksiya; ayni to'lovda boshqa kutilayotgan tranzaksiya bor |
+| `-31008` | Muddati o'tgan yoki holati mos kelmaydigan tranzaksiya |
 | `-31050` | Hisobdagi id bo'yicha to'lov topilmadi (`data` — maydon nomi) |
 | `-31051` | To'lov allaqachon yakunlangan (`paid` / `cancelled`) |
 | `-31052` | Hisob maydoni yo'q yoki UUID emas |
+| `-31053` | Ayni to'lovda tugallanmagan tranzaksiya bor (yangi `id` bilan `CreateTransaction`) |
+
+`-31050`..`-31099` — hisob (account) oralig'i. Payme sandbox hisob holati bilan bog'liq xatolarni aynan shu oraliqda kutadi, shuning uchun "boshqa tranzaksiya kutilmoqda" holati `-31008` emas, `-31053` qaytaradi.
 
 Xato xabari uch tilda qaytariladi: `{ "uz": ..., "ru": ..., "en": ... }`.
 
