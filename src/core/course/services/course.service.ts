@@ -17,6 +17,13 @@ export const UNIT_ORDER = { index: 'ASC', createdAt: 'ASC' } as const;
 export const LESSON_ORDER = { index: 'ASC', createdAt: 'ASC' } as const;
 export const COURSE_ORDER = { units: { ...UNIT_ORDER, lessons: LESSON_ORDER } } as const;
 
+/**
+ * Kurslar ham `index` bo'yicha saralanadi. Ikkinchi mezon — `createdAt` DESC:
+ * tartib belgilanmagan (hammasi 0) kurslar avvalgidek yangisidan boshlab
+ * ko'rsatiladi.
+ */
+export const COURSE_LIST_ORDER = { index: 'ASC', createdAt: 'DESC' } as const;
+
 @Injectable()
 export class CourseService {
   constructor(@InjectRepository(Course) private readonly courseRepo: Repository<Course>) {}
@@ -45,7 +52,8 @@ export class CourseService {
       .addSelect('COUNT(DISTINCT unit.id)', 'unitsCount')
       .addSelect('COUNT(DISTINCT lesson.id)', 'lessonsCount')
       .groupBy('course.id')
-      .orderBy('course.createdAt', 'DESC')
+      .orderBy('course.index', 'ASC')
+      .addOrderBy('course.createdAt', 'DESC')
       .getRawAndEntities<{ unitsCount: string; lessonsCount: string }>();
 
     return entities.map((course, i) => ({
@@ -59,7 +67,7 @@ export class CourseService {
     const courses = await this.courseRepo.find({
       where: { isActive: true },
       relations: COURSE_RELATIONS,
-      order: COURSE_ORDER,
+      order: { ...COURSE_LIST_ORDER, ...COURSE_ORDER },
     });
     return courses.map((c) => this.withLessonsCount(c));
   }

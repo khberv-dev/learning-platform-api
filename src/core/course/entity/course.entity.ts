@@ -20,6 +20,14 @@ export class Course {
   @Column({ default: false })
   isActive: boolean;
 
+  /**
+   * Ko'rsatish tartibi — kichikdan kattaga (1, 2, 3...). Admin belgilaydi.
+   * Teng bo'lganda yangi kurslar oldinda turadi (`createdAt` DESC), shuning
+   * uchun tartib belgilanmagan eski kurslar avvalgi joyida qoladi.
+   */
+  @Column({ type: 'int', default: 0 })
+  index: number;
+
   @OneToMany(() => Unit, (unit) => unit.course)
   units: Unit[];
 

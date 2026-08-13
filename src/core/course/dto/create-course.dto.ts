@@ -1,6 +1,6 @@
-import { Transform } from 'class-transformer';
-import { IsBoolean, IsNotEmpty, IsOptional, IsString } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { Transform, Type } from 'class-transformer';
+import { IsBoolean, IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateCourseDto {
   @ApiProperty()
@@ -18,4 +18,15 @@ export class CreateCourseDto {
   @IsBoolean()
   @IsOptional()
   isActive?: boolean;
+
+  @ApiPropertyOptional({
+    example: 1,
+    default: 0,
+    description: "Ko'rsatish tartibi. Kichikdan kattaga saralanadi; teng bo'lsa yangilari oldinda.",
+  })
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @IsOptional()
+  index?: number;
 }
