@@ -4,6 +4,7 @@ import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { validationPipe } from '@/common/pipes/validation.pipe';
+import { getEnvironment } from '@/shared/config/environment.config';
 
 async function bootstrap() {
   const logger = new Logger('App');
@@ -26,6 +27,8 @@ async function bootstrap() {
   SwaggerModule.setup('docs', app, document);
 
   await app.listen(port);
+  // Muhit boshida ko'rinib tursin — OTP, SMS va log xatti-harakati shunga bog'liq.
+  logger.log(`Environment: ${getEnvironment(configService)}`);
   logger.log(`Listening on :${port}`);
   logger.log(`Swagger is running on /docs`);
 }

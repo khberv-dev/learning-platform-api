@@ -1,5 +1,6 @@
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { isDevelopment } from '@/shared/config/environment.config';
 
 // Eskiz tokenlari ~30 kun amal qiladi; biroz erta yangilanadi.
 const TOKEN_TTL_MS = 25 * 24 * 60 * 60 * 1000;
@@ -39,6 +40,14 @@ export class EskizService {
 
   async sendSms(phoneNumber: string, message: string): Promise<void> {
     const mobilePhone = this.normalizePhone(phoneNumber);
+
+    // DEVELOPMENT muhitida haqiqiy SMS yuborilmaydi — balans sarflanmasin va
+    // sinov raqamlariga xabar bormasin. Xabar log'ga yoziladi.
+    if (isDevelopment(this.configService)) {
+      this.logger.log(`[DEVELOPMENT] SMS yuborilmadi (${this.maskPhone(mobilePhone)}): ${message}`);
+      return;
+    }
+
     const body = new URLSearchParams({ mobile_phone: mobilePhone, message, from: SMS_FROM });
 
     let response = await this.post('message/sms/send', body, await this.getToken());

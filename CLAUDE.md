@@ -24,6 +24,7 @@ There are currently **no test files** in the repo (`*.spec.ts`), and `test/jest-
 | Variable | Notes |
 |---|---|
 | `PORT` | HTTP port |
+| `ENVIRONMENT` | `DEVELOPMENT` or `DEPLOYMENT`; anything else (including unset) resolves to `DEPLOYMENT`. See "Environment switches" below |
 | `DB_HOST`, `DB_PORT`, `DB_USERNAME`, `DB_PASSWORD`, `DB_DATABASE` | PostgreSQL |
 | `JWT_ACCESS_SECRET`, `JWT_ACCESS_EXPIRE` | e.g. `1h` |
 | `JWT_REFRESH_SECRET`, `JWT_REFRESH_EXPIRE` | e.g. `7d` |
@@ -55,6 +56,18 @@ There are currently **no test files** in the repo (`*.spec.ts`), and `test/jest-
 - `strictNullChecks` is on but `noImplicitAny` is off; `@typescript-eslint/no-explicit-any` and `no-floating-promises` are disabled in `eslint.config.mjs`.
 
 ## Architecture
+
+### Environment switches
+
+`src/shared/config/environment.config.ts` resolves `ENVIRONMENT` into `AppEnvironment`. `resolveEnvironment` returns `DEPLOYMENT` for **any** value other than a literal `DEVELOPMENT` (case-insensitive, trimmed) — an unset or misspelled variable must never hand a live server the fixed OTP. The resolved value is logged at boot.
+
+| Behavior | `DEVELOPMENT` | `DEPLOYMENT` |
+|---|---|---|
+| OTP code (`AuthService.sendOtp`) | always `666666` | `crypto.randomInt` |
+| Eskiz SMS (`EskizService.sendSms`) | skipped, message logged | sent |
+| Request/response body logging (`LoggingInterceptor`) | on | off |
+
+The gate lives at the outermost sensible layer in each case: `EskizService.sendSms` (so every caller, not just OTP, is covered) and a global `APP_INTERCEPTOR` that returns early. `LoggingInterceptor` redacts keys matching `password|token|secret|authorization|sign_string|fcmToken` and truncates bodies at 2000 chars.
 
 ### Auth & authorization
 

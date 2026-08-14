@@ -22,6 +22,7 @@ import { Student } from '@/core/user/entity/student.entity';
 import { User } from '@/core/user/entity/user.entity';
 import { NotificationService } from '@/core/notification/services/notification.service';
 import { SlidingWindowLimiter } from '@/core/auth/utils/sliding-window-limiter';
+import { isDevelopment } from '@/shared/config/environment.config';
 
 const OTP_TTL_MS = 5 * 60 * 1000;
 
@@ -35,6 +36,12 @@ const HOUR_MS = 60 * 60 * 1000;
 function generateOtpCode(): string {
   return String(randomInt(100_000, 1_000_000));
 }
+
+/**
+ * DEVELOPMENT muhitida SMS yuborilmaydi, shuning uchun kod doimiy bo'ladi —
+ * aks holda ro'yxatdan o'tishni sinab ko'rib bo'lmaydi.
+ */
+const DEVELOPMENT_OTP_CODE = '666666';
 
 @Injectable()
 export class AuthService {
@@ -51,9 +58,11 @@ export class AuthService {
     // OTP_MAX_PER_IP_PER_HOUR berilganda yoqiladi.
     const perIp = Number(this.configService.get<string>('OTP_MAX_PER_IP_PER_HOUR'));
     this.ipLimiter = Number.isFinite(perIp) && perIp > 0 ? new SlidingWindowLimiter(perIp, HOUR_MS) : null;
+    this.isDevelopment = isDevelopment(this.configService);
   }
 
   private readonly ipLimiter: SlidingWindowLimiter | null;
+  private readonly isDevelopment: boolean;
 
   issueTokens(userId: string) {
     const payload = { sub: userId };
@@ -163,7 +172,7 @@ export class AuthService {
   async sendOtp(dto: SendOtpDto, ip?: string): Promise<{ message: string }> {
     await this.assertOtpAllowed(dto.phoneNumber, ip);
 
-    const code = generateOtpCode();
+    const code = this.isDevelopment ? DEVELOPMENT_OTP_CODE : generateOtpCode();
 
     // Avval SMS yuboriladi: yuborilmasa, foydalanuvchi ololmaydigan kod
     // bazada qolib ketmaydi.

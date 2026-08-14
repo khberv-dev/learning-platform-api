@@ -1,6 +1,6 @@
 import { join } from 'path';
 import { Module } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ServeStaticModule } from '@nestjs/serve-static';
@@ -24,6 +24,7 @@ import { ExternalModule } from '@/core/external/external.module';
 import { SessionModule } from '@/core/session/session.module';
 import { JwtAccessGuard } from '@/common/guards/jwt-access.guard';
 import { RolesGuard } from '@/common/guards/roles.guard';
+import { LoggingInterceptor } from '@/common/interceptors/logging.interceptor';
 
 @Module({
   imports: [
@@ -54,6 +55,8 @@ import { RolesGuard } from '@/common/guards/roles.guard';
   providers: [
     { provide: APP_GUARD, useClass: JwtAccessGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
+    // DEPLOYMENT muhitida o'zini o'chiradi.
+    { provide: APP_INTERCEPTOR, useClass: LoggingInterceptor },
   ],
 })
 export class AppModule {}
