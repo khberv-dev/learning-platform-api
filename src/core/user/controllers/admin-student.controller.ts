@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiNotFoundResponse, ApiOkResponse, ApiOperation, ApiTag
 import { Roles } from '@/common/decorators/roles.decorator';
 import { UserRole } from '@/core/user/enum/user-role.enum';
 import { StudentService } from '@/core/user/services/student.service';
-import { PaginationQuery } from '@/common/dto/pagination-query.dto';
+import { StudentQuery } from '@/core/user/dto/student-query.dto';
 
 const studentListExample = {
   data: [
@@ -68,8 +68,15 @@ export class AdminStudentController {
   constructor(private readonly studentService: StudentService) {}
 
   @Get()
+  @ApiOperation({
+    summary: "Talabalar ro'yxati",
+    description:
+      'Filtr: `search` (ism, familiya, telefon, email), `level`, `isActive`. Saralash: `sortBy` ' +
+      '(`createdAt`, `updatedAt`, `points`, `coins`, `balance`, `level`, `firstName`, `lastName`) ' +
+      'va `sortOrder` (`ASC` / `DESC`).',
+  })
   @ApiOkResponse({ schema: { example: studentListExample } })
-  findAll(@Query() query: PaginationQuery) {
+  findAll(@Query() query: StudentQuery) {
     return this.studentService.findAll(query);
   }
 

@@ -1,20 +1,48 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Brackets, Repository } from 'typeorm';
 import { Student } from '@/core/user/entity/student.entity';
-import { paginate, Paginated, PaginationQuery } from '@/common/dto/pagination-query.dto';
+import { paginate, Paginated } from '@/common/dto/pagination-query.dto';
+import { STUDENT_SORT_COLUMN, StudentQuery } from '@/core/user/dto/student-query.dto';
 
 @Injectable()
 export class StudentService {
   constructor(@InjectRepository(Student) private readonly studentRepo: Repository<Student>) {}
 
-  async findAll(query: PaginationQuery): Promise<Paginated<Student>> {
-    const [data, total] = await this.studentRepo.findAndCount({
-      relations: { user: true },
-      order: { createdAt: 'DESC' },
-      skip: query.skip,
-      take: query.take,
-    });
+  /**
+   * Talabalar ro'yxati: qidiruv, filtr, saralash va sahifalash bilan.
+   *
+   * `find` o'rniga query builder — qidiruv bir nechta ustun bo'yicha `OR`
+   * bilan ketadi va saralash foydalanuvchi (`user`) maydonlariga ham tushadi.
+   */
+  async findAll(query: StudentQuery): Promise<Paginated<Student>> {
+    const qb = this.studentRepo.createQueryBuilder('student').leftJoinAndSelect('student.user', 'user');
+
+    if (query.level) {
+      qb.andWhere('student.level = :level', { level: query.level });
+    }
+    if (query.isActive !== undefined) {
+      qb.andWhere('user.isActive = :isActive', { isActive: query.isActive });
+    }
+    if (query.search?.trim()) {
+      const search = `%${query.search.trim()}%`;
+      qb.andWhere(
+        new Brackets((where) => {
+          where
+            .where('user.firstName ILIKE :search', { search })
+            .orWhere('user.lastName ILIKE :search', { search })
+            .orWhere('user.phoneNumber ILIKE :search', { search })
+            .orWhere('user.email ILIKE :search', { search });
+        }),
+      );
+    }
+
+    const [data, total] = await qb
+      .orderBy(STUDENT_SORT_COLUMN[query.sortBy], query.sortOrder)
+      .skip(query.skip)
+      .take(query.take)
+      .getManyAndCount();
+
     return paginate(data, total, query);
   }
 
