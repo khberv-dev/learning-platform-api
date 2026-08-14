@@ -1,5 +1,5 @@
 import { Controller, Get, ParseIntPipe, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { Roles } from '@/common/decorators/roles.decorator';
 import { UserRole } from '@/core/user/enum/user-role.enum';
 import { Period, StatsService } from '@/core/stats/stats.service';
@@ -15,6 +15,10 @@ export class StatsController {
   constructor(private readonly statsService: StatsService) {}
 
   @Get('summary')
+  @ApiOperation({
+    summary: "Umumiy ko'rsatkichlar",
+    description: '`assignments` va `enrollments` — faqat `active` holatdagilari. `users` va `mentors` — barchasi.',
+  })
   @ApiOkResponse({
     schema: {
       example: { users: 120, assignments: 45, enrollments: 300, mentors: 18 },
@@ -34,9 +38,7 @@ export class StatsController {
       ],
     },
   })
-  getTimeseries(
-    @Query('period', new ParseIntPipe({ optional: true })) period?: number,
-  ) {
+  getTimeseries(@Query('period', new ParseIntPipe({ optional: true })) period?: number) {
     const p = (period ?? 30) as Period;
     if (!VALID_PERIODS.includes(p)) {
       throw new BadRequestException('period must be 7, 14, or 30');

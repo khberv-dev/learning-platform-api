@@ -8,11 +8,16 @@ export type Period = 7 | 14 | 30;
 export class StatsService {
   constructor(@InjectDataSource() private readonly ds: DataSource) {}
 
+  /**
+   * `assignments` va `enrollments` — faqat `active` holatdagilari.
+   * Bekor qilingan yoki to'lov kutayotganlari umumiy ko'rsatkichni shishirib
+   * yuborardi. `users` va `mentors` — barchasi.
+   */
   async getSummary() {
     const [[users], [assignments], [enrollments], [mentors]] = await Promise.all([
       this.ds.query<[{ count: string }]>('SELECT COUNT(*) FROM users'),
-      this.ds.query<[{ count: string }]>('SELECT COUNT(*) FROM assignments'),
-      this.ds.query<[{ count: string }]>('SELECT COUNT(*) FROM enrollments'),
+      this.ds.query<[{ count: string }]>("SELECT COUNT(*) FROM assignments WHERE status = 'active'"),
+      this.ds.query<[{ count: string }]>("SELECT COUNT(*) FROM enrollments WHERE status = 'active'"),
       this.ds.query<[{ count: string }]>('SELECT COUNT(*) FROM teachers'),
     ]);
 
@@ -50,7 +55,10 @@ export class StatsService {
     ]);
 
     // Build zero-filled skeleton for all days in the period
-    const skeleton = new Map<string, { date: string; users: number; assignments: number; enrollments: number; mentors: number }>();
+    const skeleton = new Map<
+      string,
+      { date: string; users: number; assignments: number; enrollments: number; mentors: number }
+    >();
     for (let i = 0; i < period; i++) {
       const d = new Date(from);
       d.setUTCDate(d.getUTCDate() + i);

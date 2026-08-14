@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { FindOptionsWhere, In, LessThan, MoreThanOrEqual, Repository } from 'typeorm';
 import { Enrollment } from '@/core/enrollment/entity/enrollment.entity';
 import { EnrollmentHistory } from '@/core/enrollment/entity/enrollment-history.entity';
 import { EnrollmentStatus } from '@/core/enrollment/enum/enrollment-status.enum';
@@ -10,6 +10,8 @@ import { Plan } from '@/core/plan/entity/plan.entity';
 import { CreateEnrollmentDto } from '@/core/enrollment/dto/create-enrollment.dto';
 import { CourseService } from '@/core/course/services/course.service';
 import { Student } from '@/core/user/entity/student.entity';
+import { EnrollmentQuery } from '@/core/enrollment/dto/enrollment-query.dto';
+import { Paginated, paginate } from '@/common/dto/pagination-query.dto';
 
 @Injectable()
 export class EnrollmentService {
@@ -21,6 +23,42 @@ export class EnrollmentService {
     @InjectRepository(Plan) private readonly planRepo: Repository<Plan>,
     private readonly courseService: CourseService,
   ) {}
+
+  /**
+   * Admin uchun yozilishlar ro'yxati: filtr, saralash va sahifalash bilan.
+   *
+   * `isExpired` muddat bo'yicha filtr — u berilganda va alohida `status`
+   * ko'rsatilmaganda status `active` deb olinadi, chunki muddat faqat faol
+   * yozilishda ma'noga ega.
+   */
+  async findAllEnrollments(query: EnrollmentQuery): Promise<Paginated<Enrollment>> {
+    const where: FindOptionsWhere<Enrollment> = {};
+    if (query.studentId) where.student = { id: query.studentId };
+    if (query.courseId) where.course = { id: query.courseId };
+    if (query.status) where.status = query.status;
+
+    const now = new Date();
+    if (query.isExpired !== undefined) {
+      where.status ??= EnrollmentStatus.ACTIVE;
+      where.end = query.isExpired ? LessThan(now) : MoreThanOrEqual(now);
+    }
+
+    const [data, total] = await this.enrollmentRepo.findAndCount({
+      where,
+      relations: { student: { user: true }, course: true },
+      order: { [query.sortBy]: query.sortOrder },
+      skip: query.skip,
+      take: query.take,
+    });
+
+    // `active` yozilishning muddati tugagan bo'lishi mumkin — admin ro'yxatda
+    // buni statusdan ajratib ko'ra olishi kerak.
+    return paginate(
+      data.map((enrollment) => ({ ...enrollment, isExpired: isEnrollmentExpired(enrollment, now) })),
+      total,
+      query,
+    );
+  }
 
   async getAvailableCourses(userId: string) {
     const student = await this.studentRepo.findOne({ where: { user: { id: userId } } });

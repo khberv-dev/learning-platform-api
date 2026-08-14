@@ -530,6 +530,25 @@ GET /api/admin/payments/{id}
 |---|---|
 | 404 | `To'lov topilmadi` |
 
+### Yozilishlar ro'yxati
+
+```http
+GET /api/admin/enrollments?page=1&limit=10&studentId=&courseId=&status=&isExpired=&sortBy=createdAt&sortOrder=DESC
+```
+
+| Parametr | Izoh |
+|---|---|
+| `studentId` | talaba (student) id |
+| `courseId` | kurs id |
+| `status` | `created` / `active` / `cancelled` |
+| `isExpired` | `true` — muddati tugagan, `false` — amaldagi. Alohida `status` berilmasa `active` deb olinadi |
+| `sortBy` | `createdAt` (sukut), `updatedAt`, `start`, `end`, `status` |
+| `sortOrder` | `ASC` / `DESC` (sukut) |
+
+Javob — sahifalangan ro'yxat (`data`, `total`, `page`, `limit`, `totalPages`). Har bir yozuvda talaba (foydalanuvchisi bilan), kurs va **`isExpired`** bo'ladi: `active` yozilishning ham muddati tugagan bo'lishi mumkin, buni statusdan ajratib ko'rsatish uchun.
+
+`start` / `end` bo'yicha saralashda bo'sh (`null`) sanalar PostgreSQL qoidasiga ko'ra `ASC` da oxirida, `DESC` da boshida turadi.
+
 ### Talabani qo'lda yozish (to'lovsiz)
 
 To'lov yaratmasdan, yozilishni darhol `active` holatida ochadi — bepul kirish, naqd to'lov yoki aksiya uchun.
