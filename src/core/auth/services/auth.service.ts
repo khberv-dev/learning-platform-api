@@ -18,7 +18,7 @@ import { SendOtpDto } from '@/core/auth/dto/send-otp.dto';
 import { RecoverPasswordDto } from '@/core/auth/dto/recover-password.dto';
 import { Otp } from '@/core/auth/entity/otp.entity';
 import { comparePassword, hashPassword } from '@/shared/utils/hash.util';
-import { Student } from '@/core/user/entity/student.entity';
+import { buildStudent } from '@/core/user/entity/student.entity';
 import { User } from '@/core/user/entity/user.entity';
 import { NotificationService } from '@/core/notification/services/notification.service';
 import { SlidingWindowLimiter } from '@/core/auth/utils/sliding-window-limiter';
@@ -99,7 +99,7 @@ export class AuthService {
       if (!(await comparePassword(data.password, existingUser.password))) {
         throw new BadRequestException("Login yoki parol noto'g'ri");
       }
-      await this.userService.addStudentRole(existingUser.id);
+      await this.userService.addStudentRole(existingUser.id, data.level);
       const fullUser = await this.userService.findById(existingUser.id);
       return { ...this.issueTokens(existingUser.id), roles: fullUser!.roles };
     }
@@ -110,7 +110,7 @@ export class AuthService {
       firstName: data.firstName,
       phoneNumber: data.phoneNumber,
       password: passwordHash,
-      student: new Student(),
+      student: buildStudent(data.level),
     });
 
     const fullUser = await this.userService.findById(newUser.id);

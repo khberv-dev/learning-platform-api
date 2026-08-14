@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from '@/core/user/entity/user.entity';
-import { Student } from '@/core/user/entity/student.entity';
+import { Student, buildStudent } from '@/core/user/entity/student.entity';
+import { StudentLevel } from '@/core/user/enum/student-level.enum';
 import { Repository } from 'typeorm';
 
 @Injectable()
@@ -40,8 +41,8 @@ export class UserService {
       .getOne();
   }
 
-  addStudentRole(userId: string) {
-    return this.userRepo.save({ id: userId, student: new Student() });
+  addStudentRole(userId: string, level?: StudentLevel) {
+    return this.userRepo.save({ id: userId, student: buildStudent(level) });
   }
 
   findByPhoneNumber(phoneNumber: string) {

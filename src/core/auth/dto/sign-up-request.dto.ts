@@ -1,5 +1,6 @@
-import { IsNotEmpty, IsString, Length, Matches } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { IsEnum, IsNotEmpty, IsOptional, IsString, Length, Matches } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { StudentLevel } from '@/core/user/enum/student-level.enum';
 
 export class SignUpRequest {
   @ApiProperty({ example: 'Ali' })
@@ -20,4 +21,10 @@ export class SignUpRequest {
   @IsString()
   @Length(6, 6)
   code: string;
+
+  /** Berilmasa `Student` entitydagi sukut — `A1` qo'llaniladi. */
+  @ApiPropertyOptional({ enum: StudentLevel, example: StudentLevel.A1, description: 'Talabaning bilim darajasi' })
+  @IsEnum(StudentLevel)
+  @IsOptional()
+  level?: StudentLevel;
 }

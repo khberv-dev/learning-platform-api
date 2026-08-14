@@ -42,3 +42,15 @@ export class Student {
   @UpdateDateColumn()
   updatedAt: Date;
 }
+
+/**
+ * Yangi talaba profili. Daraja berilmasa ustundagi sukut (`A1`) qoladi.
+ * Talaba ikki yo'l bilan yaratiladi — ro'yxatdan o'tish va mavjud
+ * foydalanuvchiga talaba rolini qo'shish — ikkalasi ham shu yerdan o'tadi,
+ * shunda darajani biri qo'llab, ikkinchisi unutib qo'ymaydi.
+ */
+export function buildStudent(level?: StudentLevel): Student {
+  const student = new Student();
+  if (level) student.level = level;
+  return student;
+}
