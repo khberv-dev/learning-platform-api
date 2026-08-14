@@ -545,7 +545,7 @@ GET /api/admin/enrollments?page=1&limit=10&studentId=&courseId=&status=&isExpire
 | `sortBy` | `createdAt` (sukut), `updatedAt`, `start`, `end`, `status` |
 | `sortOrder` | `ASC` / `DESC` (sukut) |
 
-Javob — sahifalangan ro'yxat (`data`, `total`, `page`, `limit`, `totalPages`). Har bir yozuvda talaba (foydalanuvchisi bilan), kurs va **`isExpired`** bo'ladi: `active` yozilishning ham muddati tugagan bo'lishi mumkin, buni statusdan ajratib ko'rsatish uchun.
+Javob — sahifalangan ro'yxat (`data`, `total`, `page`, `limit`, `totalPages`). Har bir yozuvda talaba (foydalanuvchisi bilan) va kurs bo'ladi. Muddati tugaganlarini ajratish uchun `isExpired` **filtri** ishlatiladi — javobda bunday maydon qaytmaydi.
 
 `start` / `end` bo'yicha saralashda bo'sh (`null`) sanalar PostgreSQL qoidasiga ko'ra `ASC` da oxirida, `DESC` da boshida turadi.
 

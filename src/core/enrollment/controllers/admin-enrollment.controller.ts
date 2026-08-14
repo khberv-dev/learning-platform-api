@@ -21,7 +21,6 @@ const enrollmentListExample = {
   data: [
     {
       ...enrollmentExample,
-      isExpired: false,
       student: {
         id: 'st000000-0000-0000-0000-000000000001',
         level: 'A1',
@@ -61,8 +60,7 @@ export class AdminEnrollmentController {
     summary: "Yozilishlar ro'yxati",
     description:
       'Filtr: `studentId`, `courseId`, `status`, `isExpired`. Saralash: `sortBy` ' +
-      '(`createdAt`, `updatedAt`, `start`, `end`, `status`) va `sortOrder` (`ASC` / `DESC`). ' +
-      "Har bir yozuvda `isExpired` bo'ladi — `active` bo'lsa ham muddati tugagan bo'lishi mumkin.",
+      '(`createdAt`, `updatedAt`, `start`, `end`, `status`) va `sortOrder` (`ASC` / `DESC`).',
   })
   @ApiOkResponse({ schema: { example: enrollmentListExample } })
   findAll(@Query() query: EnrollmentQuery) {

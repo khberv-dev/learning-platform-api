@@ -51,13 +51,7 @@ export class EnrollmentService {
       take: query.take,
     });
 
-    // `active` yozilishning muddati tugagan bo'lishi mumkin — admin ro'yxatda
-    // buni statusdan ajratib ko'ra olishi kerak.
-    return paginate(
-      data.map((enrollment) => ({ ...enrollment, isExpired: isEnrollmentExpired(enrollment, now) })),
-      total,
-      query,
-    );
+    return paginate(data, total, query);
   }
 
   async getAvailableCourses(userId: string) {
