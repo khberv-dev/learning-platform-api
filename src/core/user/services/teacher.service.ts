@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Brackets, Repository } from 'typeorm';
 import { validateScheduleShape, countScheduleSlots } from '@/core/user/dto/set-schedule.dto';
 import { Teacher } from '@/core/user/entity/teacher.entity';
 import { TeacherStatusHistory } from '@/core/user/entity/teacher-status-history.entity';
@@ -17,6 +17,7 @@ import { CreateFeedbackDto } from '@/core/user/dto/create-feedback.dto';
 import { UserService } from '@/core/user/services/user.service';
 import { hashPassword } from '@/shared/utils/hash.util';
 import { paginate, Paginated, PaginationQuery } from '@/common/dto/pagination-query.dto';
+import { TEACHER_SORT_COLUMN, TeacherQuery } from '@/core/user/dto/teacher-query.dto';
 
 @Injectable()
 export class TeacherService {
@@ -52,13 +53,41 @@ export class TeacherService {
     return this.teacherRepo.findOne({ where: { user: { id: user.id } }, relations: { user: true } });
   }
 
-  async findAllTeachers(query: PaginationQuery): Promise<Paginated<Teacher>> {
-    const [data, total] = await this.teacherRepo.findAndCount({
-      relations: { user: true },
-      order: { createdAt: 'DESC' },
-      skip: query.skip,
-      take: query.take,
-    });
+  /**
+   * O'qituvchilar ro'yxati: qidiruv, filtr, saralash va sahifalash bilan.
+   *
+   * `find` o'rniga query builder — qidiruv bir nechta ustun bo'yicha `OR`
+   * bilan ketadi va saralash foydalanuvchi (`user`) maydonlariga ham tushadi.
+   */
+  async findAllTeachers(query: TeacherQuery): Promise<Paginated<Teacher>> {
+    const qb = this.teacherRepo.createQueryBuilder('teacher').leftJoinAndSelect('teacher.user', 'user');
+
+    if (query.status) {
+      qb.andWhere('teacher.status = :status', { status: query.status });
+    }
+    if (query.isActive !== undefined) {
+      qb.andWhere('user.isActive = :isActive', { isActive: query.isActive });
+    }
+    if (query.search?.trim()) {
+      const search = `%${query.search.trim()}%`;
+      qb.andWhere(
+        new Brackets((where) => {
+          where
+            .where('user.firstName ILIKE :search', { search })
+            .orWhere('user.lastName ILIKE :search', { search })
+            .orWhere('user.phoneNumber ILIKE :search', { search })
+            .orWhere('user.email ILIKE :search', { search })
+            .orWhere('teacher.profession ILIKE :search', { search });
+        }),
+      );
+    }
+
+    const [data, total] = await qb
+      .orderBy(TEACHER_SORT_COLUMN[query.sortBy], query.sortOrder)
+      .skip(query.skip)
+      .take(query.take)
+      .getManyAndCount();
+
     return paginate(data, total, query);
   }
 

@@ -1,6 +1,14 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiBearerAuth, ApiBody, ApiConsumes, ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { introVideoFileFilter, teacherIntroStorage, toIntroVideoPath } from '@/core/user/storage/teacher-intro.storage';
 import { Roles } from '@/common/decorators/roles.decorator';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
@@ -9,7 +17,7 @@ import { TeacherService } from '@/core/user/services/teacher.service';
 import { CreateTeacherDto } from '@/core/user/dto/create-teacher.dto';
 import { UpdateTeacherDto } from '@/core/user/dto/update-teacher.dto';
 import { ChangeTeacherStatusDto } from '@/core/user/dto/change-teacher-status.dto';
-import { PaginationQuery } from '@/common/dto/pagination-query.dto';
+import { TeacherQuery } from '@/core/user/dto/teacher-query.dto';
 
 const teacherExample = {
   id: 'ab12cd34-5678-90ef-1234-567890abcdef',
@@ -66,8 +74,14 @@ export class AdminTeacherController {
   }
 
   @Get()
+  @ApiOperation({
+    summary: "O'qituvchilar ro'yxati",
+    description:
+      'Filtr: `search` (ism, familiya, telefon, email, kasb), `status`, `isActive`. Saralash: `sortBy` ' +
+      '(`createdAt`, `updatedAt`, `status`, `profession`, `firstName`, `lastName`) va `sortOrder` (`ASC` / `DESC`).',
+  })
   @ApiOkResponse({ schema: { example: teacherListExample } })
-  findAll(@Query() query: PaginationQuery) {
+  findAll(@Query() query: TeacherQuery) {
     return this.teacherService.findAllTeachers(query);
   }
 
