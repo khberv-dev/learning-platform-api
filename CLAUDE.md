@@ -125,7 +125,12 @@ Fiscalization is opt-in per plan: `Plan.ikpu` / `packageCode` / `vatPercent` fee
 
 ### External API
 
-`/api/external/*` (student search, course/plan listing, direct enrollment) is for other services — CRM, terminals, billing. It uses a shared secret instead of JWT: `@ApiKeyAuth()` composes `@Public()` (to skip the global JWT guard) with `ApiKeyGuard`, which compares the `X-Auth` header against `EXTERNAL_API_KEY` using `timingSafeEqual`. Rotating the key means editing `.env` and restarting; there is one key for all consumers.
+`/api/external/*` (student search, course/plan listing, direct enrollment, enrollment requests) is for other services — CRM, terminals, billing. It uses a shared secret instead of JWT: `@ApiKeyAuth()` composes `@Public()` (to skip the global JWT guard) with `ApiKeyGuard`, which compares the `X-Auth` header against `EXTERNAL_API_KEY` using `timingSafeEqual`. Rotating the key means editing `.env` and restarting; there is one key for all consumers.
+
+External services have two ways to enrol a student, and they differ in who decides:
+
+- `POST /api/external/enrollments` — immediate. The enrolment opens `active` in one call, no `Payment` row.
+- `POST /api/external/pending-enrollments` — queued. Writes a `pending_enrollments` row (`user`, `course`, `start`, `end`, `status`) that an admin resolves via `PATCH /api/admin/pending-enrollments/:id/accept|reject`. The plan is deliberately *not* on the pending row: the admin picks `planId` when accepting, since price and duration are only settled then. Accepting runs inside one `dataSource.transaction` — enrolment `active`, an `enrollment_histories` row, and a `paid` `Payment` (`amount` defaults to `plan.price`) all commit together, which is why `EnrollmentService.createEnrollment` takes an optional `EntityManager`. Only a `created` request can be accepted or rejected, and repeating the external POST for the same user+course updates the queued row rather than adding a second one.
 
 ### WebSocket gateways
 

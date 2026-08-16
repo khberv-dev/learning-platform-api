@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, In, LessThan, MoreThanOrEqual, Repository } from 'typeorm';
+import { EntityManager, FindOptionsWhere, In, LessThan, MoreThanOrEqual, Repository } from 'typeorm';
 import { Enrollment } from '@/core/enrollment/entity/enrollment.entity';
 import { EnrollmentHistory } from '@/core/enrollment/entity/enrollment-history.entity';
 import { EnrollmentStatus } from '@/core/enrollment/enum/enrollment-status.enum';
@@ -122,20 +122,29 @@ export class EnrollmentService {
    * Talabada shu kurs uchun yozilish allaqachon bo'lsa (muddati tugagan yoki
    * to'lov kutayotgan), yangisi yaratilmaydi — mavjudi qayta faollashtiriladi,
    * shunda progress saqlanib qoladi.
+   *
+   * `manager` berilsa yozuvlar o'sha tranzaksiya ichida saqlanadi — kutilayotgan
+   * so'rovni tasdiqlashda yozilish, to'lov va so'rov birga yoziladi.
    */
-  async createEnrollment(dto: CreateEnrollmentDto) {
-    const student = await this.studentRepo.findOne({ where: { id: dto.studentId } });
+  async createEnrollment(dto: CreateEnrollmentDto, manager?: EntityManager) {
+    const studentRepo = manager?.getRepository(Student) ?? this.studentRepo;
+    const courseRepo = manager?.getRepository(Course) ?? this.courseRepo;
+    const planRepo = manager?.getRepository(Plan) ?? this.planRepo;
+    const enrollmentRepo = manager?.getRepository(Enrollment) ?? this.enrollmentRepo;
+    const historyRepo = manager?.getRepository(EnrollmentHistory) ?? this.historyRepo;
+
+    const student = await studentRepo.findOne({ where: { id: dto.studentId } });
     if (!student) throw new NotFoundException('Talaba topilmadi');
 
     let plan: Plan | null = null;
     let course: Course;
 
     if (dto.planId) {
-      plan = await this.planRepo.findOne({ where: { id: dto.planId }, relations: { course: true } });
+      plan = await planRepo.findOne({ where: { id: dto.planId }, relations: { course: true } });
       if (!plan) throw new NotFoundException('Tarif topilmadi');
       course = plan.course;
     } else if (dto.courseId) {
-      const found = await this.courseRepo.findOne({ where: { id: dto.courseId } });
+      const found = await courseRepo.findOne({ where: { id: dto.courseId } });
       if (!found) throw new NotFoundException('Kurs topilmadi');
       course = found;
     } else {
@@ -156,7 +165,7 @@ export class EnrollmentService {
       throw new BadRequestException("Tugash sanasi boshlanish sanasidan keyin bo'lishi kerak");
     }
 
-    const existing = await this.enrollmentRepo.findOne({
+    const existing = await enrollmentRepo.findOne({
       where: {
         student: { id: student.id },
         course: { id: course.id },
@@ -168,13 +177,13 @@ export class EnrollmentService {
       throw new BadRequestException('Talaba allaqachon ushbu kursga yozilgan');
     }
 
-    const enrollment = existing ?? this.enrollmentRepo.create({ student, course });
+    const enrollment = existing ?? enrollmentRepo.create({ student, course });
     enrollment.status = EnrollmentStatus.ACTIVE;
     enrollment.start = start;
     enrollment.end = end;
-    await this.enrollmentRepo.save(enrollment);
+    await enrollmentRepo.save(enrollment);
 
-    await this.historyRepo.save({
+    await historyRepo.save({
       enrollment,
       purchaseAmount: dto.purchaseAmount ?? plan?.price ?? 0,
       start,

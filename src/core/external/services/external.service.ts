@@ -7,6 +7,8 @@ import { paginate, Paginated } from '@/common/dto/pagination-query.dto';
 import { SearchStudentsQuery } from '@/core/external/dto/search-students.query';
 import { ExternalEnrollmentDto } from '@/core/external/dto/external-enrollment.dto';
 import { EnrollmentService } from '@/core/enrollment/services/enrollment.service';
+import { PendingEnrollmentService } from '@/core/enrollment/services/pending-enrollment.service';
+import { CreatePendingEnrollmentDto } from '@/core/enrollment/dto/create-pending-enrollment.dto';
 
 export interface ExternalStudent {
   studentId: string;
@@ -38,6 +40,7 @@ export class ExternalService {
     @InjectRepository(Student) private readonly studentRepo: Repository<Student>,
     @InjectRepository(Course) private readonly courseRepo: Repository<Course>,
     private readonly enrollmentService: EnrollmentService,
+    private readonly pendingEnrollmentService: PendingEnrollmentService,
   ) {}
 
   /**
@@ -106,5 +109,18 @@ export class ExternalService {
       end: dto.end,
       purchaseAmount: dto.amount,
     });
+  }
+
+  /**
+   * Yozilish so'rovini navbatga qo'yadi — yozilish darhol ochilmaydi, admin
+   * tasdiqlashi kerak. Tasdiqlanganda tarif tanlanadi va to'lov yozuvi yaratiladi.
+   */
+  createPendingEnrollment(dto: CreatePendingEnrollmentDto) {
+    return this.pendingEnrollmentService.createPending(dto);
+  }
+
+  /** So'rov holatini kuzatish uchun — tashqi xizmat javobni shu yerdan oladi. */
+  findPendingEnrollment(id: string) {
+    return this.pendingEnrollmentService.findOnePending(id);
   }
 }
