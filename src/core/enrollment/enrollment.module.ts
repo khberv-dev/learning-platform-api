@@ -15,6 +15,7 @@ import { StudentCourseController } from '@/core/enrollment/controllers/student-c
 import { EnrollmentController } from '@/core/enrollment/controllers/enrollment.controller';
 import { AdminEnrollmentController } from '@/core/enrollment/controllers/admin-enrollment.controller';
 import { AdminPendingEnrollmentController } from '@/core/enrollment/controllers/admin-pending-enrollment.controller';
+import { NotificationModule } from '@/core/notification/notification.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { AdminPendingEnrollmentController } from '@/core/enrollment/controllers/
       Payment,
     ]),
     CourseModule,
+    NotificationModule,
   ],
   controllers: [
     StudentCourseController,

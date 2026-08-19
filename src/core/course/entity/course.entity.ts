@@ -28,6 +28,14 @@ export class Course {
   @Column({ type: 'int', default: 0 })
   index: number;
 
+  /**
+   * Kurs talabalarga e'lon qilingan vaqt — "yangi kurs" push xabarnomasi
+   * bir marta yuborilishi uchun. Kurs faollashtirilganda to'ldiriladi, shuning
+   * uchun keyin o'chirib-yoqish takroriy xabarnoma yubormaydi.
+   */
+  @Column({ type: 'timestamp', nullable: true })
+  announcedAt: Date | null;
+
   @OneToMany(() => Unit, (unit) => unit.course)
   units: Unit[];
 

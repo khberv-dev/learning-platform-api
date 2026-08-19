@@ -35,6 +35,7 @@ There are currently **no test files** in the repo (`*.spec.ts`), and `test/jest-
 | `PAYME_MERCHANT_KEY` | Payme (Paycom) Merchant API; the password half of the `Basic` header Payme sends. Unset rejects every request with `-32504` |
 | `PAYME_ACCOUNT_FIELD` | optional, defaults to `payment_id` — the account field name configured in the Payme cabinet |
 | `ESKIZ_API_URL`, `ESKIZ_API_USER`, `ESKIZ_API_KEY` | Eskiz SMS gateway, used for sign-up / password-recovery OTP codes |
+| `GOOGLE_SERVICES_JSON` | Firebase service account key for FCM push, as base64 or single-line raw JSON. Unset means push is skipped (warned once, never throws) |
 | `OTP_MAX_PER_IP_PER_HOUR` | optional per-IP cap on `POST /auth/otp/send`; unset disables it (needs `trust proxy` behind a reverse proxy, otherwise all requests look like one IP) |
 | `EXTERNAL_API_KEY` | shared secret other services send as `X-Auth` to reach `/api/external/*` |
 
@@ -131,6 +132,28 @@ External services have two ways to enrol a student, and they differ in who decid
 
 - `POST /api/external/enrollments` — immediate. The enrolment opens `active` in one call, no `Payment` row.
 - `POST /api/external/pending-enrollments` — queued. Writes a `pending_enrollments` row (`user`, `course`, `start`, `end`, `status`) that an admin resolves via `PATCH /api/admin/pending-enrollments/:id/accept|reject`. The plan is deliberately *not* on the pending row: the admin picks `planId` when accepting, since price and duration are only settled then. Accepting runs inside one `dataSource.transaction` — enrolment `active`, an `enrollment_histories` row, and a `paid` `Payment` (`amount` defaults to `plan.price`) all commit together, which is why `EnrollmentService.createEnrollment` takes an optional `EntityManager`. Only a `created` request can be accepted or rejected, and repeating the external POST for the same user+course updates the queued row rather than adding a second one.
+
+### Push notifications (FCM)
+
+Three layers under `src/core/notification/`: `FirebaseService` is the transport (lazy `initializeApp` from `GOOGLE_SERVICES_JSON`, chunks tokens at FCM's 500-per-call limit), `PushService` decides the audience and calls it, and `push-message.util.ts` holds every user-visible string — all four events' Uzbek text lives in that one file.
+
+Device tokens were already there: `Session.fcmToken`, one row per device. `PushService` reads them directly and **deletes** sessions FCM reports as `registration-token-not-registered` / `invalid-registration-token` / `invalid-argument`, so dead devices don't accumulate.
+
+| Event | Fires from | Audience |
+|---|---|---|
+| `course_enrolled` | `EnrollmentService.createEnrollment`, `PaymentService.markPaid`, `PendingEnrollmentService.acceptPending` | the one student |
+| `teacher_assigned` | `AssignmentService.accept` | the student whose offer was accepted |
+| `course_created` | `CourseService.createCourse` / `updateCourse` | every user with a student profile |
+| `lesson_added` | `LessonService.createLesson` | students with a live, unexpired enrolment in that course |
+
+Four things that are load-bearing:
+
+- **Push never breaks the business action.** `PushService` methods swallow their own errors, so call sites use `void` and never await. A missing key, a network fault, or a bad token cannot fail an enrolment, a payment webhook, or a lesson upload.
+- **`createEnrollment` skips the push when it runs inside a caller's transaction** (`manager` is set), because the rows may not be committed yet. `acceptPending` sends after its transaction commits instead — otherwise a rollback would still have notified the student.
+- **"New course" is announced when the course becomes *visible*, not when the row is inserted.** Courses default to `isActive: false`, so announcing on insert would advertise drafts. `Course.announcedAt` records the broadcast, so toggling a course off and on again does not re-spam every student.
+- Payloads carry `data.event` plus the relevant id (`courseId` / `assignmentId`) for deep-linking; FCM data values must be strings.
+
+Unlike Eskiz SMS, push is **not** gated on `ENVIRONMENT` — a dev box sends real pushes to whatever tokens its own database holds. FCM costs nothing per message and dev usually points at a separate database, so the gate would only make the feature untestable.
 
 ### WebSocket gateways
 

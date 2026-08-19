@@ -11,6 +11,7 @@ import { TeacherStatus } from '@/core/user/enum/teacher-status.enum';
 import { paginate, Paginated, PaginationQuery } from '@/common/dto/pagination-query.dto';
 import { ChatService } from '@/core/chat/services/chat.service';
 import { countScheduleSlots, validateScheduleShape } from '@/core/user/dto/set-schedule.dto';
+import { PushService } from '@/core/notification/services/push.service';
 
 @Injectable()
 export class AssignmentService {
@@ -20,6 +21,7 @@ export class AssignmentService {
     @InjectRepository(Student) private readonly studentRepo: Repository<Student>,
     @InjectRepository(Enrollment) private readonly enrollmentRepo: Repository<Enrollment>,
     private readonly chatService: ChatService,
+    private readonly pushService: PushService,
   ) {}
 
   private async getActiveStudentIds(studentIds: string[]): Promise<Set<string>> {
@@ -160,6 +162,9 @@ export class AssignmentService {
       relations: { user: true },
     });
     await this.chatService.createDirectRoom(teacherWithUser.user.id, assignment.student.user.id, assignmentId);
+
+    const teacherName = [teacherWithUser.user.firstName, teacherWithUser.user.lastName].filter(Boolean).join(' ');
+    void this.pushService.notifyTeacherAssigned(assignment.student.user.id, teacherName, assignmentId);
 
     return (await this.attachIsActive([saved]))[0];
   }

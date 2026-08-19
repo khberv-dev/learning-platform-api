@@ -9,9 +9,10 @@ import { AssignmentService } from '@/core/assignment/services/assignment.service
 import { StudentAssignmentController } from '@/core/assignment/controllers/student-assignment.controller';
 import { TeacherAssignmentController } from '@/core/assignment/controllers/teacher-assignment.controller';
 import { AdminAssignmentController } from '@/core/assignment/controllers/admin-assignment.controller';
+import { NotificationModule } from '@/core/notification/notification.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Assignment, Teacher, Student, Enrollment]), ChatModule],
+  imports: [TypeOrmModule.forFeature([Assignment, Teacher, Student, Enrollment]), ChatModule, NotificationModule],
   controllers: [StudentAssignmentController, TeacherAssignmentController, AdminAssignmentController],
   providers: [AssignmentService],
 })

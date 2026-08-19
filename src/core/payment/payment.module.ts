@@ -16,10 +16,12 @@ import { AdminPaymentController } from '@/core/payment/controllers/admin-payment
 import { PaymentController } from '@/core/payment/controllers/payment.controller';
 import { ClickController } from '@/core/payment/controllers/click.controller';
 import { PaymeController } from '@/core/payment/controllers/payme.controller';
+import { NotificationModule } from '@/core/notification/notification.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Payment, PaymentType, PaymeTransaction, Plan, Student, Enrollment, EnrollmentHistory]),
+    NotificationModule,
   ],
   controllers: [
     AdminPaymentTypeController,

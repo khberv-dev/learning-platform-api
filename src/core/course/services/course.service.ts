@@ -6,6 +6,7 @@ import { Lesson } from '@/core/course/entity/lesson.entity';
 import { Unit } from '@/core/course/entity/unit.entity';
 import { CreateCourseDto } from '@/core/course/dto/create-course.dto';
 import { UpdateCourseDto } from '@/core/course/dto/update-course.dto';
+import { PushService } from '@/core/notification/services/push.service';
 
 export const COURSE_RELATIONS = { units: { lessons: true } } as const;
 
@@ -27,15 +28,35 @@ export const COURSE_LIST_ORDER = { index: 'ASC', createdAt: 'DESC' } as const;
 
 @Injectable()
 export class CourseService {
-  constructor(@InjectRepository(Course) private readonly courseRepo: Repository<Course>) {}
+  constructor(
+    @InjectRepository(Course) private readonly courseRepo: Repository<Course>,
+    private readonly pushService: PushService,
+  ) {}
 
   private withLessonsCount(course: Course) {
     const units = course.units.map((u) => ({ ...u, lessonsCount: u.lessons.length }));
     return { ...course, units, lessonsCount: units.reduce((sum, u) => sum + u.lessonsCount, 0) };
   }
 
-  createCourse(dto: CreateCourseDto, image?: string) {
-    return this.courseRepo.save({ ...dto, image });
+  async createCourse(dto: CreateCourseDto, image?: string) {
+    const course = await this.courseRepo.save({ ...dto, image });
+    await this.announceIfPublished(course);
+    return course;
+  }
+
+  /**
+   * Talabalarga "yangi kurs" xabarnomasini yuboradi.
+   *
+   * Kurs yaratilganda odatda `isActive: false` bo'ladi (qoralama), shuning
+   * uchun xabarnoma kurs talabalarga ko'rinadigan bo'lgan paytda — yaratilishda
+   * yoki keyinroq faollashtirilganda — yuboriladi. `announcedAt` takroriy
+   * e'londan saqlaydi.
+   */
+  private async announceIfPublished(course: Course): Promise<void> {
+    if (!course.isActive || course.announcedAt) return;
+
+    await this.courseRepo.update(course.id, { announcedAt: new Date() });
+    void this.pushService.notifyCourseCreated(course.id, course.title);
   }
 
   /**
@@ -153,7 +174,9 @@ export class CourseService {
   async updateCourse(id: string, dto: UpdateCourseDto, image?: string) {
     const course = await this.courseRepo.findOne({ where: { id } });
     if (!course) throw new NotFoundException('Kurs topilmadi');
-    await this.courseRepo.save({ ...course, ...dto, ...(image && { image }) });
+    const saved = await this.courseRepo.save({ ...course, ...dto, ...(image && { image }) });
+    // Qoralama kurs endi faollashtirilgan bo'lsa, talabalarga e'lon qilinadi.
+    await this.announceIfPublished(saved);
     return this.findOneCourse(id);
   }
 

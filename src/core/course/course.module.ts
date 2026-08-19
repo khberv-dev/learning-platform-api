@@ -16,9 +16,13 @@ import { TaskSubmissionService } from '@/core/course/services/task-submission.se
 import { CourseController } from '@/core/course/controllers/course.controller';
 import { AdminCourseController } from '@/core/course/controllers/admin-course.controller';
 import { TaskSubmissionController } from '@/core/course/controllers/task-submission.controller';
+import { NotificationModule } from '@/core/notification/notification.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Course, Unit, Lesson, Task, TaskSubmission, Student, Progress, Enrollment])],
+  imports: [
+    TypeOrmModule.forFeature([Course, Unit, Lesson, Task, TaskSubmission, Student, Progress, Enrollment]),
+    NotificationModule,
+  ],
   controllers: [CourseController, AdminCourseController, TaskSubmissionController],
   providers: [CourseService, UnitService, LessonService, TaskService, TaskSubmissionService],
   exports: [CourseService],

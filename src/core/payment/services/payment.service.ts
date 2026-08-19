@@ -15,6 +15,7 @@ import { SelectPaymentTypeDto } from '@/core/payment/dto/select-payment-type.dto
 import { PaymentQuery } from '@/core/payment/dto/payment-query.dto';
 import { Paginated, PaginationQuery, paginate } from '@/common/dto/pagination-query.dto';
 import { buildPaymentUrl } from '@/core/payment/utils/payment-url.util';
+import { PushService } from '@/core/notification/services/push.service';
 
 const paymentRelations = {
   paymentType: true,
@@ -41,6 +42,7 @@ export class PaymentService {
     @InjectRepository(Student) private readonly studentRepo: Repository<Student>,
     @InjectRepository(Enrollment) private readonly enrollmentRepo: Repository<Enrollment>,
     @InjectRepository(EnrollmentHistory) private readonly historyRepo: Repository<EnrollmentHistory>,
+    private readonly pushService: PushService,
   ) {}
 
   /**
@@ -157,6 +159,9 @@ export class PaymentService {
         start: from,
         end: to,
       });
+
+      const course = payment.enrollment.course;
+      if (course) void this.pushService.notifyCourseEnrolled(payment.user.id, course.id, course.title);
     }
 
     payment.status = PaymentStatus.PAID;

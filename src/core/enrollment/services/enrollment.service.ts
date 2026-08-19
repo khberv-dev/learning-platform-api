@@ -12,6 +12,7 @@ import { CourseService } from '@/core/course/services/course.service';
 import { Student } from '@/core/user/entity/student.entity';
 import { EnrollmentQuery } from '@/core/enrollment/dto/enrollment-query.dto';
 import { Paginated, paginate } from '@/common/dto/pagination-query.dto';
+import { PushService } from '@/core/notification/services/push.service';
 
 @Injectable()
 export class EnrollmentService {
@@ -22,6 +23,7 @@ export class EnrollmentService {
     @InjectRepository(Course) private readonly courseRepo: Repository<Course>,
     @InjectRepository(Plan) private readonly planRepo: Repository<Plan>,
     private readonly courseService: CourseService,
+    private readonly pushService: PushService,
   ) {}
 
   /**
@@ -133,7 +135,7 @@ export class EnrollmentService {
     const enrollmentRepo = manager?.getRepository(Enrollment) ?? this.enrollmentRepo;
     const historyRepo = manager?.getRepository(EnrollmentHistory) ?? this.historyRepo;
 
-    const student = await studentRepo.findOne({ where: { id: dto.studentId } });
+    const student = await studentRepo.findOne({ where: { id: dto.studentId }, relations: { user: true } });
     if (!student) throw new NotFoundException('Talaba topilmadi');
 
     let plan: Plan | null = null;
@@ -189,6 +191,13 @@ export class EnrollmentService {
       start,
       end,
     });
+
+    // Tranzaksiya ichida chaqirilganda xabarnoma bu yerdan yuborilmaydi:
+    // yozuvlar hali saqlanmagan bo'lishi mumkin. U holda commit'dan keyin
+    // chaqiruvchi (`PendingEnrollmentService`) yuboradi.
+    if (!manager) {
+      void this.pushService.notifyCourseEnrolled(student.user.id, course.id, course.title);
+    }
 
     return enrollment;
   }

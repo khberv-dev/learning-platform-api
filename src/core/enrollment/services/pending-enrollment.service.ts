@@ -16,6 +16,7 @@ import { Student } from '@/core/user/entity/student.entity';
 import { Payment } from '@/core/payment/entity/payment.entity';
 import { PaymentStatus } from '@/core/payment/enum/payment-status.enum';
 import { Paginated, paginate } from '@/common/dto/pagination-query.dto';
+import { PushService } from '@/core/notification/services/push.service';
 
 const pendingRelations = {
   user: true,
@@ -32,6 +33,7 @@ export class PendingEnrollmentService {
     @InjectRepository(Course) private readonly courseRepo: Repository<Course>,
     @InjectRepository(Plan) private readonly planRepo: Repository<Plan>,
     private readonly enrollmentService: EnrollmentService,
+    private readonly pushService: PushService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -128,7 +130,7 @@ export class PendingEnrollmentService {
 
     const amount = dto.amount ?? plan.price;
 
-    return this.dataSource.transaction(async (manager) => {
+    const accepted = await this.dataSource.transaction(async (manager) => {
       const enrollment = await this.enrollmentService.createEnrollment(
         {
           studentId: student.id,
@@ -154,6 +156,12 @@ export class PendingEnrollmentService {
 
       return { ...pending, enrollment, payment };
     });
+
+    // Xabarnoma commit'dan keyin: tranzaksiya orqaga qaytsa, talabaga
+    // yozilmagan kurs haqida push ketmasin.
+    void this.pushService.notifyCourseEnrolled(pending.user.id, pending.course.id, pending.course.title);
+
+    return accepted;
   }
 
   /** Admin so'rovni rad etadi — yozilish ham, to'lov ham yaratilmaydi. */
