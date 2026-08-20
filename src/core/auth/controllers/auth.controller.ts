@@ -1,5 +1,12 @@
 import { Body, Controller, Ip, Post, Request, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiCreatedResponse, ApiTags, ApiTooManyRequestsResponse } from '@nestjs/swagger';
+import {
+  ApiBadRequestResponse,
+  ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiOperation,
+  ApiTags,
+  ApiTooManyRequestsResponse,
+} from '@nestjs/swagger';
 import { AuthService } from '@/core/auth/services/auth.service';
 import { SignUpRequest } from '@/core/auth/dto/sign-up-request.dto';
 import { SignInRequest } from '@/core/auth/dto/sign-in-request.dto';
@@ -49,7 +56,18 @@ export class AuthController {
 
   @Public()
   @Post('otp/send')
+  @ApiOperation({
+    summary: 'OTP kod yuborish',
+    description:
+      "`purpose` ixtiyoriy, sukut bo'yicha `registration` — raqam allaqachon talaba sifatida ro'yxatdan o'tgan " +
+      "bo'lsa kod yuborilmaydi. Parolni tiklash uchun `recover` yuborilishi shart: u holda bandlik " +
+      'tekshirilmaydi, chunki tiklash aynan mavjud raqam uchun ishlaydi.',
+  })
   @ApiCreatedResponse({ schema: { example: { message: 'OTP yuborildi' } } })
+  @ApiBadRequestResponse({
+    description: 'Raqam band (faqat `registration`)',
+    schema: { example: { message: "Bu telefon raqam allaqachon ro'yxatdan o'tgan", statusCode: 400 } },
+  })
   @ApiTooManyRequestsResponse({
     description: "Bitta raqamga 60 soniyada bir marta va soatiga 5 martadan ko'p kod yuborilmaydi",
     schema: { example: { message: "Yangi kod so'rash uchun 43 soniya kuting", statusCode: 429 } },

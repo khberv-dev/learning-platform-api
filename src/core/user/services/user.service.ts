@@ -41,6 +41,23 @@ export class UserService {
       .getOne();
   }
 
+  /**
+   * Raqam allaqachon talaba sifatida ro'yxatdan o'tganmi.
+   *
+   * Faqat `student` profili hisobga olinadi: o'qituvchi yoki admin sifatida
+   * mavjud foydalanuvchi keyinchalik talaba rolini ham qo'shishi mumkin
+   * (`signUp` dagi `addStudentRole` oqimi), shuning uchun ular band deb
+   * hisoblanmaydi.
+   */
+  async hasStudentProfile(phoneNumber: string): Promise<boolean> {
+    const count = await this.userRepo
+      .createQueryBuilder('user')
+      .innerJoin('user.student', 'student')
+      .where('user.phoneNumber = :phoneNumber', { phoneNumber })
+      .getCount();
+    return count > 0;
+  }
+
   addStudentRole(userId: string, level?: StudentLevel) {
     return this.userRepo.save({ id: userId, student: buildStudent(level) });
   }

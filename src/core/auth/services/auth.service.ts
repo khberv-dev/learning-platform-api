@@ -15,6 +15,7 @@ import { UserService } from '@/core/user/services/user.service';
 import { SignUpRequest } from '@/core/auth/dto/sign-up-request.dto';
 import { SignInRequest } from '@/core/auth/dto/sign-in-request.dto';
 import { SendOtpDto } from '@/core/auth/dto/send-otp.dto';
+import { OtpPurpose } from '@/core/auth/enum/otp-purpose.enum';
 import { RecoverPasswordDto } from '@/core/auth/dto/recover-password.dto';
 import { Otp } from '@/core/auth/entity/otp.entity';
 import { comparePassword, hashPassword } from '@/shared/utils/hash.util';
@@ -170,7 +171,16 @@ export class AuthService {
   }
 
   async sendOtp(dto: SendOtpDto, ip?: string): Promise<{ message: string }> {
+    // Chastota cheklovi bandlik tekshiruvidan oldin: aks holda raqamlarni
+    // birma-bir tekshirib, qaysi biri ro'yxatdan o'tganini bepul aniqlash
+    // mumkin bo'lardi.
     await this.assertOtpAllowed(dto.phoneNumber, ip);
+
+    // Ro'yxatdan o'tish uchun band raqamga kod yuborilmaydi. Parolni tiklashda
+    // tekshirilmaydi — u aynan mavjud raqam uchun ishlaydi.
+    if (dto.purpose === OtpPurpose.REGISTRATION && (await this.userService.hasStudentProfile(dto.phoneNumber))) {
+      throw new BadRequestException("Bu telefon raqam allaqachon ro'yxatdan o'tgan");
+    }
 
     const code = this.isDevelopment ? DEVELOPMENT_OTP_CODE : generateOtpCode();
 

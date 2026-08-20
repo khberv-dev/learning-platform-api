@@ -86,6 +86,10 @@ Roles are not a column: a user has a role iff the corresponding one-to-one profi
 
 `AuthService` owns the OTP flow end to end (no separate OTP service). Codes are 6 digits from `crypto.randomInt`, stored in the `otps` table with a 5-minute TTL and a `used` flag, and delivered over SMS through `NotificationService` → `EskizService`. Three limits stack: a 60s per-phone resend cooldown, 5 sends per phone per hour, and an optional per-IP hourly cap via `SlidingWindowLimiter` (in-memory, so it resets on restart and is per-process).
 
+`POST /auth/otp/send` carries an optional `purpose` (`OtpPurpose`) that **defaults to `registration`**, which refuses a phone that is already taken; `recover` does not (password reset targets an existing number by definition). Because the default is the strict branch, a password-reset caller *must* send `purpose: "recover"` explicitly — omitting it gets the request rejected as an already-registered number. "Taken" means *a user with that phone already has a `student` profile* — not merely that the user row exists. That distinction is load-bearing: `signUp` lets an existing teacher/admin account add a student role by supplying its password (`addStudentRole`), and a blanket existence check would make that branch unreachable by denying those users an OTP.
+
+The taken-phone check runs **after** `assertOtpAllowed`, so probing numbers to discover which are registered still burns the per-IP and per-phone budget. The rejection reuses `signUp`'s exact wording (`Bu telefon raqam allaqachon ro'yxatdan o'tgan`) so the two entry points can't drift apart.
+
 ### Payment & enrollment lifecycle
 
 This is the most interconnected part of the codebase — `plan`, `payment`, and `enrollment` are coupled.
