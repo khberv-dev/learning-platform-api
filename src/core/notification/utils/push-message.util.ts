@@ -9,6 +9,8 @@ export enum PushEvent {
   TEACHER_ASSIGNED = 'teacher_assigned',
   COURSE_CREATED = 'course_created',
   LESSON_ADDED = 'lesson_added',
+  /** Admin qo'lda yozgan xabar — matni shu yerda emas, so'rovda keladi. */
+  ADMIN_MESSAGE = 'admin_message',
 }
 
 /**

@@ -96,6 +96,15 @@ export class FirebaseService {
   }
 
   /**
+   * Firebase sozlanganmi. Hodisa xabarnomalari uchun kerak emas (ular jimgina
+   * o'tkazib yuboriladi), lekin admin qo'lda yuborganda "0 ta yuborildi"
+   * o'rniga aniq xato qaytarish uchun ishlatiladi.
+   */
+  isConfigured(): boolean {
+    return this.getApp() !== null;
+  }
+
+  /**
    * Tokenlarga xabar yuboradi. Push yordamchi funksiya — hech qachon xato
    * otmaydi, chunki xabarnoma yuborilmagani asosiy amalni (yozilish, to'lov)
    * buzmasligi kerak.
