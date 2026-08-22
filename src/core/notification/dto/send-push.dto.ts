@@ -8,7 +8,10 @@ import {
   Matches,
   MaxLength,
   ValidateIf,
+  IsBoolean,
+  IsOptional,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { PushAudience } from '@/core/notification/enum/push-audience.enum';
 
 /** Bitta so'rovda yuboriladigan maksimal raqamlar soni. */
@@ -26,6 +29,15 @@ export class SendPushDto {
   @IsNotEmpty()
   @MaxLength(1000)
   body: string;
+
+  @ApiPropertyOptional({
+    default: false,
+    description: "`true` bo'lsa, xabar foydalanuvchilarning xabarnomalar tarixida saqlanadi",
+  })
+  @Transform(({ value }: { value: unknown }) => (value === 'true' ? true : value === 'false' ? false : value))
+  @IsBoolean()
+  @IsOptional()
+  isPermanent: boolean = false;
 
   @ApiProperty({
     enum: PushAudience,

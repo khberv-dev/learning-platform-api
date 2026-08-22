@@ -9,6 +9,8 @@ import { isEnrollmentExpired } from '@/core/enrollment/utils/enrollment.util';
 import { FirebaseService, PushPayload } from '@/core/notification/services/firebase.service';
 import { PushAudience } from '@/core/notification/enum/push-audience.enum';
 import { SendPushDto } from '@/core/notification/dto/send-push.dto';
+import { UserNotification } from '@/core/notification/entity/user-notification.entity';
+import { paginate, Paginated, PaginationQuery } from '@/common/dto/pagination-query.dto';
 import {
   courseCreatedMessage,
   courseEnrolledMessage,
@@ -50,12 +52,15 @@ export class PushService {
     @InjectRepository(Session) private readonly sessionRepo: Repository<Session>,
     @InjectRepository(Enrollment) private readonly enrollmentRepo: Repository<Enrollment>,
     @InjectRepository(User) private readonly userRepo: Repository<User>,
+    @InjectRepository(UserNotification) private readonly userNotificationRepo: Repository<UserNotification>,
     private readonly firebaseService: FirebaseService,
   ) {}
 
   /** Talaba kursga yozildi — o'sha talabaning qurilmalariga. */
   async notifyCourseEnrolled(userId: string, courseId: string, courseTitle: string): Promise<void> {
-    await this.send(await this.tokensOfUsers([userId]), courseEnrolledMessage(courseTitle, courseId));
+    const payload = courseEnrolledMessage(courseTitle, courseId);
+    await this.savePermanent([userId], payload);
+    await this.send(await this.tokensOfUsers([userId]), payload);
   }
 
   /** Talabaga mentor tayinlandi — talabaning qurilmalariga. */
@@ -85,12 +90,25 @@ export class PushService {
     const payload: PushPayload = { title: dto.title, body: dto.body, data: { event: PushEvent.ADMIN_MESSAGE } };
 
     if (dto.audience !== PushAudience.PHONES) {
-      const tokens = await this.tokensOfAudience(dto.audience);
+      const userIds = await this.userIdsOfAudience(dto.audience);
+      if (dto.isPermanent) await this.savePermanent(userIds, payload);
+      const tokens = await this.tokensOfUsers(userIds);
       return { audience: dto.audience, ...(await this.deliver(tokens, payload)) };
     }
 
-    const { tokens, notFound, withoutDevice } = await this.resolvePhones(dto.phoneNumbers ?? []);
+    const { userIds, tokens, notFound, withoutDevice } = await this.resolvePhones(dto.phoneNumbers ?? []);
+    if (dto.isPermanent) await this.savePermanent(userIds, payload);
     return { audience: dto.audience, ...(await this.deliver(tokens, payload)), notFound, withoutDevice };
+  }
+
+  async findUserNotifications(userId: string, query: PaginationQuery): Promise<Paginated<UserNotification>> {
+    const [data, total] = await this.userNotificationRepo.findAndCount({
+      where: { user: { id: userId } },
+      order: { createdAt: 'DESC' },
+      skip: query.skip,
+      take: query.take,
+    });
+    return paginate(data, total, query);
   }
 
   /** Yuboradi, eskirgan tokenlarni tozalaydi va hisobotni qaytaradi. */
@@ -115,11 +133,12 @@ export class PushService {
     };
   }
 
-  private tokensOfAudience(audience: Exclude<PushAudience, PushAudience.PHONES>): Promise<string[]> {
+  private async userIdsOfAudience(audience: Exclude<PushAudience, PushAudience.PHONES>): Promise<string[]> {
     if (audience === PushAudience.ALL) {
-      return this.sessionRepo.find({ select: { fcmToken: true } }).then((rows) => rows.map((row) => row.fcmToken));
+      const users = await this.userRepo.find({ select: { id: true } });
+      return users.map((user) => user.id);
     }
-    return this.tokensOfRole(audience === PushAudience.STUDENTS ? 'students' : 'teachers');
+    return this.userIdsOfRole(audience === PushAudience.STUDENTS ? 'students' : 'teachers');
   }
 
   /**
@@ -129,9 +148,9 @@ export class PushService {
    */
   private async resolvePhones(
     phoneNumbers: string[],
-  ): Promise<{ tokens: string[]; notFound: string[]; withoutDevice: string[] }> {
+  ): Promise<{ userIds: string[]; tokens: string[]; notFound: string[]; withoutDevice: string[] }> {
     const unique = [...new Set(phoneNumbers)];
-    if (unique.length === 0) return { tokens: [], notFound: [], withoutDevice: [] };
+    if (unique.length === 0) return { userIds: [], tokens: [], notFound: [], withoutDevice: [] };
 
     const users = await this.userRepo.find({
       where: { phoneNumber: In(unique) },
@@ -150,10 +169,29 @@ export class PushService {
     const reached = new Set(rows.map((row) => row.phoneNumber));
 
     return {
+      userIds: users.map((user) => user.id),
       tokens: rows.map((row) => row.fcmToken),
       notFound: unique.filter((phone) => !known.has(phone)),
       withoutDevice: unique.filter((phone) => known.has(phone) && !reached.has(phone)),
     };
+  }
+
+  /** Doimiy xabarni har bir foydalanuvchi uchun alohida saqlaydi. */
+  private async savePermanent(userIds: string[], payload: PushPayload): Promise<void> {
+    if (userIds.length === 0) return;
+    try {
+      await this.userNotificationRepo.insert(
+        [...new Set(userIds)].map((userId) => ({
+          user: { id: userId },
+          title: payload.title,
+          body: payload.body,
+          data: payload.data ?? null,
+        })),
+      );
+    } catch (error) {
+      // Hodisa xabarnomasi bazadagi asosiy biznes amalini hech qachon buzmaydi.
+      this.logger.error(`Doimiy xabarnomani saqlashda xato: ${payload.title}`, error as Error);
+    }
   }
 
   private async send(tokens: string[], payload: PushPayload): Promise<void> {
@@ -189,6 +227,15 @@ export class PushService {
   /** Talaba profili bor foydalanuvchilarning barcha qurilmalari. */
   private tokensOfAllStudents(): Promise<string[]> {
     return this.tokensOfRole('students');
+  }
+
+  private async userIdsOfRole(table: 'students' | 'teachers'): Promise<string[]> {
+    const rows = await this.userRepo
+      .createQueryBuilder('user')
+      .select('user.id', 'userId')
+      .innerJoin(table, 'profile', 'profile.user_id = user.id')
+      .getRawMany<{ userId: string }>();
+    return rows.map((row) => row.userId);
   }
 
   /** Berilgan rol jadvalida profili bor foydalanuvchilarning qurilmalari. */

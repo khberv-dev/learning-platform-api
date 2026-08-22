@@ -39,6 +39,7 @@ export class AdminPushController {
     description:
       "`audience`: `all` — barcha qurilmalar, `students` / `teachers` — rol bo'yicha, `phones` — " +
       '`phoneNumbers` dagi raqamlar (bitta yoki bir nechta). ' +
+      '`isPermanent: true` bo`lsa xabar foydalanuvchining xabarnomalar tarixida saqlanadi. ' +
       'Javobda nechta qurilmaga yuborilgani, `phones` uchun esa qaysi raqamlar topilmagani (`notFound`) va ' +
       "qaysilari ilovaga kirmagani (`withoutDevice`) qaytadi. Xabar so'rov ichida yuboriladi.",
   })

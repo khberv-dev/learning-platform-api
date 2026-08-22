@@ -8,10 +8,12 @@ import { NotificationService } from '@/core/notification/services/notification.s
 import { FirebaseService } from '@/core/notification/services/firebase.service';
 import { PushService } from '@/core/notification/services/push.service';
 import { AdminPushController } from '@/core/notification/controllers/admin-push.controller';
+import { UserNotification } from '@/core/notification/entity/user-notification.entity';
+import { NotificationController } from '@/core/notification/controllers/notification.controller';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Session, Enrollment, User])],
-  controllers: [AdminPushController],
+  imports: [TypeOrmModule.forFeature([Session, Enrollment, User, UserNotification])],
+  controllers: [AdminPushController, NotificationController],
   providers: [EskizService, NotificationService, FirebaseService, PushService],
   exports: [NotificationService, PushService],
 })
