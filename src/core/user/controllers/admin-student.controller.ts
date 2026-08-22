@@ -11,6 +11,7 @@ const studentListExample = {
       id: 'f2c8a0e0-1111-2222-3333-444455556666',
       points: 120,
       coins: 30,
+      activeCoursesCount: 2,
       level: 'A1',
       user: {
         id: '8b3c7c0e-3a1c-4e0a-9b8a-2c4d5e6f7a01',
@@ -71,7 +72,8 @@ export class AdminStudentController {
   @ApiOperation({
     summary: "Talabalar ro'yxati",
     description:
-      'Filtr: `search` (ism, familiya, telefon, email), `level`, `isActive`. Saralash: `sortBy` ' +
+      'Filtr: `search` (ism, familiya, telefon, email), `level`, `isActive`, `hasCourse` ' +
+      '(muddati tugamagan faol kurs mavjudligi). Saralash: `sortBy` ' +
       '(`createdAt`, `updatedAt`, `points`, `coins`, `balance`, `level`, `firstName`, `lastName`) ' +
       'va `sortOrder` (`ASC` / `DESC`).',
   })

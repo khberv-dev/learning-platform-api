@@ -15,6 +15,7 @@ import { StudentController } from '@/core/user/controllers/student.controller';
 import { AdminStudentController } from '@/core/user/controllers/admin-student.controller';
 import { TeacherController } from '@/core/user/controllers/teacher.controller';
 import { AdminTeacherController } from '@/core/user/controllers/admin-teacher.controller';
+import { AdminUserController } from '@/core/user/controllers/admin-user.controller';
 
 @Module({
   imports: [
@@ -24,7 +25,14 @@ import { AdminTeacherController } from '@/core/user/controllers/admin-teacher.co
   // (`students/:id`) dan oldin turishi shart. Ikkalasi ham `students` prefiksida,
   // shuning uchun tartib almashsa `students/me` admin uchun mo'ljallangan
   // `:id` marshrutiga tushib qoladi va talabalar 403 xatosini oladi.
-  controllers: [UserController, StudentController, AdminStudentController, TeacherController, AdminTeacherController],
+  controllers: [
+    UserController,
+    StudentController,
+    AdminStudentController,
+    TeacherController,
+    AdminTeacherController,
+    AdminUserController,
+  ],
   providers: [UserService, TeacherService, StudentService],
   exports: [UserService],
 })

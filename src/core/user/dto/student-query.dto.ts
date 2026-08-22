@@ -49,6 +49,12 @@ export class StudentQuery extends PaginationQuery {
   @IsOptional()
   isActive?: boolean;
 
+  @ApiPropertyOptional({ description: 'Kamida bitta muddati tugamagan faol kursi bormi' })
+  @Transform(({ value }: { value: unknown }) => (value === 'true' ? true : value === 'false' ? false : value))
+  @IsBoolean()
+  @IsOptional()
+  hasCourse?: boolean;
+
   @ApiPropertyOptional({ enum: STUDENT_SORT_FIELDS, default: 'createdAt' })
   @IsIn(STUDENT_SORT_FIELDS)
   @IsOptional()

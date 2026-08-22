@@ -1,9 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from '@/core/user/entity/user.entity';
 import { Student, buildStudent } from '@/core/user/entity/student.entity';
 import { StudentLevel } from '@/core/user/enum/student-level.enum';
 import { Repository } from 'typeorm';
+import { hashPassword } from '@/shared/utils/hash.util';
 
 @Injectable()
 export class UserService {
@@ -106,5 +107,11 @@ export class UserService {
 
   async updatePassword(userId: string, passwordHash: string): Promise<void> {
     await this.userRepo.update(userId, { password: passwordHash });
+  }
+
+  async setPassword(userId: string, password: string): Promise<void> {
+    const exists = await this.userRepo.existsBy({ id: userId });
+    if (!exists) throw new NotFoundException('Foydalanuvchi topilmadi');
+    await this.updatePassword(userId, await hashPassword(password));
   }
 }

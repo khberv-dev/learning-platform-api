@@ -4,6 +4,10 @@ import { Brackets, Repository } from 'typeorm';
 import { Student } from '@/core/user/entity/student.entity';
 import { paginate, Paginated } from '@/common/dto/pagination-query.dto';
 import { STUDENT_SORT_COLUMN, StudentQuery } from '@/core/user/dto/student-query.dto';
+import { Enrollment } from '@/core/enrollment/entity/enrollment.entity';
+import { EnrollmentStatus } from '@/core/enrollment/enum/enrollment-status.enum';
+
+type StudentWithActiveCoursesCount = Student & { activeCoursesCount: number };
 
 @Injectable()
 export class StudentService {
@@ -15,14 +19,32 @@ export class StudentService {
    * `find` o'rniga query builder — qidiruv bir nechta ustun bo'yicha `OR`
    * bilan ketadi va saralash foydalanuvchi (`user`) maydonlariga ham tushadi.
    */
-  async findAll(query: StudentQuery): Promise<Paginated<Student>> {
+  async findAll(query: StudentQuery): Promise<Paginated<StudentWithActiveCoursesCount>> {
     const qb = this.studentRepo.createQueryBuilder('student').leftJoinAndSelect('student.user', 'user');
+
+    const activeCoursesCount = qb
+      .subQuery()
+      .select('COUNT(activeEnrollment.id)')
+      .from(Enrollment, 'activeEnrollment')
+      .innerJoin('activeEnrollment.student', 'activeStudent')
+      .where('activeStudent.id = student.id')
+      .andWhere('activeEnrollment.status = :activeStatus')
+      .andWhere('(activeEnrollment.end IS NULL OR activeEnrollment.end >= :now)')
+      .getQuery();
+
+    qb.addSelect(`(${activeCoursesCount})`, 'activeCoursesCount').setParameters({
+      activeStatus: EnrollmentStatus.ACTIVE,
+      now: new Date(),
+    });
 
     if (query.level) {
       qb.andWhere('student.level = :level', { level: query.level });
     }
     if (query.isActive !== undefined) {
       qb.andWhere('user.isActive = :isActive', { isActive: query.isActive });
+    }
+    if (query.hasCourse !== undefined) {
+      qb.andWhere(`(${activeCoursesCount}) ${query.hasCourse ? '>' : '='} 0`);
     }
     if (query.search?.trim()) {
       const search = `%${query.search.trim()}%`;
@@ -37,11 +59,16 @@ export class StudentService {
       );
     }
 
-    const [data, total] = await qb
+    const total = await qb.getCount();
+    const { entities, raw } = await qb
       .orderBy(STUDENT_SORT_COLUMN[query.sortBy], query.sortOrder)
       .skip(query.skip)
       .take(query.take)
-      .getManyAndCount();
+      .getRawAndEntities<{ activeCoursesCount: string }>();
+
+    const data = entities.map((student, index) =>
+      Object.assign(student, { activeCoursesCount: Number(raw[index].activeCoursesCount) }),
+    );
 
     return paginate(data, total, query);
   }
