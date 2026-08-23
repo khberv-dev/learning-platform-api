@@ -42,6 +42,17 @@ export class UserService {
       .getOne();
   }
 
+  findByEmailForAuthWithRoles(email: string) {
+    return this.userRepo
+      .createQueryBuilder('user')
+      .addSelect('user.password')
+      .leftJoinAndSelect('user.student', 'student')
+      .leftJoinAndSelect('user.teacher', 'teacher')
+      .leftJoinAndSelect('user.admin', 'admin')
+      .where('LOWER(user.email) = :email', { email: email.toLowerCase() })
+      .getOne();
+  }
+
   /**
    * Raqam allaqachon talaba sifatida ro'yxatdan o'tganmi.
    *
@@ -55,6 +66,15 @@ export class UserService {
       .createQueryBuilder('user')
       .innerJoin('user.student', 'student')
       .where('user.phoneNumber = :phoneNumber', { phoneNumber })
+      .getCount();
+    return count > 0;
+  }
+
+  async hasStudentProfileByEmail(email: string): Promise<boolean> {
+    const count = await this.userRepo
+      .createQueryBuilder('user')
+      .innerJoin('user.student', 'student')
+      .where('LOWER(user.email) = :email', { email: email.toLowerCase() })
       .getCount();
     return count > 0;
   }
@@ -80,11 +100,10 @@ export class UserService {
       return null;
     }
 
-    return this.userRepo.findOne({
-      where: {
-        email,
-      },
-    });
+    return this.userRepo
+      .createQueryBuilder('user')
+      .where('LOWER(user.email) = :email', { email: email.toLowerCase() })
+      .getOne();
   }
 
   findByEmailForAuth(email: string | undefined) {
@@ -92,7 +111,7 @@ export class UserService {
     return this.userRepo
       .createQueryBuilder('user')
       .addSelect('user.password')
-      .where('user.email = :email', { email })
+      .where('LOWER(user.email) = :email', { email: email.toLowerCase() })
       .getOne();
   }
 

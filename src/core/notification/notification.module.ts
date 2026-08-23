@@ -10,11 +10,12 @@ import { PushService } from '@/core/notification/services/push.service';
 import { AdminPushController } from '@/core/notification/controllers/admin-push.controller';
 import { UserNotification } from '@/core/notification/entity/user-notification.entity';
 import { NotificationController } from '@/core/notification/controllers/notification.controller';
+import { ResendEmailService } from '@/core/notification/services/resend-email.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Session, Enrollment, User, UserNotification])],
   controllers: [AdminPushController, NotificationController],
-  providers: [EskizService, NotificationService, FirebaseService, PushService],
+  providers: [EskizService, ResendEmailService, NotificationService, FirebaseService, PushService],
   exports: [NotificationService, PushService],
 })
 export class NotificationModule {}
