@@ -1,5 +1,5 @@
 import { All, Body, Controller, Headers, HttpCode, Req } from '@nestjs/common';
-import { ApiExcludeController } from '@nestjs/swagger';
+
 import type { Request } from 'express';
 import { Public } from '@/common/decorators/public.decorator';
 import { PaymeService } from '@/core/payment/services/payme.service';
@@ -13,7 +13,7 @@ import type { PaymeRequest } from '@/core/payment/dto/payme-request.dto';
  * `@All` ishlatiladi: POST bo'lmagan so'rovga spetsifikatsiya `-32300` ni
  * kutadi, Nest esa `@Post` da 404 qaytarardi.
  */
-@ApiExcludeController()
+
 @Public()
 @Controller('payment/payme')
 export class PaymeController {

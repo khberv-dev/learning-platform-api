@@ -1,63 +1,21 @@
 import { Controller, Get } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+
 import { Roles } from '@/common/decorators/roles.decorator';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { UserRole } from '@/core/user/enum/user-role.enum';
 import { EnrollmentService } from '@/core/enrollment/services/enrollment.service';
 
-const availableCoursesExample = [
-  {
-    id: 'c0000000-0000-0000-0000-000000000002',
-    title: 'English A2',
-    description: "O'rta bosqich",
-    image: '/public/course/eng-a2.png',
-    isActive: true,
-  },
-];
-
-const myCoursesExample = [
-  {
-    id: 'en000000-0000-0000-0000-000000000001',
-    status: 'active',
-    start: '2026-05-18T00:00:00.000Z',
-    end: '2026-08-18T00:00:00.000Z',
-    course: {
-      id: 'c0000000-0000-0000-0000-000000000001',
-      title: 'English A1',
-      description: null,
-      image: '/public/course/eng-a1.png',
-      isActive: true,
-      index: 0,
-    },
-    progresses: [{ id: 'pr000000-0000-0000-0000-000000000001', progress: 100 }],
-    unitsCount: 12,
-    lessonsCount: 12,
-    totalProgress: 35,
-    isExpired: false,
-  },
-];
-
-@ApiTags('courses')
-@ApiBearerAuth()
 @Roles(UserRole.STUDENT)
 @Controller('courses')
 export class StudentCourseController {
   constructor(private readonly enrollmentService: EnrollmentService) {}
 
   @Get('available')
-  @ApiOkResponse({ schema: { example: availableCoursesExample } })
   getAvailable(@CurrentUser() user: { id: string }) {
     return this.enrollmentService.getAvailableCourses(user.id);
   }
 
   @Get('me')
-  @ApiOperation({
-    summary: 'Talabaning faol kurslari',
-    description:
-      "Kurs mazmuni (bo'lim va darslar) qaytarilmaydi — faqat `unitsCount` va " +
-      '`lessonsCount`. Darslar: `GET /api/courses/:id`.',
-  })
-  @ApiOkResponse({ schema: { example: myCoursesExample } })
   getMyCourses(@CurrentUser() user: { id: string }) {
     return this.enrollmentService.getMyCourses(user.id);
   }

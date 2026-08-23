@@ -69,8 +69,12 @@ export class ChatService {
     return {
       id: room.id,
       assignment: room.assignment ? { id: room.assignment.id } : null,
-      student: student ? { id: student.id, firstName: student.firstName, lastName: student.lastName, avatar: student.avatar } : null,
-      mentor: teacher ? { id: teacher.id, firstName: teacher.firstName, lastName: teacher.lastName, avatar: teacher.avatar } : null,
+      student: student
+        ? { id: student.id, firstName: student.firstName, lastName: student.lastName, avatar: student.avatar }
+        : null,
+      mentor: teacher
+        ? { id: teacher.id, firstName: teacher.firstName, lastName: teacher.lastName, avatar: teacher.avatar }
+        : null,
       members: room.members.map((m) => ({
         id: m.id,
         user: { id: m.user.id, firstName: m.user.firstName, lastName: m.user.lastName, avatar: m.user.avatar },

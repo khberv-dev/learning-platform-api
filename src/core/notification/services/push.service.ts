@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { Session } from '@/core/session/entity/session.entity';
@@ -109,6 +109,29 @@ export class PushService {
       take: query.take,
     });
     return paginate(data, total, query);
+  }
+
+  async findUnreadUserNotifications(userId: string, query: PaginationQuery): Promise<Paginated<UserNotification>> {
+    const [data, total] = await this.userNotificationRepo.findAndCount({
+      where: { user: { id: userId }, isRead: false },
+      order: { createdAt: 'DESC' },
+      skip: query.skip,
+      take: query.take,
+    });
+    return paginate(data, total, query);
+  }
+
+  async markUserNotificationAsRead(userId: string, notificationId: string): Promise<UserNotification> {
+    const notification = await this.userNotificationRepo.findOne({
+      where: { id: notificationId, user: { id: userId } },
+    });
+    if (!notification) throw new NotFoundException('Xabarnoma topilmadi');
+
+    if (!notification.isRead) {
+      notification.isRead = true;
+      await this.userNotificationRepo.save(notification);
+    }
+    return notification;
   }
 
   /** Yuboradi, eskirgan tokenlarni tozalaydi va hisobotni qaytaradi. */

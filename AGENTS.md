@@ -26,4 +26,4 @@ Jest discovers `src/**/*.spec.ts`; colocate tests with the unit under test and u
 
 ## Commit & Pull Request Guidelines
 
-Recent history follows Conventional Commit prefixes, especially `feat:` and `refactor:`. Use concise, imperative subjects, for example `fix: reject expired enrollment payment`. Pull requests should explain behavior changes, list verification commands, link relevant issues, and update `docs/` when endpoints or flows change. Include request/response examples for API contract changes; screenshots are only useful for rendered Swagger or documentation changes.
+Recent history follows Conventional Commit prefixes, especially `feat:` and `refactor:`. Use concise, imperative subjects, for example `fix: reject expired enrollment payment`. Pull requests should explain behavior changes, list verification commands, link relevant issues, and update `docs/` when endpoints or flows change. Include request/response examples for API contract changes.

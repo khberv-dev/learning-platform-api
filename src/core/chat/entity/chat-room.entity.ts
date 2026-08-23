@@ -1,4 +1,12 @@
-import { CreateDateColumn, Entity, JoinColumn, OneToMany, OneToOne, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
+import {
+  CreateDateColumn,
+  Entity,
+  JoinColumn,
+  OneToMany,
+  OneToOne,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 import { ChatMember } from '@/core/chat/entity/chat-member.entity';
 import { ChatMessage } from '@/core/chat/entity/chat-message.entity';
 import { Assignment } from '@/core/assignment/entity/assignment.entity';

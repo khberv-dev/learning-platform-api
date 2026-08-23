@@ -11,15 +11,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import {
-  ApiBearerAuth,
-  ApiBody,
-  ApiConsumes,
-  ApiCreatedResponse,
-  ApiNoContentResponse,
-  ApiOkResponse,
-  ApiTags,
-} from '@nestjs/swagger';
+
 import { Roles } from '@/common/decorators/roles.decorator';
 import { UserRole } from '@/core/user/enum/user-role.enum';
 import { MaterialService } from '@/core/material/services/material.service';
@@ -31,17 +23,6 @@ import {
   toMaterialPath,
 } from '@/core/material/storage/material.storage';
 
-const materialExample = {
-  id: 'm0000000-0000-0000-0000-000000000001',
-  name: 'Grammar cheat sheet',
-  url: '/public/material/uuid.pdf',
-  type: 'pdf',
-  createdAt: '2026-01-15T10:00:00.000Z',
-  updatedAt: '2026-01-15T10:00:00.000Z',
-};
-
-@ApiTags('materials')
-@ApiBearerAuth()
 @Roles(UserRole.ADMIN)
 @Controller('admin/lessons/:lessonId/materials')
 export class AdminMaterialController {
@@ -49,18 +30,6 @@ export class AdminMaterialController {
 
   @Post()
   @UseInterceptors(FileInterceptor('file', { storage: materialStorage, fileFilter: materialFileFilter }))
-  @ApiConsumes('multipart/form-data')
-  @ApiBody({
-    schema: {
-      type: 'object',
-      required: ['name', 'file'],
-      properties: {
-        name: { type: 'string' },
-        file: { type: 'string', format: 'binary', description: 'PDF yoki Word fayl (.pdf, .doc, .docx)' },
-      },
-    },
-  })
-  @ApiCreatedResponse({ schema: { example: materialExample } })
   createMaterial(
     @Param('lessonId') lessonId: string,
     @Body() dto: CreateMaterialDto,
@@ -76,14 +45,12 @@ export class AdminMaterialController {
   }
 
   @Get()
-  @ApiOkResponse({ schema: { example: [materialExample] } })
   listMaterials(@Param('lessonId') lessonId: string) {
     return this.materialService.listMaterials(lessonId);
   }
 
   @Delete(':materialId')
   @HttpCode(204)
-  @ApiNoContentResponse()
   deleteMaterial(@Param('lessonId') lessonId: string, @Param('materialId') materialId: string) {
     return this.materialService.deleteMaterial(lessonId, materialId);
   }

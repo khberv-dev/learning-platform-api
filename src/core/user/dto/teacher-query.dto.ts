@@ -1,4 +1,3 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsBoolean, IsEnum, IsIn, IsOptional, IsString } from 'class-validator';
 import { PaginationQuery } from '@/common/dto/pagination-query.dto';
@@ -19,33 +18,23 @@ export const TEACHER_SORT_COLUMN: Record<TeacherSortField, string> = {
 };
 
 export class TeacherQuery extends PaginationQuery {
-  @ApiPropertyOptional({
-    example: 'Karimova',
-    description:
-      "Ism, familiya, telefon raqam, email yoki kasb (`profession`) bo'yicha qidiruv " +
-      '(katta-kichik harf farqlanmaydi)',
-  })
   @IsString()
   @IsOptional()
   search?: string;
 
-  @ApiPropertyOptional({ enum: TeacherStatus })
   @IsEnum(TeacherStatus)
   @IsOptional()
   status?: TeacherStatus;
 
-  @ApiPropertyOptional({ description: 'Foydalanuvchi hisobi faolmi (`user.isActive`)' })
   @Transform(({ value }: { value: unknown }) => (value === 'true' ? true : value === 'false' ? false : value))
   @IsBoolean()
   @IsOptional()
   isActive?: boolean;
 
-  @ApiPropertyOptional({ enum: TEACHER_SORT_FIELDS, default: 'createdAt' })
   @IsIn(TEACHER_SORT_FIELDS)
   @IsOptional()
   sortBy: TeacherSortField = 'createdAt';
 
-  @ApiPropertyOptional({ enum: ['ASC', 'DESC'], default: 'DESC' })
   @Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? value.toUpperCase() : value))
   @IsIn(['ASC', 'DESC'])
   @IsOptional()

@@ -1,12 +1,9 @@
-import { ApiProperty } from '@nestjs/swagger';
 import { IsObject } from 'class-validator';
 
 export const VALID_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
 export type WeekDay = (typeof VALID_DAYS)[number];
 
-export function validateScheduleShape(
-  schedule: Record<string, string[]>,
-): string | null {
+export function validateScheduleShape(schedule: Record<string, string[]>): string | null {
   for (const day of Object.keys(schedule)) {
     if (!VALID_DAYS.includes(day as WeekDay)) {
       return `Noto'g'ri kun: ${day}. Qabul qilinadiganlar: ${VALID_DAYS.join(', ')}`;
@@ -31,10 +28,6 @@ export function countScheduleSlots(schedule: Record<string, string[]>): number {
 }
 
 export class SetScheduleDto {
-  @ApiProperty({
-    example: { Mon: ['10:00', '10:30'], Wed: ['14:00'], Fri: ['09:00', '09:30'] },
-    description: 'Haftalik jadval. Kalitlar: Mon-Sun. Qiymatlar: HH:00 yoki HH:30 formatidagi vaqtlar.',
-  })
   @IsObject()
   schedule: Record<string, string[]>;
 }

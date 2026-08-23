@@ -68,7 +68,7 @@ export class AssignmentService {
       if (shapeError) throw new BadRequestException(shapeError);
 
       const totalSlots = countScheduleSlots(dto.selectedSchedule);
-      if (totalSlots > 3) throw new BadRequestException("Haftada maksimal 3 ta vaqt tanlash mumkin");
+      if (totalSlots > 3) throw new BadRequestException('Haftada maksimal 3 ta vaqt tanlash mumkin');
 
       const mentorSchedule = teacher.schedule ?? {};
       for (const [day, slots] of Object.entries(dto.selectedSchedule)) {

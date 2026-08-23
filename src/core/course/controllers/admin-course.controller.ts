@@ -12,17 +12,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import {
-  ApiBearerAuth,
-  ApiBody,
-  ApiConsumes,
-  ApiCreatedResponse,
-  ApiNoContentResponse,
-  ApiNotFoundResponse,
-  ApiOkResponse,
-  ApiOperation,
-  ApiTags,
-} from '@nestjs/swagger';
+
 import { Roles } from '@/common/decorators/roles.decorator';
 import { UserRole } from '@/core/user/enum/user-role.enum';
 import { CourseService } from '@/core/course/services/course.service';
@@ -50,87 +40,6 @@ import { UpdateTaskQuestionDto } from '@/core/course/dto/update-task-question.dt
 const courseUpload = () =>
   UseInterceptors(FileInterceptor('image', { storage: courseImageStorage, fileFilter: imageFileFilter }));
 
-const courseFormSchema = (required: string[] = ['title']) => ({
-  schema: {
-    type: 'object',
-    required,
-    properties: {
-      title: { type: 'string' },
-      description: { type: 'string' },
-      isActive: { type: 'boolean' },
-      index: { type: 'integer', default: 0, description: "Ko'rsatish tartibi" },
-      image: { type: 'string', format: 'binary' },
-    },
-  },
-});
-
-const courseExample = {
-  id: 'c0000000-0000-0000-0000-000000000001',
-  title: 'English A1',
-  description: 'Boshlangich ingliz tili kursi',
-  image: '/public/course/eng-a1.png',
-  isActive: true,
-  index: 1,
-  createdAt: '2026-01-15T10:00:00.000Z',
-  updatedAt: '2026-01-15T10:00:00.000Z',
-};
-
-/** Ro'yxat: bo'lim va darslarsiz, faqat sanoqlar. */
-const courseListItemExample = {
-  ...courseExample,
-  unitsCount: 12,
-  lessonsCount: 41,
-};
-
-/** Bitta kurs: bo'limlar bor, lekin darslar ichida emas — faqat sanoqlari. */
-const courseWithUnitsExample = {
-  ...courseExample,
-  units: [
-    {
-      id: 'u0000000-0000-0000-0000-000000000001',
-      title: 'Unit 1: Greetings',
-      index: 1,
-      lessonsCount: 3,
-      createdAt: '2026-01-15T10:00:00.000Z',
-      updatedAt: '2026-01-15T10:00:00.000Z',
-    },
-  ],
-  unitsCount: 1,
-  lessonsCount: 3,
-};
-
-const unitExample = {
-  id: 'u0000000-0000-0000-0000-000000000001',
-  title: 'Unit 1: Greetings',
-  index: 1,
-  createdAt: '2026-01-15T10:00:00.000Z',
-  updatedAt: '2026-01-15T10:00:00.000Z',
-};
-
-const lessonExample = {
-  id: 'l0000000-0000-0000-0000-000000000001',
-  title: 'Hello!',
-  description: 'Saying hello',
-  media: '/public/lesson/hello.mp4',
-  index: 1,
-  createdAt: '2026-01-15T10:00:00.000Z',
-  updatedAt: '2026-01-15T10:00:00.000Z',
-};
-
-const taskExample = {
-  id: 't0000000-0000-0000-0000-000000000001',
-  name: 'Greeting quiz',
-  questions: [
-    { question: 'Choose the correct greeting.', options: ['Hello', 'Goodbye', 'Thank you'], answer: 'Hello' },
-  ],
-  file: '/task-audio/uuid.mp3',
-  contentType: 'audio',
-  createdAt: '2026-01-15T10:00:00.000Z',
-  updatedAt: '2026-01-15T10:00:00.000Z',
-};
-
-@ApiTags('courses')
-@ApiBearerAuth()
 @Roles(UserRole.ADMIN)
 @Controller('admin/courses')
 export class AdminCourseController {
@@ -145,47 +54,28 @@ export class AdminCourseController {
 
   @Post()
   @courseUpload()
-  @ApiConsumes('multipart/form-data')
-  @ApiBody(courseFormSchema(['title']))
-  @ApiCreatedResponse({ schema: { example: courseExample } })
   createCourse(@Body() dto: CreateCourseDto, @UploadedFile() file?: Express.Multer.File) {
     return this.courseService.createCourse(dto, file && toImagePath(file.filename));
   }
 
   @Get()
-  @ApiOperation({
-    summary: "Kurslar ro'yxati",
-    description: "Bo'lim va darslar qaytarilmaydi — faqat `unitsCount` va `lessonsCount`.",
-  })
-  @ApiOkResponse({ schema: { example: [courseListItemExample] } })
   findAllCourses() {
     return this.courseService.findAllCourses();
   }
 
   @Get(':id')
-  @ApiOperation({
-    summary: 'Bitta kurs',
-    description:
-      "Bo'limlar ro'yxati bilan, lekin darslar ichida emas — har bir bo'limda " +
-      'faqat `lessonsCount`. Darslar: `GET /admin/courses/:courseId/units/:unitId/lessons`.',
-  })
-  @ApiOkResponse({ schema: { example: courseWithUnitsExample } })
   findOneCourse(@Param('id') id: string) {
     return this.courseService.findOneCourse(id);
   }
 
   @Patch(':id')
   @courseUpload()
-  @ApiConsumes('multipart/form-data')
-  @ApiBody(courseFormSchema([]))
-  @ApiOkResponse({ schema: { example: courseExample } })
   updateCourse(@Param('id') id: string, @Body() dto: UpdateCourseDto, @UploadedFile() file?: Express.Multer.File) {
     return this.courseService.updateCourse(id, dto, file && toImagePath(file.filename));
   }
 
   @Delete(':id')
   @HttpCode(204)
-  @ApiNoContentResponse()
   deleteCourse(@Param('id') id: string) {
     return this.courseService.deleteCourse(id);
   }
@@ -193,20 +83,17 @@ export class AdminCourseController {
   // ── Unit ──────────────────────────────────────────────────────────────────
 
   @Post(':courseId/units')
-  @ApiCreatedResponse({ schema: { example: unitExample } })
   createUnit(@Param('courseId') courseId: string, @Body() dto: CreateUnitDto) {
     return this.unitService.createUnit(courseId, dto);
   }
 
   @Patch(':courseId/units/:unitId')
-  @ApiOkResponse({ schema: { example: unitExample } })
   updateUnit(@Param('courseId') courseId: string, @Param('unitId') unitId: string, @Body() dto: UpdateUnitDto) {
     return this.unitService.updateUnit(courseId, unitId, dto);
   }
 
   @Delete(':courseId/units/:unitId')
   @HttpCode(204)
-  @ApiNoContentResponse()
   deleteUnit(@Param('courseId') courseId: string, @Param('unitId') unitId: string) {
     return this.unitService.deleteUnit(courseId, unitId);
   }
@@ -214,28 +101,12 @@ export class AdminCourseController {
   // ── Lesson ────────────────────────────────────────────────────────────────
 
   @Get(':courseId/units/:unitId/lessons')
-  @ApiOperation({ summary: "Bo'lim darslari" })
-  @ApiOkResponse({ schema: { example: [lessonExample] } })
   listLessons(@Param('courseId') courseId: string, @Param('unitId') unitId: string) {
     return this.lessonService.listLessons(courseId, unitId);
   }
 
   @Post(':courseId/units/:unitId/lessons')
   @UseInterceptors(FileInterceptor('media', { storage: lessonMediaStorage, fileFilter: videoFileFilter }))
-  @ApiConsumes('multipart/form-data')
-  @ApiBody({
-    schema: {
-      type: 'object',
-      required: ['title'],
-      properties: {
-        title: { type: 'string' },
-        description: { type: 'string' },
-        index: { type: 'integer', default: 0, description: "Ko'rsatish tartibi" },
-        media: { type: 'string', format: 'binary' },
-      },
-    },
-  })
-  @ApiCreatedResponse({ schema: { example: lessonExample } })
   createLesson(
     @Param('courseId') courseId: string,
     @Param('unitId') unitId: string,
@@ -246,7 +117,6 @@ export class AdminCourseController {
   }
 
   @Patch(':courseId/units/:unitId/lessons/:lessonId')
-  @ApiOkResponse({ schema: { example: lessonExample } })
   updateLesson(
     @Param('courseId') courseId: string,
     @Param('unitId') unitId: string,
@@ -258,15 +128,6 @@ export class AdminCourseController {
 
   @Patch(':courseId/units/:unitId/lessons/:lessonId/media')
   @UseInterceptors(FileInterceptor('media', { storage: lessonMediaStorage, fileFilter: videoFileFilter }))
-  @ApiConsumes('multipart/form-data')
-  @ApiBody({
-    schema: {
-      type: 'object',
-      required: ['media'],
-      properties: { media: { type: 'string', format: 'binary' } },
-    },
-  })
-  @ApiOkResponse({ schema: { example: lessonExample } })
   uploadLessonMedia(
     @Param('courseId') courseId: string,
     @Param('unitId') unitId: string,
@@ -278,7 +139,6 @@ export class AdminCourseController {
 
   @Delete(':courseId/units/:unitId/lessons/:lessonId')
   @HttpCode(204)
-  @ApiNoContentResponse()
   deleteLesson(
     @Param('courseId') courseId: string,
     @Param('unitId') unitId: string,
@@ -290,7 +150,6 @@ export class AdminCourseController {
   // ── Task ──────────────────────────────────────────────────────────────────
 
   @Post(':courseId/units/:unitId/lessons/:lessonId/tasks')
-  @ApiCreatedResponse({ schema: { example: taskExample } })
   createTask(
     @Param('courseId') courseId: string,
     @Param('unitId') unitId: string,
@@ -301,13 +160,11 @@ export class AdminCourseController {
   }
 
   @Get(':courseId/units/:unitId/lessons/:lessonId/tasks')
-  @ApiOkResponse({ schema: { example: [taskExample] } })
   listTasks(@Param('courseId') courseId: string, @Param('unitId') unitId: string, @Param('lessonId') lessonId: string) {
     return this.taskService.listTasks(courseId, unitId, lessonId);
   }
 
   @Patch(':courseId/units/:unitId/lessons/:lessonId/tasks/:taskId')
-  @ApiOkResponse({ schema: { example: taskExample } })
   updateTask(
     @Param('courseId') courseId: string,
     @Param('unitId') unitId: string,
@@ -325,8 +182,6 @@ export class AdminCourseController {
   // butun massivni qayta yuborish shart emas.
 
   @Post(':courseId/units/:unitId/lessons/:lessonId/tasks/:taskId/questions')
-  @ApiOperation({ summary: "Topshiriqqa bitta savol qo'shish" })
-  @ApiCreatedResponse({ schema: { example: taskExample } })
   addTaskQuestion(
     @Param('courseId') courseId: string,
     @Param('unitId') unitId: string,
@@ -338,9 +193,6 @@ export class AdminCourseController {
   }
 
   @Patch(':courseId/units/:unitId/lessons/:lessonId/tasks/:taskId/questions/:index')
-  @ApiOperation({ summary: 'Bitta savolni tahrirlash' })
-  @ApiOkResponse({ schema: { example: taskExample } })
-  @ApiNotFoundResponse({ schema: { example: { message: 'Savol topilmadi', statusCode: 404 } } })
   updateTaskQuestion(
     @Param('courseId') courseId: string,
     @Param('unitId') unitId: string,
@@ -353,9 +205,6 @@ export class AdminCourseController {
   }
 
   @Delete(':courseId/units/:unitId/lessons/:lessonId/tasks/:taskId/questions/:index')
-  @ApiOperation({ summary: "Bitta savolni o'chirish" })
-  @ApiOkResponse({ schema: { example: taskExample } })
-  @ApiNotFoundResponse({ schema: { example: { message: 'Savol topilmadi', statusCode: 404 } } })
   deleteTaskQuestion(
     @Param('courseId') courseId: string,
     @Param('unitId') unitId: string,
@@ -368,15 +217,6 @@ export class AdminCourseController {
 
   @Patch(':courseId/units/:unitId/lessons/:lessonId/tasks/:taskId/file')
   @UseInterceptors(FileInterceptor('file', { storage: taskContentStorage, fileFilter: taskContentFileFilter }))
-  @ApiConsumes('multipart/form-data')
-  @ApiBody({
-    schema: {
-      type: 'object',
-      required: ['file'],
-      properties: { file: { type: 'string', format: 'binary', description: 'Audio yoki rasm fayli' } },
-    },
-  })
-  @ApiOkResponse({ schema: { example: taskExample } })
   uploadTaskFile(
     @Param('courseId') courseId: string,
     @Param('unitId') unitId: string,
@@ -396,7 +236,6 @@ export class AdminCourseController {
 
   @Delete(':courseId/units/:unitId/lessons/:lessonId/tasks/:taskId')
   @HttpCode(204)
-  @ApiNoContentResponse()
   deleteTask(
     @Param('courseId') courseId: string,
     @Param('unitId') unitId: string,

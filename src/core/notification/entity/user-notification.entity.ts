@@ -18,6 +18,9 @@ export class UserNotification {
   @Column({ type: 'jsonb', nullable: true })
   data: Record<string, string> | null;
 
+  @Column({ default: false })
+  isRead: boolean;
+
   @CreateDateColumn()
   createdAt: Date;
 }

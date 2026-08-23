@@ -44,7 +44,7 @@ There are currently **no test files** in the repo (`*.spec.ts`), and `test/jest-
 - TypeORM runs with `synchronize: true` — no migrations; schema is derived from entities on boot. Entity changes apply on restart, and removing a column drops it.
 - The DataSource loads entities from `dist/**/*.entity.js`, so the app must be built (or running under `nest start`) before the DB is usable.
 - `SnakeNamingStrategy` (`src/shared/config/snake-naming.strategy.ts`) maps camelCase properties to snake_case columns. Explicit `@Column({ name: ... })` wins — e.g. `Enrollment.start` → `start_date`.
-- All REST routes carry the global prefix `/api`. Swagger UI is at `/docs`.
+- All REST routes carry the global prefix `/api`.
 - Uploads land in `./uploads/` and are served statically at `/public/*`.
 
 ## Conventions
@@ -106,13 +106,13 @@ Re-purchasing an expired enrollment reuses the existing row: it is reset to `cre
 
 ### Click webhooks
 
-`/api/payment/click/prepare` and `/complete` are `@Public()` and `@ApiExcludeController()` — called by Click's servers, not clients. Authenticity rests entirely on the md5 `sign_string` check in `ClickService.verifySign`; if `CLICK_SECRET_KEY` is unset, all requests are rejected. Both directions are logged, never including the secret.
+`/api/payment/click/prepare` and `/complete` are `@Public()` — called by Click's servers, not clients. Authenticity rests entirely on the md5 `sign_string` check in `ClickService.verifySign`; if `CLICK_SECRET_KEY` is unset, all requests are rejected. Both directions are logged, never including the secret.
 
 `merchant_trans_id` may be either a payment id or a user id depending on what the payment page puts in `transaction_param`, so lookup tries payment id first, then falls back to the user's pending payments.
 
 ### Payme webhooks
 
-`/api/payment/payme` is a single `@Public()` `@ApiExcludeController()` JSON-RPC 2.0 endpoint carrying all seven Paycom methods (`CheckPerformTransaction`, `CreateTransaction`, `PerformTransaction`, `CancelTransaction`, `CheckTransaction`, `GetStatement`, `SetFiscalData`). Authenticity rests on the `Authorization: Basic base64("Paycom:<PAYME_MERCHANT_KEY>")` header, compared with `timingSafeEqual`; if the key is unset, all requests are rejected. The route is `@All()`, not `@Post()`, because the spec wants `-32300` for a non-POST rather than Nest's 404.
+`/api/payment/payme` is a single `@Public()` JSON-RPC 2.0 endpoint carrying all seven Paycom methods (`CheckPerformTransaction`, `CreateTransaction`, `PerformTransaction`, `CancelTransaction`, `CheckTransaction`, `GetStatement`, `SetFiscalData`). Authenticity rests on the `Authorization: Basic base64("Paycom:<PAYME_MERCHANT_KEY>")` header, compared with `timingSafeEqual`; if the key is unset, all requests are rejected. The route is `@All()`, not `@Post()`, because the spec wants `-32300` for a non-POST rather than Nest's 404.
 
 Payme drives a transaction across several calls and expects the *same* answer on repeats, so state lives in its own `payme_transactions` table (`transactionId` unique, `state` per the Paycom spec: `1` created, `2` performed, `-1`/`-2` cancelled) rather than on `Payment`. Amounts arrive in **tiyin** — compared against `payment.amount * 100`. Pending transactions expire after 12 hours.
 
@@ -159,7 +159,7 @@ Four things that are load-bearing:
 
 Beyond those automatic events, admins send messages by hand through `POST /api/admin/notifications/push` (`AdminPushController`, admin-only). `audience` is **required** — `all`, `students`, `teachers`, or `phones` with a `phoneNumbers` list — so a blast to everyone can never be the result of a forgotten field. The same endpoint covers one recipient and a mass send; "individual" is just a one-element `phones` list.
 
-Manual pushes accept `isPermanent` (default `false`). When true, one `user_notifications` row is stored per resolved user even if that user has no active device session. Course-enrollment notifications are always permanent. Students read their own history newest-first through paginated `GET /api/notifications`; rows contain the push title, body, and `data` payload used for deep-linking.
+Manual pushes accept `isPermanent` (default `false`). When true, one `user_notifications` row is stored per resolved user even if that user has no active device session. Course-enrollment notifications are always permanent. New rows default to `isRead: false`. Students read their history through paginated `GET /api/notifications`, unread rows through `GET /api/notifications/unread`, and mark an owned row through `PATCH /api/notifications/:id/read`; rows are newest-first and contain the push title, body, and `data` payload used for deep-linking.
 
 Two things distinguish the manual path from the event path. It **awaits** the send and returns a report (`devices`, `sent`, `failed`, `removedTokens`), and for `phones` it splits the misses into `notFound` (no such user) and `withoutDevice` (user exists, never opened the app) — an admin needs to tell a wrong number from an uninstalled app. And it answers **503** when `GOOGLE_SERVICES_JSON` is missing or unparseable, instead of the silent skip the event path uses: a human who pressed Send deserves an error, not a report of zero. Because delivery happens inside the request, a very large audience makes for a long request; chunks of 500 go sequentially.
 
@@ -182,4 +182,4 @@ Each module that accepts files has a `storage/*.storage.ts` defining a `multer.d
 
 ## Docs
 
-`docs/` holds hand-written API guides in Uzbek that go beyond Swagger — `payment-api.md` (client-facing plan → payment → Click flow with status tables) and `external-api.md` (the `X-Auth` API). Keep them in sync when changing those endpoints.
+`docs/` holds hand-written API guides in Uzbek — `payment-api.md` (client-facing plan → payment → Click flow with status tables) and `external-api.md` (the `X-Auth` API). Keep them in sync when changing those endpoints.

@@ -51,7 +51,14 @@ export class LiveLessonService {
     if (!assignment) throw new NotFoundException('Topshiriq topilmadi');
     if (assignment.teacher.id !== teacher.id) throw new ForbiddenException('Ruxsat berilmagan');
 
-    return this.lessonRepo.save({ teacher, assignment, name: dto.name, meetLink: dto.meetLink, startTime: start, endTime: end });
+    return this.lessonRepo.save({
+      teacher,
+      assignment,
+      name: dto.name,
+      meetLink: dto.meetLink,
+      startTime: start,
+      endTime: end,
+    });
   }
 
   async findAll(teacherUserId: string, query: PaginationQuery): Promise<Paginated<LiveLesson>> {

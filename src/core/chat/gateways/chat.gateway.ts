@@ -88,10 +88,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
   // ─── messaging ────────────────────────────────────────────────────────────
 
   @SubscribeMessage('send')
-  async onSend(
-    @ConnectedSocket() socket: AuthedSocket,
-    @MessageBody() body: { roomId: string; text: string },
-  ) {
+  async onSend(@ConnectedSocket() socket: AuthedSocket, @MessageBody() body: { roomId: string; text: string }) {
     if (!body?.roomId || !body?.text?.trim()) {
       socket.emit('error', { message: "Xabar matni yoki xona ID yo'q" });
       return;

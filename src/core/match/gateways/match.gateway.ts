@@ -92,8 +92,18 @@ export class MatchGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
           socket.emit('error', { message: 'Juftlik topilmadi' });
           return;
         }
-        const peerOfCaller = { id: partnerSocket.data.userId, firstName: partnerSocket.data.firstName, lastName: partnerSocket.data.lastName, avatar: partnerSocket.data.avatar };
-        const peerOfCallee = { id: socket.data.userId, firstName: socket.data.firstName, lastName: socket.data.lastName, avatar: socket.data.avatar };
+        const peerOfCaller = {
+          id: partnerSocket.data.userId,
+          firstName: partnerSocket.data.firstName,
+          lastName: partnerSocket.data.lastName,
+          avatar: partnerSocket.data.avatar,
+        };
+        const peerOfCallee = {
+          id: socket.data.userId,
+          firstName: socket.data.firstName,
+          lastName: socket.data.lastName,
+          avatar: socket.data.avatar,
+        };
         socket.emit('matched', { sessionId: outcome.result.sessionId, role: 'caller', peer: peerOfCaller });
         partnerSocket.emit('matched', { sessionId: outcome.result.sessionId, role: 'callee', peer: peerOfCallee });
         return;
