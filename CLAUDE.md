@@ -85,7 +85,7 @@ Roles are not a column: a user has a role iff the corresponding one-to-one profi
 
 ### User activity, analytics, and streaks
 
-`GET /api/user/me` records one `user_activities` row per authenticated user per UTC calendar day. A unique constraint on `(user, activityDate)` makes repeated profile requests idempotent. Admin `GET /api/stats/summary` includes DAU (today), WAU (today plus the previous 6 days), and MAU (today plus the previous 29 days). `GET /api/stats/series` and the backwards-compatible `/timeseries` return the same rolling metrics for every date in the requested 7, 14, or 30-day period.
+`GET /api/user/me` records one `user_activities` row per authenticated user per UTC calendar day. A unique constraint on `(user, activityDate)` makes repeated profile requests idempotent. Admin `GET /api/stats/summary` includes DAU (today), WAU (today plus the previous 6 days), and MAU (today plus the previous 29 days). `GET /api/stats/series` and the backwards-compatible `/timeseries` separate `businessMetrics` (new users/assignments/enrollments/mentors for the requested 7, 14, or 30 days) from `activeUserMetrics`: DAU has one point per elapsed day of the current UTC month, WAU uses consecutive seven-day buckets within the current month, and MAU has one point for each of the latest six calendar months.
 
 `GET /api/user/me/streak` derives streaks from these daily rows. It returns `currentStreak`, `longestStreak`, `totalActiveDays`, `activeToday`, and `lastActiveDate`; a latest activity of yesterday still keeps the current streak alive until the user records today's activity.
 

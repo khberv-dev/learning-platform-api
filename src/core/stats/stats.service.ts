@@ -60,24 +60,47 @@ export class StatsService {
         [from, to],
       );
 
-    const activity = this.ds.query<Array<{ date: string; dau: string; wau: string; mau: string }>>(
+    const today = to.toISOString().slice(0, 10);
+    const dauQuery = this.ds.query<Array<{ date: string; count: string }>>(
       `SELECT day::date::text AS date,
-         (SELECT COUNT(DISTINCT user_id) FROM user_activities WHERE activity_date = day::date) AS dau,
-         (SELECT COUNT(DISTINCT user_id) FROM user_activities
-            WHERE activity_date BETWEEN day::date - 6 AND day::date) AS wau,
-         (SELECT COUNT(DISTINCT user_id) FROM user_activities
-            WHERE activity_date BETWEEN day::date - 29 AND day::date) AS mau
-       FROM GENERATE_SERIES($1::date, $2::date, INTERVAL '1 day') AS day
+         (SELECT COUNT(DISTINCT user_id) FROM user_activities WHERE activity_date = day::date) AS count
+       FROM GENERATE_SERIES(DATE_TRUNC('month', $1::date), $1::date, INTERVAL '1 day') AS day
        ORDER BY day ASC`,
-      [from.toISOString().slice(0, 10), to.toISOString().slice(0, 10)],
+      [today],
     );
 
-    const [users, assignments, enrollments, mentors, activeUsers] = await Promise.all([
+    const wauQuery = this.ds.query<Array<{ startDate: string; endDate: string; count: string }>>(
+      `SELECT week_start::date::text AS "startDate",
+         LEAST(week_start::date + 6, $1::date)::text AS "endDate",
+         (SELECT COUNT(DISTINCT user_id) FROM user_activities
+            WHERE activity_date BETWEEN week_start::date AND LEAST(week_start::date + 6, $1::date)) AS count
+       FROM GENERATE_SERIES(DATE_TRUNC('month', $1::date), $1::date, INTERVAL '7 days') AS week_start
+       ORDER BY week_start ASC`,
+      [today],
+    );
+
+    const mauQuery = this.ds.query<Array<{ month: string; count: string }>>(
+      `SELECT TO_CHAR(month_start, 'YYYY-MM') AS month,
+         (SELECT COUNT(DISTINCT user_id) FROM user_activities
+            WHERE activity_date >= month_start::date
+              AND activity_date < (month_start + INTERVAL '1 month')::date) AS count
+       FROM GENERATE_SERIES(
+         DATE_TRUNC('month', $1::date) - INTERVAL '5 months',
+         DATE_TRUNC('month', $1::date),
+         INTERVAL '1 month'
+       ) AS month_start
+       ORDER BY month_start ASC`,
+      [today],
+    );
+
+    const [users, assignments, enrollments, mentors, dau, wau, mau] = await Promise.all([
       query('users'),
       query('assignments'),
       query('enrollments'),
       query('teachers'),
-      activity,
+      dauQuery,
+      wauQuery,
+      mauQuery,
     ]);
 
     // Build zero-filled skeleton for all days in the period
@@ -89,9 +112,6 @@ export class StatsService {
         assignments: number;
         enrollments: number;
         mentors: number;
-        dau: number;
-        wau: number;
-        mau: number;
       }
     >();
     for (let i = 0; i < period; i++) {
@@ -104,9 +124,6 @@ export class StatsService {
         assignments: 0,
         enrollments: 0,
         mentors: 0,
-        dau: 0,
-        wau: 0,
-        mau: 0,
       });
     }
 
@@ -131,15 +148,17 @@ export class StatsService {
       const entry = skeleton.get(toKey(row.date));
       if (entry) entry.mentors = Number(row.count);
     }
-    for (const row of activeUsers) {
-      const entry = skeleton.get(row.date);
-      if (entry) {
-        entry.dau = Number(row.dau);
-        entry.wau = Number(row.wau);
-        entry.mau = Number(row.mau);
-      }
-    }
-
-    return [...skeleton.values()];
+    return {
+      businessMetrics: [...skeleton.values()],
+      activeUserMetrics: {
+        dau: dau.map((row) => ({ date: row.date, count: Number(row.count) })),
+        wau: wau.map((row) => ({
+          startDate: row.startDate,
+          endDate: row.endDate,
+          count: Number(row.count),
+        })),
+        mau: mau.map((row) => ({ month: row.month, count: Number(row.count) })),
+      },
+    };
   }
 }
