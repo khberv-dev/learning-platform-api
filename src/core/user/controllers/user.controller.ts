@@ -11,8 +11,14 @@ export class UserController {
   constructor(private readonly userService: UserService) {}
 
   @Get('me')
-  me(@CurrentUser() user: User) {
+  async me(@CurrentUser() user: User) {
+    await this.userService.recordDailyActivity(user.id);
     return user;
+  }
+
+  @Get('me/streak')
+  streak(@CurrentUser() user: { id: string }) {
+    return this.userService.getStreak(user.id);
   }
 
   @Patch('me/avatar')

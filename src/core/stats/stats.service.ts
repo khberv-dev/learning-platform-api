@@ -14,11 +14,21 @@ export class StatsService {
    * yuborardi. `users` va `mentors` — barchasi.
    */
   async getSummary() {
-    const [[users], [assignments], [enrollments], [mentors]] = await Promise.all([
+    const today = new Date().toISOString().slice(0, 10);
+    const [[users], [assignments], [enrollments], [mentors], [activeUsers]] = await Promise.all([
       this.ds.query<[{ count: string }]>('SELECT COUNT(*) FROM users'),
       this.ds.query<[{ count: string }]>("SELECT COUNT(*) FROM assignments WHERE status = 'active'"),
       this.ds.query<[{ count: string }]>("SELECT COUNT(*) FROM enrollments WHERE status = 'active'"),
       this.ds.query<[{ count: string }]>('SELECT COUNT(*) FROM teachers'),
+      this.ds.query<[{ dau: string; wau: string; mau: string }]>(
+        `SELECT
+           COUNT(DISTINCT user_id) FILTER (WHERE activity_date = $1::date) AS dau,
+           COUNT(DISTINCT user_id) FILTER (WHERE activity_date BETWEEN $1::date - 6 AND $1::date) AS wau,
+           COUNT(DISTINCT user_id) FILTER (WHERE activity_date BETWEEN $1::date - 29 AND $1::date) AS mau
+         FROM user_activities
+         WHERE activity_date BETWEEN $1::date - 29 AND $1::date`,
+        [today],
+      ),
     ]);
 
     return {
@@ -26,6 +36,9 @@ export class StatsService {
       assignments: Number(assignments.count),
       enrollments: Number(enrollments.count),
       mentors: Number(mentors.count),
+      dau: Number(activeUsers.dau),
+      wau: Number(activeUsers.wau),
+      mau: Number(activeUsers.mau),
     };
   }
 
@@ -47,23 +60,54 @@ export class StatsService {
         [from, to],
       );
 
-    const [users, assignments, enrollments, mentors] = await Promise.all([
+    const activity = this.ds.query<Array<{ date: string; dau: string; wau: string; mau: string }>>(
+      `SELECT day::date::text AS date,
+         (SELECT COUNT(DISTINCT user_id) FROM user_activities WHERE activity_date = day::date) AS dau,
+         (SELECT COUNT(DISTINCT user_id) FROM user_activities
+            WHERE activity_date BETWEEN day::date - 6 AND day::date) AS wau,
+         (SELECT COUNT(DISTINCT user_id) FROM user_activities
+            WHERE activity_date BETWEEN day::date - 29 AND day::date) AS mau
+       FROM GENERATE_SERIES($1::date, $2::date, INTERVAL '1 day') AS day
+       ORDER BY day ASC`,
+      [from.toISOString().slice(0, 10), to.toISOString().slice(0, 10)],
+    );
+
+    const [users, assignments, enrollments, mentors, activeUsers] = await Promise.all([
       query('users'),
       query('assignments'),
       query('enrollments'),
       query('teachers'),
+      activity,
     ]);
 
     // Build zero-filled skeleton for all days in the period
     const skeleton = new Map<
       string,
-      { date: string; users: number; assignments: number; enrollments: number; mentors: number }
+      {
+        date: string;
+        users: number;
+        assignments: number;
+        enrollments: number;
+        mentors: number;
+        dau: number;
+        wau: number;
+        mau: number;
+      }
     >();
     for (let i = 0; i < period; i++) {
       const d = new Date(from);
       d.setUTCDate(d.getUTCDate() + i);
       const key = d.toISOString().slice(0, 10);
-      skeleton.set(key, { date: key, users: 0, assignments: 0, enrollments: 0, mentors: 0 });
+      skeleton.set(key, {
+        date: key,
+        users: 0,
+        assignments: 0,
+        enrollments: 0,
+        mentors: 0,
+        dau: 0,
+        wau: 0,
+        mau: 0,
+      });
     }
 
     const toKey = (date: Date | string) => {
@@ -86,6 +130,14 @@ export class StatsService {
     for (const row of mentors) {
       const entry = skeleton.get(toKey(row.date));
       if (entry) entry.mentors = Number(row.count);
+    }
+    for (const row of activeUsers) {
+      const entry = skeleton.get(row.date);
+      if (entry) {
+        entry.dau = Number(row.dau);
+        entry.wau = Number(row.wau);
+        entry.mau = Number(row.mau);
+      }
     }
 
     return [...skeleton.values()];

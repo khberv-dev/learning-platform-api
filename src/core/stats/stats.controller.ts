@@ -19,6 +19,11 @@ export class StatsController {
 
   @Get('timeseries')
   getTimeseries(@Query('period', new ParseIntPipe({ optional: true })) period?: number) {
+    return this.getSeries(period);
+  }
+
+  @Get('series')
+  getSeries(@Query('period', new ParseIntPipe({ optional: true })) period?: number) {
     const p = (period ?? 30) as Period;
     if (!VALID_PERIODS.includes(p)) {
       throw new BadRequestException('period must be 7, 14, or 30');

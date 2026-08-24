@@ -5,10 +5,69 @@ import { Student, buildStudent } from '@/core/user/entity/student.entity';
 import { StudentLevel } from '@/core/user/enum/student-level.enum';
 import { Repository } from 'typeorm';
 import { hashPassword } from '@/shared/utils/hash.util';
+import { UserActivity } from '@/core/user/entity/user-activity.entity';
 
 @Injectable()
 export class UserService {
-  constructor(@InjectRepository(User) private readonly userRepo: Repository<User>) {}
+  constructor(
+    @InjectRepository(User) private readonly userRepo: Repository<User>,
+    @InjectRepository(UserActivity) private readonly userActivityRepo: Repository<UserActivity>,
+  ) {}
+
+  private utcDate(date = new Date()): string {
+    return date.toISOString().slice(0, 10);
+  }
+
+  async recordDailyActivity(userId: string): Promise<void> {
+    await this.userActivityRepo
+      .createQueryBuilder()
+      .insert()
+      .values({ user: { id: userId }, activityDate: this.utcDate() })
+      .orIgnore()
+      .execute();
+  }
+
+  async getStreak(userId: string) {
+    const rows = await this.userActivityRepo.find({
+      where: { user: { id: userId } },
+      select: { activityDate: true },
+      order: { activityDate: 'DESC' },
+    });
+    const dates = rows.map((row) => row.activityDate);
+    if (dates.length === 0) {
+      return { currentStreak: 0, longestStreak: 0, totalActiveDays: 0, activeToday: false, lastActiveDate: null };
+    }
+
+    const dayMs = 24 * 60 * 60 * 1000;
+    const toDay = (date: string) => Date.parse(`${date}T00:00:00.000Z`) / dayMs;
+    const today = toDay(this.utcDate());
+    const days = dates.map(toDay);
+
+    let longestStreak = 1;
+    let run = 1;
+    for (let i = 1; i < days.length; i++) {
+      if (days[i - 1] - days[i] === 1) {
+        run++;
+        longestStreak = Math.max(longestStreak, run);
+      } else {
+        run = 1;
+      }
+    }
+
+    let currentStreak = 0;
+    if (days[0] === today || days[0] === today - 1) {
+      currentStreak = 1;
+      for (let i = 1; i < days.length && days[i - 1] - days[i] === 1; i++) currentStreak++;
+    }
+
+    return {
+      currentStreak,
+      longestStreak,
+      totalActiveDays: dates.length,
+      activeToday: days[0] === today,
+      lastActiveDate: dates[0],
+    };
+  }
 
   async findById(userId: string) {
     const _user = await this.userRepo.findOne({

@@ -16,10 +16,20 @@ import { AdminStudentController } from '@/core/user/controllers/admin-student.co
 import { TeacherController } from '@/core/user/controllers/teacher.controller';
 import { AdminTeacherController } from '@/core/user/controllers/admin-teacher.controller';
 import { AdminUserController } from '@/core/user/controllers/admin-user.controller';
+import { UserActivity } from '@/core/user/entity/user-activity.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Teacher, TeacherStatusHistory, TeacherFeedback, Admin, Student, Assignment]),
+    TypeOrmModule.forFeature([
+      User,
+      UserActivity,
+      Teacher,
+      TeacherStatusHistory,
+      TeacherFeedback,
+      Admin,
+      Student,
+      Assignment,
+    ]),
   ],
   // TARTIB MUHIM: `StudentController` (`students/me`) `AdminStudentController`
   // (`students/:id`) dan oldin turishi shart. Ikkalasi ham `students` prefiksida,
