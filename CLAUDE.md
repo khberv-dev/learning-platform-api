@@ -187,6 +187,8 @@ Students `POST /api/assessments/conversations/:id/messages` with an audio clip. 
 
 Each module that accepts files has a `storage/*.storage.ts` defining a `multer.diskStorage` destination (created with `mkdirSync` at import time), a UUID filename, an optional mime filter, and a path helper (`toMaterialPath`, `toAvatarPath`, …) that produces the public URL. `uploads/` maps to `/public/`.
 
+Admin lesson media can be replaced with `PATCH /api/admin/courses/:courseId/units/:unitId/lessons/:lessonId/media` or removed without deleting the lesson through `DELETE` on the same path. Replacement, media deletion, and lesson deletion clean up locally managed `/lesson/*` files after the database write; cleanup is path-restricted and a filesystem failure is logged without reverting the database result.
+
 ## Docs
 
 `docs/` holds hand-written API guides in Uzbek — `payment-api.md` (client-facing plan → payment → Click flow with status tables) and `external-api.md` (the `X-Auth` API). Keep them in sync when changing those endpoints.

@@ -137,6 +137,16 @@ export class AdminCourseController {
     return this.lessonService.uploadMedia(courseId, unitId, lessonId, toMediaPath(file.filename));
   }
 
+  @Delete(':courseId/units/:unitId/lessons/:lessonId/media')
+  @HttpCode(204)
+  deleteLessonMedia(
+    @Param('courseId') courseId: string,
+    @Param('unitId') unitId: string,
+    @Param('lessonId') lessonId: string,
+  ) {
+    return this.lessonService.deleteMedia(courseId, unitId, lessonId);
+  }
+
   @Delete(':courseId/units/:unitId/lessons/:lessonId')
   @HttpCode(204)
   deleteLesson(

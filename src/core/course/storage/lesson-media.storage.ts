@@ -1,10 +1,11 @@
 import { BadRequestException } from '@nestjs/common';
 import { diskStorage } from 'multer';
-import { extname } from 'path';
+import { basename, extname, resolve } from 'path';
 import { randomUUID } from 'crypto';
 import { mkdirSync } from 'fs';
+import { unlink } from 'fs/promises';
 
-const DEST = './uploads/lesson';
+const DEST = resolve(process.cwd(), 'uploads/lesson');
 mkdirSync(DEST, { recursive: true });
 
 export const lessonMediaStorage = diskStorage({
@@ -24,3 +25,16 @@ export function videoFileFilter(
 }
 
 export const toMediaPath = (filename: string) => `/lesson/${filename}`;
+
+/** Faqat shu storage yaratgan lokal faylni o'chiradi; tashqi yoki traversal yo'llariga tegmaydi. */
+export async function removeLessonMediaFile(media: string | null | undefined): Promise<void> {
+  if (!media?.startsWith('/lesson/')) return;
+  const filename = basename(media);
+  if (media !== `/lesson/${filename}`) return;
+
+  try {
+    await unlink(resolve(DEST, filename));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
+}

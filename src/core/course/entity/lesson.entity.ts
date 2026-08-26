@@ -24,8 +24,8 @@ export class Lesson {
   @Column({ nullable: true })
   description: string;
 
-  @Column({ nullable: true })
-  media: string;
+  @Column({ type: 'varchar', nullable: true })
+  media: string | null;
 
   /**
    * Ko'rsatish tartibi — kichikdan kattaga (1, 2, 3...). Admin belgilaydi.

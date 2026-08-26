@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Lesson } from '@/core/course/entity/lesson.entity';
@@ -7,9 +7,12 @@ import { CreateLessonDto } from '@/core/course/dto/create-lesson.dto';
 import { UpdateLessonDto } from '@/core/course/dto/update-lesson.dto';
 import { LESSON_ORDER } from '@/core/course/services/course.service';
 import { PushService } from '@/core/notification/services/push.service';
+import { removeLessonMediaFile } from '@/core/course/storage/lesson-media.storage';
 
 @Injectable()
 export class LessonService {
+  private readonly logger = new Logger(LessonService.name);
+
   constructor(
     @InjectRepository(Lesson) private readonly lessonRepo: Repository<Lesson>,
     @InjectRepository(Unit) private readonly unitRepo: Repository<Unit>,
@@ -57,7 +60,24 @@ export class LessonService {
       where: { id: lessonId, unit: { id: unitId, course: { id: courseId } } },
     });
     if (!lesson) throw new NotFoundException('Dars topilmadi');
-    return this.lessonRepo.save({ ...lesson, media });
+    const previousMedia = lesson.media;
+    const updated = await this.lessonRepo.save({ ...lesson, media });
+    if (previousMedia !== media) await this.cleanupMedia(previousMedia);
+    return updated;
+  }
+
+  async deleteMedia(courseId: string, unitId: string, lessonId: string): Promise<void> {
+    const lesson = await this.lessonRepo.findOne({
+      where: { id: lessonId, unit: { id: unitId, course: { id: courseId } } },
+    });
+    if (!lesson) throw new NotFoundException('Dars topilmadi');
+
+    const media = lesson.media;
+    if (media !== null) {
+      lesson.media = null;
+      await this.lessonRepo.save(lesson);
+      await this.cleanupMedia(media);
+    }
   }
 
   async deleteLesson(courseId: string, unitId: string, lessonId: string) {
@@ -65,6 +85,16 @@ export class LessonService {
       where: { id: lessonId, unit: { id: unitId, course: { id: courseId } } },
     });
     if (!lesson) throw new NotFoundException('Dars topilmadi');
+    const media = lesson.media;
     await this.lessonRepo.remove(lesson);
+    await this.cleanupMedia(media);
+  }
+
+  private async cleanupMedia(media: string | null | undefined): Promise<void> {
+    try {
+      await removeLessonMediaFile(media);
+    } catch (error) {
+      this.logger.error(`Dars videosini diskdan o'chirib bo'lmadi: ${media}`, error as Error);
+    }
   }
 }
