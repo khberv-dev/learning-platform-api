@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Course } from '@/core/course/entity/course.entity';
 import { Lesson } from '@/core/course/entity/lesson.entity';
+import { Task } from '@/core/course/entity/task.entity';
 import { Unit } from '@/core/course/entity/unit.entity';
 import { CreateCourseDto } from '@/core/course/dto/create-course.dto';
 import { UpdateCourseDto } from '@/core/course/dto/update-course.dto';
@@ -35,11 +36,17 @@ export class CourseService {
     private readonly pushService: PushService,
   ) {}
 
-  private withLessonsCount(course: Course, progressByLesson = new Map<string, number>()) {
+  private withLessonsCount(
+    course: Course,
+    progressByLesson = new Map<string, number>(),
+    taskCountByLesson = new Map<string, number>(),
+  ) {
     let previousLessonId: string | undefined;
     const units = course.units.map((unit) => {
       const lessons = unit.lessons.map((lesson) => {
-        const isLocked = previousLessonId !== undefined && (progressByLesson.get(previousLessonId) ?? 0) < 80;
+        const previousLessonHasTasks =
+          previousLessonId !== undefined && (taskCountByLesson.get(previousLessonId) ?? 0) > 0;
+        const isLocked = previousLessonHasTasks && (progressByLesson.get(previousLessonId!) ?? 0) < 80;
         previousLessonId = lesson.id;
         return { ...lesson, isLocked };
       });
@@ -66,6 +73,21 @@ export class CourseService {
       .getRawMany<{ lessonId: string; progress: string }>();
 
     return new Map(rows.map((row) => [row.lessonId, Number(row.progress)]));
+  }
+
+  private async taskCountByLesson(lessonIds: string[]): Promise<Map<string, number>> {
+    if (lessonIds.length === 0) return new Map();
+
+    const rows = await this.courseRepo.manager
+      .createQueryBuilder(Task, 'task')
+      .innerJoin('task.lesson', 'lesson')
+      .select('lesson.id', 'lessonId')
+      .addSelect('COUNT(task.id)', 'taskCount')
+      .where('lesson.id IN (:...lessonIds)', { lessonIds })
+      .groupBy('lesson.id')
+      .getRawMany<{ lessonId: string; taskCount: string }>();
+
+    return new Map(rows.map((row) => [row.lessonId, Number(row.taskCount)]));
   }
 
   async createCourse(dto: CreateCourseDto, image?: string) {
@@ -124,8 +146,11 @@ export class CourseService {
     const lessonIds = courses.flatMap((course) =>
       course.units.flatMap((unit) => unit.lessons.map((lesson) => lesson.id)),
     );
-    const progressByLesson = await this.progressByLesson(studentUserId, lessonIds);
-    return courses.map((course) => this.withLessonsCount(course, progressByLesson));
+    const [progressByLesson, taskCountByLesson] = await Promise.all([
+      this.progressByLesson(studentUserId, lessonIds),
+      this.taskCountByLesson(lessonIds),
+    ]);
+    return courses.map((course) => this.withLessonsCount(course, progressByLesson, taskCountByLesson));
   }
 
   /**
@@ -199,8 +224,11 @@ export class CourseService {
     });
     if (!course) throw new NotFoundException('Kurs topilmadi');
     const lessonIds = course.units.flatMap((unit) => unit.lessons.map((lesson) => lesson.id));
-    const progressByLesson = await this.progressByLesson(studentUserId, lessonIds);
-    return this.withLessonsCount(course, progressByLesson);
+    const [progressByLesson, taskCountByLesson] = await Promise.all([
+      this.progressByLesson(studentUserId, lessonIds),
+      this.taskCountByLesson(lessonIds),
+    ]);
+    return this.withLessonsCount(course, progressByLesson, taskCountByLesson);
   }
 
   /**
