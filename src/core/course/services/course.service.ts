@@ -7,6 +7,7 @@ import { Unit } from '@/core/course/entity/unit.entity';
 import { CreateCourseDto } from '@/core/course/dto/create-course.dto';
 import { UpdateCourseDto } from '@/core/course/dto/update-course.dto';
 import { PushService } from '@/core/notification/services/push.service';
+import { Progress } from '@/core/enrollment/entity/progress.entity';
 
 export const COURSE_RELATIONS = { units: { lessons: true } } as const;
 
@@ -30,12 +31,41 @@ export const COURSE_LIST_ORDER = { index: 'ASC', createdAt: 'DESC' } as const;
 export class CourseService {
   constructor(
     @InjectRepository(Course) private readonly courseRepo: Repository<Course>,
+    @InjectRepository(Progress) private readonly progressRepo: Repository<Progress>,
     private readonly pushService: PushService,
   ) {}
 
-  private withLessonsCount(course: Course) {
-    const units = course.units.map((u) => ({ ...u, lessonsCount: u.lessons.length }));
+  private withLessonsCount(course: Course, progressByLesson = new Map<string, number>()) {
+    let previousLessonId: string | undefined;
+    const units = course.units.map((unit) => {
+      const lessons = unit.lessons.map((lesson) => {
+        const isLocked = previousLessonId !== undefined && (progressByLesson.get(previousLessonId) ?? 0) < 80;
+        previousLessonId = lesson.id;
+        return { ...lesson, isLocked };
+      });
+
+      return { ...unit, lessons, lessonsCount: lessons.length };
+    });
     return { ...course, units, lessonsCount: units.reduce((sum, u) => sum + u.lessonsCount, 0) };
+  }
+
+  private async progressByLesson(studentUserId: string, lessonIds: string[]): Promise<Map<string, number>> {
+    if (lessonIds.length === 0) return new Map();
+
+    const rows = await this.progressRepo
+      .createQueryBuilder('progress')
+      .innerJoin('progress.enrollment', 'enrollment')
+      .innerJoin('enrollment.student', 'student')
+      .innerJoin('student.user', 'user')
+      .innerJoin('progress.lesson', 'lesson')
+      .select('lesson.id', 'lessonId')
+      .addSelect('MAX(progress.progress)', 'progress')
+      .where('user.id = :studentUserId', { studentUserId })
+      .andWhere('lesson.id IN (:...lessonIds)', { lessonIds })
+      .groupBy('lesson.id')
+      .getRawMany<{ lessonId: string; progress: string }>();
+
+    return new Map(rows.map((row) => [row.lessonId, Number(row.progress)]));
   }
 
   async createCourse(dto: CreateCourseDto, image?: string) {
@@ -85,13 +115,17 @@ export class CourseService {
     }));
   }
 
-  async findActiveCourses() {
+  async findActiveCourses(studentUserId: string) {
     const courses = await this.courseRepo.find({
       where: { isActive: true },
       relations: COURSE_RELATIONS,
       order: { ...COURSE_LIST_ORDER, ...COURSE_ORDER },
     });
-    return courses.map((c) => this.withLessonsCount(c));
+    const lessonIds = courses.flatMap((course) =>
+      course.units.flatMap((unit) => unit.lessons.map((lesson) => lesson.id)),
+    );
+    const progressByLesson = await this.progressByLesson(studentUserId, lessonIds);
+    return courses.map((course) => this.withLessonsCount(course, progressByLesson));
   }
 
   /**
@@ -157,14 +191,16 @@ export class CourseService {
     return new Map(rows.map((r) => [r.unitId, Number(r.count)]));
   }
 
-  async findOneActiveCourse(id: string) {
+  async findOneActiveCourse(id: string, studentUserId: string) {
     const course = await this.courseRepo.findOne({
       where: { id, isActive: true },
       relations: COURSE_RELATIONS,
       order: COURSE_ORDER,
     });
     if (!course) throw new NotFoundException('Kurs topilmadi');
-    return this.withLessonsCount(course);
+    const lessonIds = course.units.flatMap((unit) => unit.lessons.map((lesson) => lesson.id));
+    const progressByLesson = await this.progressByLesson(studentUserId, lessonIds);
+    return this.withLessonsCount(course, progressByLesson);
   }
 
   /**

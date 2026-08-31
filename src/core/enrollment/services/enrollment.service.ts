@@ -69,7 +69,7 @@ export class EnrollmentService {
 
     const now = new Date();
     const blockedCourseIds = new Set(taken.filter((e) => !isEnrollmentExpired(e, now)).map((e) => e.course.id));
-    const activeCourses = await this.courseService.findActiveCourses();
+    const activeCourses = await this.courseService.findActiveCourses(userId);
     return activeCourses.filter((c) => !blockedCourseIds.has(c.id));
   }
 

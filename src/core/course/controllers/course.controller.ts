@@ -15,13 +15,13 @@ export class CourseController {
   ) {}
 
   @Get()
-  findActiveCourses() {
-    return this.courseService.findActiveCourses();
+  findActiveCourses(@CurrentUser() user: { id: string }) {
+    return this.courseService.findActiveCourses(user.id);
   }
 
   @Get(':id')
-  findOneCourse(@Param('id') id: string) {
-    return this.courseService.findOneActiveCourse(id);
+  findOneCourse(@CurrentUser() user: { id: string }, @Param('id') id: string) {
+    return this.courseService.findOneActiveCourse(id, user.id);
   }
 
   /**
