@@ -549,6 +549,43 @@ Javob — sahifalangan ro'yxat (`data`, `total`, `page`, `limit`, `totalPages`).
 
 `start` / `end` bo'yicha saralashda bo'sh (`null`) sanalar PostgreSQL qoidasiga ko'ra `ASC` da oxirida, `DESC` da boshida turadi.
 
+### Talabaning kurs bo'yicha progressi
+
+```http
+GET /api/admin/enrollments/{enrollmentId}/students/{studentId}/progress
+```
+
+Yozilish aynan ko'rsatilgan talabaga tegishli ekanini tekshiradi va kurs → bo'lim → dars ko'rinishidagi to'liq daraxtni qaytaradi:
+
+```json
+{
+  "studentId": "student-id",
+  "enrollmentId": "enrollment-id",
+  "status": "active",
+  "start": "2026-09-01T00:00:00.000Z",
+  "end": "2027-03-01T00:00:00.000Z",
+  "course": {
+    "id": "course-id",
+    "title": "Kurs",
+    "progress": 50,
+    "units": [
+      {
+        "id": "unit-id",
+        "title": "Bo'lim",
+        "index": 1,
+        "progress": 50,
+        "lessons": [
+          { "id": "lesson-1", "title": "1-dars", "index": 1, "progress": 100 },
+          { "id": "lesson-2", "title": "2-dars", "index": 2, "progress": 0 }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Progressi hali yaratilmagan darslar ham `0` bilan qaytadi. Bo'lim progressi shu bo'lim darslarining, kurs progressi esa kursdagi barcha darslarning yaxlitlangan o'rtacha qiymatidir. Talaba topilmasa `404 Talaba topilmadi`; yozilish topilmasa yoki boshqa talabaga tegishli bo'lsa `404 Yozilish topilmadi` qaytadi.
+
 ### Talabani qo'lda yozish (to'lovsiz)
 
 To'lov yaratmasdan, yozilishni darhol `active` holatida ochadi — bepul kirish, naqd to'lov yoki aksiya uchun.

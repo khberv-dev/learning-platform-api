@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 
 import { Roles } from '@/common/decorators/roles.decorator';
 import { UserRole } from '@/core/user/enum/user-role.enum';
@@ -21,5 +21,10 @@ export class AdminEnrollmentController {
   @Get()
   findAll(@Query() query: EnrollmentQuery) {
     return this.enrollmentService.findAllEnrollments(query);
+  }
+
+  @Get(':enrollmentId/students/:studentId/progress')
+  getStudentCourseProgress(@Param('studentId') studentId: string, @Param('enrollmentId') enrollmentId: string) {
+    return this.enrollmentService.getStudentCourseProgress(studentId, enrollmentId);
   }
 }

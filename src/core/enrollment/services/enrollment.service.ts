@@ -56,6 +56,69 @@ export class EnrollmentService {
     return paginate(data, total, query);
   }
 
+  /**
+   * Admin uchun bitta yozilishdagi to'liq o'zlashtirish daraxti.
+   *
+   * Progress yozuvi hali yaratilmagan darslar ham javobga kiradi va ularning
+   * qiymati 0 bo'ladi. Kurs progressi barcha darslar bo'yicha hisoblanadi;
+   * bo'lim progresslarining o'rtachasi olinmaydi, chunki bo'limlardagi darslar
+   * soni har xil bo'lishi mumkin.
+   */
+  async getStudentCourseProgress(studentId: string, enrollmentId: string) {
+    const studentExists = await this.studentRepo.exists({ where: { id: studentId } });
+    if (!studentExists) throw new NotFoundException('Talaba topilmadi');
+
+    const enrollment = await this.enrollmentRepo.findOne({
+      where: { id: enrollmentId, student: { id: studentId } },
+      relations: {
+        course: { units: { lessons: true } },
+        progresses: { lesson: true },
+      },
+    });
+    if (!enrollment) throw new NotFoundException('Yozilish topilmadi');
+
+    const progressByLesson = new Map(enrollment.progresses.map((item) => [item.lesson.id, item.progress]));
+    const units = [...enrollment.course.units]
+      .sort((a, b) => a.index - b.index || a.createdAt.getTime() - b.createdAt.getTime())
+      .map((unit) => {
+        const lessons = [...unit.lessons]
+          .sort((a, b) => a.index - b.index || a.createdAt.getTime() - b.createdAt.getTime())
+          .map((lesson) => ({
+            id: lesson.id,
+            title: lesson.title,
+            index: lesson.index,
+            progress: progressByLesson.get(lesson.id) ?? 0,
+          }));
+
+        return {
+          id: unit.id,
+          title: unit.title,
+          index: unit.index,
+          progress: this.averageProgress(lessons.map((lesson) => lesson.progress)),
+          lessons,
+        };
+      });
+
+    return {
+      studentId,
+      enrollmentId: enrollment.id,
+      status: enrollment.status,
+      start: enrollment.start,
+      end: enrollment.end,
+      course: {
+        id: enrollment.course.id,
+        title: enrollment.course.title,
+        progress: this.averageProgress(units.flatMap((unit) => unit.lessons.map((lesson) => lesson.progress))),
+        units,
+      },
+    };
+  }
+
+  private averageProgress(values: number[]): number {
+    if (values.length === 0) return 0;
+    return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
+  }
+
   async getAvailableCourses(userId: string) {
     const student = await this.studentRepo.findOne({ where: { user: { id: userId } } });
     if (!student) return [];
