@@ -9,6 +9,7 @@ import { Progress } from '@/core/enrollment/entity/progress.entity';
 import { Enrollment } from '@/core/enrollment/entity/enrollment.entity';
 import { assertActiveEnrollmentForLesson } from '@/core/enrollment/utils/enrollment.util';
 import { SubmitTasksBody } from '@/core/course/dto/submit-tasks.dto';
+import { taskAnswersMatch } from '@/core/course/utils/task-answer.util';
 
 /** Javob varaqasi talabaga ko'rsatilmaydi — faqat savol va variantlar. */
 function stripAnswer(question: TaskQuestion) {
@@ -27,7 +28,7 @@ const POINTS_PER_PASSED_TASK = 10;
 
 /** Nechta savolga to'g'ri javob berilgan. */
 function countCorrect(questions: TaskQuestion[], answers: string[]): number {
-  return questions.filter((q, i) => answers[i] !== undefined && answers[i] === q.answer.toLowerCase()).length;
+  return questions.filter((q, i) => answers[i] !== undefined && taskAnswersMatch(answers[i], q.answer)).length;
 }
 
 /**
