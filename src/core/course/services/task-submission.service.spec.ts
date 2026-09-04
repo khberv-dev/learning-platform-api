@@ -74,3 +74,124 @@ describe('TaskSubmissionService.getTaskResult', () => {
     );
   });
 });
+
+describe('TaskSubmissionService.getStudentLessonResults', () => {
+  const submissionRepo = { find: jest.fn() };
+  const taskRepo = { find: jest.fn() };
+  const lessonRepo = { findOne: jest.fn() };
+  const studentRepo = { findOne: jest.fn() };
+  const service = new TaskSubmissionService(
+    submissionRepo as never,
+    taskRepo as never,
+    lessonRepo as never,
+    studentRepo as never,
+    {} as never,
+    {} as never,
+  );
+
+  const submittedAt = new Date('2026-09-04T12:00:00Z');
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    studentRepo.findOne.mockResolvedValue({ id: 'student-1' });
+    lessonRepo.findOne.mockResolvedValue({ id: 'lesson-1', title: 'Greetings' });
+    taskRepo.find.mockResolvedValue([
+      {
+        id: 'task-1',
+        name: 'Vocabulary',
+        file: null,
+        contentType: null,
+        questions: [
+          { question: 'Choose a letter', options: ['A', 'B'], answer: 'a' },
+          { question: 'Write a word', options: null, answer: 'hello' },
+          { question: 'Unanswered', options: null, answer: 'value' },
+        ],
+      },
+    ]);
+  });
+
+  it('returns the answer key beside the student answer and marks each question', async () => {
+    submissionRepo.find.mockResolvedValue([
+      {
+        task: { id: 'task-1' },
+        answer: JSON.stringify(['a', 'world']),
+        isCorrect: false,
+        createdAt: submittedAt,
+      },
+    ]);
+
+    const result = await service.getStudentLessonResults('student-1', 'lesson-1');
+
+    expect(result).toEqual({
+      lesson: { id: 'lesson-1', title: 'Greetings' },
+      tasks: [
+        {
+          taskId: 'task-1',
+          name: 'Vocabulary',
+          file: null,
+          contentType: null,
+          isCorrect: false,
+          submittedAt,
+          questions: [
+            {
+              question: 'Choose a letter',
+              options: ['A', 'B'],
+              answer: 'a',
+              studentAnswer: 'a',
+              isCorrect: true,
+            },
+            {
+              question: 'Write a word',
+              options: null,
+              answer: 'hello',
+              studentAnswer: 'world',
+              isCorrect: false,
+            },
+            {
+              question: 'Unanswered',
+              options: null,
+              answer: 'value',
+              studentAnswer: null,
+              isCorrect: false,
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  it('reports an unsubmitted task as having no result rather than a wrong one', async () => {
+    submissionRepo.find.mockResolvedValue([]);
+
+    const result = await service.getStudentLessonResults('student-1', 'lesson-1');
+
+    expect(result.tasks[0].isCorrect).toBeNull();
+    expect(result.tasks[0].submittedAt).toBeNull();
+    expect(result.tasks[0].questions.map((q) => q.studentAnswer)).toEqual([null, null, null]);
+  });
+
+  it('does not query submissions for a lesson that has no tasks', async () => {
+    taskRepo.find.mockResolvedValue([]);
+
+    const result = await service.getStudentLessonResults('student-1', 'lesson-1');
+
+    expect(result.tasks).toEqual([]);
+    expect(submissionRepo.find).not.toHaveBeenCalled();
+  });
+
+  it('rejects an unknown student', async () => {
+    studentRepo.findOne.mockResolvedValue(null);
+
+    await expect(service.getStudentLessonResults('missing', 'lesson-1')).rejects.toThrow(
+      new NotFoundException('Talaba topilmadi'),
+    );
+  });
+
+  it('rejects an unknown lesson', async () => {
+    lessonRepo.findOne.mockResolvedValue(null);
+
+    await expect(service.getStudentLessonResults('student-1', 'missing')).rejects.toThrow(
+      new NotFoundException('Dars topilmadi'),
+    );
+  });
+});

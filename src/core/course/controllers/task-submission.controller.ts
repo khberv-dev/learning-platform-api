@@ -23,6 +23,19 @@ export class TaskSubmissionController {
     return this.taskSubmissionService.getLessonResults(user.id, lessonId);
   }
 
+  /**
+   * Admin talabaning javoblarini ko'radi. Sinfdagi `@Roles(STUDENT)` shu
+   * metodda `@Roles(ADMIN)` bilan almashtiriladi (`getAllAndOverride`), shuning
+   * uchun bu yo'lga faqat admin kira oladi.
+   *
+   * `:taskId` dan oldin e'lon qilinadi — yo'llar e'lon tartibida solishtiriladi.
+   */
+  @Roles(UserRole.ADMIN)
+  @Get('students/:studentId/lessons/:lessonId')
+  getStudentLessonResults(@Param('studentId') studentId: string, @Param('lessonId') lessonId: string) {
+    return this.taskSubmissionService.getStudentLessonResults(studentId, lessonId);
+  }
+
   @Get(':taskId')
   getTaskResult(@CurrentUser() user: { id: string }, @Param('taskId') taskId: string) {
     return this.taskSubmissionService.getTaskResult(user.id, taskId);

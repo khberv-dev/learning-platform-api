@@ -251,4 +251,67 @@ export class TaskSubmissionService {
       submittedAt: submission.createdAt,
     };
   }
+
+  /**
+   * Admin uchun: bitta darsning topshiriqlari va talabaning javoblari.
+   *
+   * Talabaga ko'rsatilmaydigan to'g'ri javob (`answer`) bu yerda qaytariladi —
+   * admin javobni nimaga solishtirishni bilmasa, natijani baholay olmaydi.
+   *
+   * `studentId` — Student yozuvining id si (talabaning user id si emas), chunki
+   * admin panelida talaba shu id bilan ochiladi.
+   *
+   * Yozilish tekshirilmaydi: admin muddati tugagan yoki bekor qilingan
+   * yozilishning natijasini ham ko'ra olishi kerak.
+   */
+  async getStudentLessonResults(studentId: string, lessonId: string) {
+    const student = await this.studentRepo.findOne({ where: { id: studentId } });
+    if (!student) throw new NotFoundException('Talaba topilmadi');
+
+    const lesson = await this.lessonRepo.findOne({ where: { id: lessonId } });
+    if (!lesson) throw new NotFoundException('Dars topilmadi');
+
+    const tasks = await this.taskRepo.find({
+      where: { lesson: { id: lessonId } },
+      order: { createdAt: 'ASC' },
+    });
+
+    // Bo'sh ro'yxatli `In([])` so'rovi xato beradi, shuning uchun oldindan tekshiriladi.
+    const submissions = tasks.length
+      ? await this.submissionRepo.find({
+          where: { student: { id: student.id }, task: { id: In(tasks.map((t) => t.id)) } },
+          relations: { task: true },
+        })
+      : [];
+    const submissionMap = new Map(submissions.map((s) => [s.task.id, s]));
+
+    return {
+      lesson: { id: lesson.id, title: lesson.title },
+      tasks: tasks.map((task) => {
+        const submission = submissionMap.get(task.id) ?? null;
+        const answers = submission ? (JSON.parse(submission.answer) as string[]) : [];
+
+        return {
+          taskId: task.id,
+          name: task.name,
+          file: task.file,
+          contentType: task.contentType,
+          // Topshirilmagan topshiriq "noto'g'ri" emas — natijasi yo'q.
+          isCorrect: submission ? submission.isCorrect : null,
+          submittedAt: submission ? submission.createdAt : null,
+          questions: task.questions.map((question, index) => {
+            const studentAnswer = answers[index] ?? null;
+
+            return {
+              question: question.question,
+              options: question.options,
+              answer: question.answer,
+              studentAnswer,
+              isCorrect: studentAnswer !== null && taskAnswersMatch(studentAnswer, question.answer),
+            };
+          }),
+        };
+      }),
+    };
+  }
 }
