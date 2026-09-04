@@ -94,3 +94,81 @@ describe('EnrollmentService.getStudentCourseProgress', () => {
     );
   });
 });
+
+describe('EnrollmentService student course lists', () => {
+  const enrollmentRepo = { find: jest.fn() };
+  const studentRepo = { findOne: jest.fn() };
+  const courseService = {
+    findActiveCourses: jest.fn(),
+    contentCountsByCourse: jest.fn(),
+  };
+  const service = new EnrollmentService(
+    enrollmentRepo as never,
+    {} as never,
+    studentRepo as never,
+    {} as never,
+    {} as never,
+    courseService as never,
+    {} as never,
+  );
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.useFakeTimers().setSystemTime(new Date('2026-09-04T12:00:00Z'));
+    studentRepo.findOne.mockResolvedValue({ id: 'student-1' });
+  });
+
+  afterEach(() => jest.useRealTimers());
+
+  it('excludes expired enrollments from my courses', async () => {
+    enrollmentRepo.find.mockResolvedValue([
+      {
+        id: 'expired-enrollment',
+        status: EnrollmentStatus.ACTIVE,
+        end: new Date('2026-09-03T12:00:00Z'),
+        course: { id: 'course-expired' },
+        progresses: [],
+      },
+      {
+        id: 'current-enrollment',
+        status: EnrollmentStatus.ACTIVE,
+        end: new Date('2026-09-05T12:00:00Z'),
+        course: { id: 'course-current' },
+        progresses: [],
+      },
+    ]);
+    courseService.contentCountsByCourse.mockResolvedValue(
+      new Map([['course-current', { unitsCount: 2, lessonsCount: 3 }]]),
+    );
+
+    const result = await service.getMyCourses('user-1');
+
+    expect(courseService.contentCountsByCourse).toHaveBeenCalledWith(['course-current']);
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({ id: 'current-enrollment', isExpired: false });
+  });
+
+  it('includes a course in available courses when its enrollment expired', async () => {
+    enrollmentRepo.find.mockResolvedValue([
+      {
+        status: EnrollmentStatus.ACTIVE,
+        end: new Date('2026-09-03T12:00:00Z'),
+        course: { id: 'course-expired' },
+      },
+      {
+        status: EnrollmentStatus.ACTIVE,
+        end: new Date('2026-09-05T12:00:00Z'),
+        course: { id: 'course-current' },
+      },
+    ]);
+    courseService.findActiveCourses.mockResolvedValue([
+      { id: 'course-expired' },
+      { id: 'course-current' },
+      { id: 'course-new' },
+    ]);
+
+    const result = await service.getAvailableCourses('user-1');
+
+    expect(result).toEqual([{ id: 'course-expired' }, { id: 'course-new' }]);
+  });
+});

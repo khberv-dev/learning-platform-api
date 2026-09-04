@@ -152,10 +152,11 @@ export class EnrollmentService {
       relations: { course: true, progresses: true },
       order: { createdAt: 'DESC' },
     });
+    const currentEnrollments = enrollments.filter((enrollment) => !isEnrollmentExpired(enrollment, now));
 
-    const counts = await this.courseService.contentCountsByCourse(enrollments.map((e) => e.course.id));
+    const counts = await this.courseService.contentCountsByCourse(currentEnrollments.map((e) => e.course.id));
 
-    return enrollments.map((e) => {
+    return currentEnrollments.map((e) => {
       const { unitsCount = 0, lessonsCount = 0 } = counts.get(e.course.id) ?? {};
       const totalProgress =
         lessonsCount === 0 ? 0 : Math.round(e.progresses.reduce((sum, p) => sum + p.progress, 0) / lessonsCount);
@@ -164,7 +165,7 @@ export class EnrollmentService {
         unitsCount,
         lessonsCount,
         totalProgress,
-        isExpired: isEnrollmentExpired(e, now),
+        isExpired: false,
       };
     });
   }
