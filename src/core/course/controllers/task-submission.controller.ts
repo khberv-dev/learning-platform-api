@@ -22,4 +22,9 @@ export class TaskSubmissionController {
   getLessonResults(@CurrentUser() user: { id: string }, @Param('lessonId') lessonId: string) {
     return this.taskSubmissionService.getLessonResults(user.id, lessonId);
   }
+
+  @Get(':taskId')
+  getTaskResult(@CurrentUser() user: { id: string }, @Param('taskId') taskId: string) {
+    return this.taskSubmissionService.getTaskResult(user.id, taskId);
+  }
 }

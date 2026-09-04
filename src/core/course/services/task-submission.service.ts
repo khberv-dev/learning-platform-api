@@ -221,4 +221,34 @@ export class TaskSubmissionService {
       };
     });
   }
+
+  /** Bitta topshiriq bo'yicha talabaning savollari va bergan javoblari. */
+  async getTaskResult(studentUserId: string, taskId: string) {
+    const student = await this.studentRepo.findOne({ where: { user: { id: studentUserId } } });
+    if (!student) throw new NotFoundException('Talaba topilmadi');
+
+    const task = await this.taskRepo.findOne({ where: { id: taskId }, relations: { lesson: true } });
+    if (!task) throw new NotFoundException('Topshiriq topilmadi');
+
+    await assertActiveEnrollmentForLesson(this.enrollmentRepo, studentUserId, task.lesson.id);
+
+    const submission = await this.submissionRepo.findOne({
+      where: { student: { id: student.id }, task: { id: task.id } },
+    });
+    if (!submission) throw new NotFoundException('Topshiriq javobi topilmadi');
+
+    const answers = JSON.parse(submission.answer) as string[];
+    return {
+      taskId: task.id,
+      name: task.name,
+      file: task.file,
+      contentType: task.contentType,
+      questions: task.questions.map((question, index) => ({
+        ...stripAnswer(question),
+        answer: answers[index] ?? null,
+      })),
+      isCorrect: submission.isCorrect,
+      submittedAt: submission.createdAt,
+    };
+  }
 }
