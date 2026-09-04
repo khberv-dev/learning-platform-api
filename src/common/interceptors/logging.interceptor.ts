@@ -5,7 +5,7 @@ import type { Request, Response } from 'express';
 import { isDevelopment } from '@/shared/config/environment.config';
 
 /** Log'ga tushmasligi kerak bo'lgan maydonlar. */
-const SECRET_KEYS = /password|token|secret|authorization|sign_string|fcmToken/i;
+const SECRET_KEYS = /password|token|secret|authorization|sign_string|fcmToken|apiKey/i;
 
 /** Juda uzun tana (masalan base64 audio) log'ni to'ldirib yubormasligi uchun. */
 const MAX_BODY_CHARS = 2000;

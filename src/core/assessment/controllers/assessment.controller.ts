@@ -9,6 +9,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { ConfigService } from '@nestjs/config';
 
 import { Roles } from '@/common/decorators/roles.decorator';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
@@ -20,7 +21,15 @@ import { PaginationQuery } from '@/common/dto/pagination-query.dto';
 @Roles(UserRole.STUDENT)
 @Controller('assessments')
 export class AssessmentController {
-  constructor(private readonly assessmentService: AssessmentService) {}
+  constructor(
+    private readonly assessmentService: AssessmentService,
+    private readonly configService: ConfigService,
+  ) {}
+
+  @Get('assembly-ai-key')
+  getAssemblyAiKey() {
+    return { apiKey: this.configService.getOrThrow<string>('ASSEMBLYAI_API_KEY') };
+  }
 
   @Post('conversations')
   createConversation(@CurrentUser() user: { id: string }) {
