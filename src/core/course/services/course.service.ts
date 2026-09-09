@@ -28,6 +28,18 @@ export const COURSE_ORDER = { units: { ...UNIT_ORDER, lessons: LESSON_ORDER } } 
  */
 export const COURSE_LIST_ORDER = { index: 'ASC', createdAt: 'DESC' } as const;
 
+/**
+ * Darslarni ketma-ket ochish vaqtincha o'chirilgan — hamma dars ochiq turadi.
+ *
+ * `isLocked` javobdan olib tashlanmadi: mijozlar uni o'qiydi, shuning uchun
+ * maydon qoladi, lekin doim `false` bo'ladi. Qaytadan yoqish uchun shu yerni
+ * `true` qilish yetarli — tekshirish mantig'i va so'rovlar joyida turibdi.
+ */
+const LESSON_LOCKING_ENABLED = false;
+
+/** Oldingi dars shu ulushdan past bo'lsa, keyingisi qulflanadi. */
+const LESSON_UNLOCK_PERCENT = 80;
+
 @Injectable()
 export class CourseService {
   constructor(
@@ -44,9 +56,14 @@ export class CourseService {
     let previousLessonId: string | undefined;
     const units = course.units.map((unit) => {
       const lessons = unit.lessons.map((lesson) => {
+        // Topshirig'i yo'q dars keyingisini to'smaydi — aks holda faqat videodan
+        // iborat dars o'tib bo'lmaydigan to'siqqa aylanardi.
         const previousLessonHasTasks =
           previousLessonId !== undefined && (taskCountByLesson.get(previousLessonId) ?? 0) > 0;
-        const isLocked = previousLessonHasTasks && (progressByLesson.get(previousLessonId!) ?? 0) < 80;
+        const isLocked =
+          LESSON_LOCKING_ENABLED &&
+          previousLessonHasTasks &&
+          (progressByLesson.get(previousLessonId!) ?? 0) < LESSON_UNLOCK_PERCENT;
         previousLessonId = lesson.id;
         return { ...lesson, isLocked };
       });
@@ -54,6 +71,20 @@ export class CourseService {
       return { ...unit, lessons, lessonsCount: lessons.length };
     });
     return { ...course, units, lessonsCount: units.reduce((sum, u) => sum + u.lessonsCount, 0) };
+  }
+
+  /**
+   * Qulflashni hisoblash uchun kerakli ikki jadval: dars progressi va
+   * topshiriqlar soni. Qulflash o'chirilganda so'rovlar umuman yuborilmaydi —
+   * natijasi baribir ishlatilmaydi.
+   */
+  private async lockContext(
+    studentUserId: string,
+    lessonIds: string[],
+  ): Promise<[Map<string, number>, Map<string, number>]> {
+    if (!LESSON_LOCKING_ENABLED) return [new Map(), new Map()];
+
+    return Promise.all([this.progressByLesson(studentUserId, lessonIds), this.taskCountByLesson(lessonIds)]);
   }
 
   private async progressByLesson(studentUserId: string, lessonIds: string[]): Promise<Map<string, number>> {
@@ -146,10 +177,7 @@ export class CourseService {
     const lessonIds = courses.flatMap((course) =>
       course.units.flatMap((unit) => unit.lessons.map((lesson) => lesson.id)),
     );
-    const [progressByLesson, taskCountByLesson] = await Promise.all([
-      this.progressByLesson(studentUserId, lessonIds),
-      this.taskCountByLesson(lessonIds),
-    ]);
+    const [progressByLesson, taskCountByLesson] = await this.lockContext(studentUserId, lessonIds);
     return courses.map((course) => this.withLessonsCount(course, progressByLesson, taskCountByLesson));
   }
 
@@ -224,10 +252,7 @@ export class CourseService {
     });
     if (!course) throw new NotFoundException('Kurs topilmadi');
     const lessonIds = course.units.flatMap((unit) => unit.lessons.map((lesson) => lesson.id));
-    const [progressByLesson, taskCountByLesson] = await Promise.all([
-      this.progressByLesson(studentUserId, lessonIds),
-      this.taskCountByLesson(lessonIds),
-    ]);
+    const [progressByLesson, taskCountByLesson] = await this.lockContext(studentUserId, lessonIds);
     return this.withLessonsCount(course, progressByLesson, taskCountByLesson);
   }
 
