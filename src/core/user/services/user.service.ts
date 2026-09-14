@@ -18,13 +18,20 @@ export class UserService {
     return date.toISOString().slice(0, 10);
   }
 
-  async recordDailyActivity(userId: string): Promise<void> {
-    await this.userActivityRepo
+  /**
+   * Foydalanuvchining bugungi (UTC) faolligini qayd etadi. `(user, activityDate)` unique bo'lgani uchun
+   * bir kunda bir necha marta chaqirilsa ham bitta qator qoladi; `recorded` faqat birinchi chaqiruvda `true`.
+   */
+  async recordDailyActivity(userId: string): Promise<{ activityDate: string; recorded: boolean }> {
+    const activityDate = this.utcDate();
+    const result = await this.userActivityRepo
       .createQueryBuilder()
       .insert()
-      .values({ user: { id: userId }, activityDate: this.utcDate() })
+      .values({ user: { id: userId }, activityDate })
       .orIgnore()
+      .returning('id')
       .execute();
+    return { activityDate, recorded: result.raw.length > 0 };
   }
 
   async getStreak(userId: string) {

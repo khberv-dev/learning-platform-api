@@ -1,4 +1,13 @@
-import { BadRequestException, Controller, Get, Patch, UploadedFile, UseInterceptors } from '@nestjs/common';
+import {
+  BadRequestException,
+  Controller,
+  Get,
+  HttpCode,
+  Patch,
+  Post,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
@@ -14,6 +23,12 @@ export class UserController {
   async me(@CurrentUser() user: User) {
     await this.userService.recordDailyActivity(user.id);
     return user;
+  }
+
+  @Post('me/activity')
+  @HttpCode(200)
+  recordActivity(@CurrentUser() user: { id: string }) {
+    return this.userService.recordDailyActivity(user.id);
   }
 
   @Get('me/streak')
