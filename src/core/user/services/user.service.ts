@@ -6,32 +6,51 @@ import { StudentLevel } from '@/core/user/enum/student-level.enum';
 import { Repository } from 'typeorm';
 import { hashPassword } from '@/shared/utils/hash.util';
 import { UserActivity } from '@/core/user/entity/user-activity.entity';
+import { Enrollment } from '@/core/enrollment/entity/enrollment.entity';
+import { EnrollmentStatus } from '@/core/enrollment/enum/enrollment-status.enum';
+import { isEnrollmentExpired } from '@/core/enrollment/utils/enrollment.util';
 
 @Injectable()
 export class UserService {
   constructor(
     @InjectRepository(User) private readonly userRepo: Repository<User>,
     @InjectRepository(UserActivity) private readonly userActivityRepo: Repository<UserActivity>,
+    @InjectRepository(Enrollment) private readonly enrollmentRepo: Repository<Enrollment>,
   ) {}
 
   private utcDate(date = new Date()): string {
     return date.toISOString().slice(0, 10);
   }
 
+  /** Foydalanuvchida hozir faol va muddati tugamagan kurs yozilishi bormi. */
+  private async hasActiveCourse(userId: string): Promise<boolean> {
+    const enrollments = await this.enrollmentRepo.find({
+      where: { student: { user: { id: userId } }, status: EnrollmentStatus.ACTIVE },
+      select: { id: true, status: true, end: true },
+    });
+    return enrollments.some((enrollment) => !isEnrollmentExpired(enrollment));
+  }
+
   /**
    * Foydalanuvchining bugungi (UTC) faolligini qayd etadi. `(user, activityDate)` unique bo'lgani uchun
    * bir kunda bir necha marta chaqirilsa ham bitta qator qoladi; `recorded` faqat birinchi chaqiruvda `true`.
+   *
+   * `hasCourse` — qayd etilgan paytda faol kursi bormi. Kun davomida kurs sotib olinsa, qator `true` ga
+   * ko'tariladi, lekin hech qachon `false` ga tushirilmaydi: o'sha kuni kursi bo'lgan foydalanuvchi kursli sanaladi.
    */
-  async recordDailyActivity(userId: string): Promise<{ activityDate: string; recorded: boolean }> {
+  async recordDailyActivity(userId: string): Promise<{ activityDate: string; hasCourse: boolean; recorded: boolean }> {
     const activityDate = this.utcDate();
-    const result = await this.userActivityRepo
-      .createQueryBuilder()
-      .insert()
-      .values({ user: { id: userId }, activityDate })
-      .orIgnore()
-      .returning('id')
-      .execute();
-    return { activityDate, recorded: result.raw.length > 0 };
+    const hasCourse = await this.hasActiveCourse(userId);
+    // `xmax = 0` — qator shu so'rovda yangi qo'shilgan (yangilanmagan). O'zgarish bo'lmasa, qator qaytmaydi.
+    const rows: Array<{ inserted: boolean }> = await this.userActivityRepo.query(
+      `INSERT INTO user_activities (user_id, activity_date, has_course)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (user_id, activity_date) DO UPDATE SET has_course = TRUE
+         WHERE user_activities.has_course = FALSE AND EXCLUDED.has_course = TRUE
+       RETURNING (xmax = 0) AS inserted`,
+      [userId, activityDate, hasCourse],
+    );
+    return { activityDate, hasCourse, recorded: rows.some((row) => row.inserted) };
   }
 
   async getStreak(userId: string) {

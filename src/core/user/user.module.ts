@@ -17,6 +17,7 @@ import { TeacherController } from '@/core/user/controllers/teacher.controller';
 import { AdminTeacherController } from '@/core/user/controllers/admin-teacher.controller';
 import { AdminUserController } from '@/core/user/controllers/admin-user.controller';
 import { UserActivity } from '@/core/user/entity/user-activity.entity';
+import { Enrollment } from '@/core/enrollment/entity/enrollment.entity';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { UserActivity } from '@/core/user/entity/user-activity.entity';
       Admin,
       Student,
       Assignment,
+      Enrollment,
     ]),
   ],
   // TARTIB MUHIM: `StudentController` (`students/me`) `AdminStudentController`

@@ -13,6 +13,10 @@ export class UserActivity {
   @Column({ name: 'activity_date', type: 'date' })
   activityDate: string;
 
+  /** Faollik qayd etilgan kuni foydalanuvchining faol (muddati tugamagan) kurs yozilishi bo'lganmi. */
+  @Column({ type: 'boolean', default: false })
+  hasCourse: boolean;
+
   @CreateDateColumn()
   createdAt: Date;
 }
