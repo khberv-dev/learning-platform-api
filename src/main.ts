@@ -6,19 +6,22 @@ import { ConfigService } from '@nestjs/config';
 import { validationPipe } from '@/common/pipes/validation.pipe';
 import { getEnvironment } from '@/shared/config/environment.config';
 
+const API_VERSION = 2;
+
 async function bootstrap() {
   const logger = new Logger('App');
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
   const port = configService.getOrThrow<number>('PORT');
+  const apiPrefix = `api/v${API_VERSION}`;
 
-  app.setGlobalPrefix('api');
+  app.setGlobalPrefix(apiPrefix);
   app.enableCors();
   app.useGlobalPipes(validationPipe);
 
   await app.listen(port);
-  // Muhit boshida ko'rinib tursin — OTP, SMS va log xatti-harakati shunga bog'liq.
   logger.log(`Environment: ${getEnvironment(configService)}`);
+  logger.log(`API prefix: /${apiPrefix}`);
   logger.log(`Listening on :${port}`);
 }
 

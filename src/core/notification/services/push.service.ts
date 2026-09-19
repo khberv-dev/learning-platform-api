@@ -1,8 +1,9 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, IsNull, Not, Repository } from 'typeorm';
 import { Session } from '@/core/session/entity/session.entity';
-import { User } from '@/core/user/entity/user.entity';
+import { Student } from '@/core/user/entity/student.entity';
+import { Mentor } from '@/core/user/entity/mentor.entity';
 import { Enrollment } from '@/core/enrollment/entity/enrollment.entity';
 import { EnrollmentStatus } from '@/core/enrollment/enum/enrollment-status.enum';
 import { isEnrollmentExpired } from '@/core/enrollment/utils/enrollment.util';
@@ -11,39 +12,31 @@ import { PushAudience } from '@/core/notification/enum/push-audience.enum';
 import { SendPushDto } from '@/core/notification/dto/send-push.dto';
 import { UserNotification } from '@/core/notification/entity/user-notification.entity';
 import { paginate, Paginated, PaginationQuery } from '@/common/dto/pagination-query.dto';
+import { type AuthUser, ownerRef } from '@/common/utils/role-owner.util';
+import { UserRole } from '@/core/user/enum/user-role.enum';
 import {
   courseCreatedMessage,
   courseEnrolledMessage,
   lessonAddedMessage,
+  mentorAssignedMessage,
   PushEvent,
-  teacherAssignedMessage,
 } from '@/core/notification/utils/push-message.util';
 
+type RoleId = Pick<AuthUser, 'id' | 'role'>;
+
 interface PushDeliveryReport {
-  /** Xabar yuborilgan qurilmalar soni. */
   devices: number;
   sent: number;
   failed: number;
-  /** FCM yaroqsiz deb qaytargan va bazadan o'chirilgan tokenlar soni. */
   removedTokens: number;
 }
 
 export interface ManualPushResult extends PushDeliveryReport {
   audience: PushAudience;
-  /** Faqat `phones` uchun: bunday foydalanuvchi topilmadi. */
   notFound?: string[];
-  /** Faqat `phones` uchun: foydalanuvchi bor, lekin ilovada sessiyasi yo'q. */
   withoutDevice?: string[];
 }
 
-/**
- * Hodisa bo'yicha push xabarnoma yuboradi: kimga yuborilishini shu yerda
- * hal qiladi, yuborishning o'zini `FirebaseService` bajaradi.
- *
- * Barcha metodlar xatoni yutadi va hech qachon otmaydi — xabarnoma yuborilmagani
- * yozilish, to'lov yoki dars qo'shishni buzmasligi kerak. Chaqiruvchi shuning
- * uchun natijani kutmasa ham bo'ladi (`void`).
- */
 @Injectable()
 export class PushService {
   private readonly logger = new Logger(PushService.name);
@@ -51,59 +44,51 @@ export class PushService {
   constructor(
     @InjectRepository(Session) private readonly sessionRepo: Repository<Session>,
     @InjectRepository(Enrollment) private readonly enrollmentRepo: Repository<Enrollment>,
-    @InjectRepository(User) private readonly userRepo: Repository<User>,
+    @InjectRepository(Student) private readonly studentRepo: Repository<Student>,
+    @InjectRepository(Mentor) private readonly mentorRepo: Repository<Mentor>,
     @InjectRepository(UserNotification) private readonly userNotificationRepo: Repository<UserNotification>,
     private readonly firebaseService: FirebaseService,
   ) {}
 
-  /** Talaba kursga yozildi — o'sha talabaning qurilmalariga. */
-  async notifyCourseEnrolled(userId: string, courseId: string, courseTitle: string): Promise<void> {
+  async notifyCourseEnrolled(studentId: string, courseId: string, courseTitle: string): Promise<void> {
+    const student: RoleId = { id: studentId, role: UserRole.STUDENT };
     const payload = courseEnrolledMessage(courseTitle, courseId);
-    await this.savePermanent([userId], payload);
-    await this.send(await this.tokensOfUsers([userId]), payload);
+    await this.savePermanent([student], payload);
+    await this.send(await this.tokensOfUsers([student]), payload);
   }
 
-  /** Talabaga mentor tayinlandi — talabaning qurilmalariga. */
-  async notifyTeacherAssigned(studentUserId: string, teacherName: string, assignmentId: string): Promise<void> {
-    await this.send(await this.tokensOfUsers([studentUserId]), teacherAssignedMessage(teacherName, assignmentId));
+  async notifyMentorAssigned(studentId: string, mentorName: string, assignmentId: string): Promise<void> {
+    const student: RoleId = { id: studentId, role: UserRole.STUDENT };
+    await this.send(await this.tokensOfUsers([student]), mentorAssignedMessage(mentorName, assignmentId));
   }
 
-  /** Admin yangi kurs qo'shdi — barcha talabalarga. */
   async notifyCourseCreated(courseId: string, courseTitle: string): Promise<void> {
-    await this.send(await this.tokensOfAllStudents(), courseCreatedMessage(courseTitle, courseId));
+    await this.send(await this.tokensOfRole('student'), courseCreatedMessage(courseTitle, courseId));
   }
 
-  /** Kursga yangi dars qo'shildi — faqat o'sha kursga yozilgan talabalarga. */
   async notifyLessonAdded(courseId: string, courseTitle: string, lessonTitle: string): Promise<void> {
     const tokens = await this.tokensOfCourseStudents(courseId);
     await this.send(tokens, lessonAddedMessage(courseTitle, lessonTitle, courseId));
   }
 
-  /**
-   * Admin qo'lda yuboradigan xabarnoma.
-   *
-   * Hodisa metodlaridan farqli o'laroq natijani qaytaradi — admin panelga
-   * nechta qurilmaga borgani va qaysi raqamlar topilmagani ko'rsatiladi.
-   * Yuborish so'rov ichida bajariladi, shuning uchun javob kutiladi.
-   */
   async sendManual(dto: SendPushDto): Promise<ManualPushResult> {
     const payload: PushPayload = { title: dto.title, body: dto.body, data: { event: PushEvent.ADMIN_MESSAGE } };
 
     if (dto.audience !== PushAudience.PHONES) {
-      const userIds = await this.userIdsOfAudience(dto.audience);
-      if (dto.isPermanent) await this.savePermanent(userIds, payload);
-      const tokens = await this.tokensOfUsers(userIds);
+      const users = await this.usersOfAudience(dto.audience);
+      if (dto.isPermanent) await this.savePermanent(users, payload);
+      const tokens = await this.tokensOfUsers(users);
       return { audience: dto.audience, ...(await this.deliver(tokens, payload)) };
     }
 
-    const { userIds, tokens, notFound, withoutDevice } = await this.resolvePhones(dto.phoneNumbers ?? []);
-    if (dto.isPermanent) await this.savePermanent(userIds, payload);
+    const { users, tokens, notFound, withoutDevice } = await this.resolvePhones(dto.phoneNumbers ?? []);
+    if (dto.isPermanent) await this.savePermanent(users, payload);
     return { audience: dto.audience, ...(await this.deliver(tokens, payload)), notFound, withoutDevice };
   }
 
-  async findUserNotifications(userId: string, query: PaginationQuery): Promise<Paginated<UserNotification>> {
+  async findUserNotifications(user: RoleId, query: PaginationQuery): Promise<Paginated<UserNotification>> {
     const [data, total] = await this.userNotificationRepo.findAndCount({
-      where: { user: { id: userId } },
+      where: ownerRef(user),
       order: { createdAt: 'DESC' },
       skip: query.skip,
       take: query.take,
@@ -111,9 +96,9 @@ export class PushService {
     return paginate(data, total, query);
   }
 
-  async findUnreadUserNotifications(userId: string, query: PaginationQuery): Promise<Paginated<UserNotification>> {
+  async findUnreadUserNotifications(user: RoleId, query: PaginationQuery): Promise<Paginated<UserNotification>> {
     const [data, total] = await this.userNotificationRepo.findAndCount({
-      where: { user: { id: userId }, isRead: false },
+      where: { ...ownerRef(user), isRead: false },
       order: { createdAt: 'DESC' },
       skip: query.skip,
       take: query.take,
@@ -121,9 +106,9 @@ export class PushService {
     return paginate(data, total, query);
   }
 
-  async markUserNotificationAsRead(userId: string, notificationId: string): Promise<UserNotification> {
+  async markUserNotificationAsRead(user: RoleId, notificationId: string): Promise<UserNotification> {
     const notification = await this.userNotificationRepo.findOne({
-      where: { id: notificationId, user: { id: userId } },
+      where: { id: notificationId, ...ownerRef(user) },
     });
     if (!notification) throw new NotFoundException('Xabarnoma topilmadi');
 
@@ -134,7 +119,6 @@ export class PushService {
     return notification;
   }
 
-  /** Yuboradi, eskirgan tokenlarni tozalaydi va hisobotni qaytaradi. */
   private async deliver(tokens: string[], payload: PushPayload): Promise<PushDeliveryReport> {
     if (tokens.length === 0) return { devices: 0, sent: 0, failed: 0, removedTokens: 0 };
 
@@ -156,63 +140,69 @@ export class PushService {
     };
   }
 
-  private async userIdsOfAudience(audience: Exclude<PushAudience, PushAudience.PHONES>): Promise<string[]> {
+  private async usersOfAudience(audience: Exclude<PushAudience, PushAudience.PHONES>): Promise<RoleId[]> {
     if (audience === PushAudience.ALL) {
-      const users = await this.userRepo.find({ select: { id: true } });
-      return users.map((user) => user.id);
+      const [students, mentors] = await Promise.all([
+        this.studentRepo.find({ select: { id: true } }),
+        this.mentorRepo.find({ select: { id: true } }),
+      ]);
+      return [
+        ...students.map((s) => ({ id: s.id, role: UserRole.STUDENT })),
+        ...mentors.map((m) => ({ id: m.id, role: UserRole.MENTOR })),
+      ];
     }
-    return this.userIdsOfRole(audience === PushAudience.STUDENTS ? 'students' : 'teachers');
+    if (audience === PushAudience.STUDENTS) {
+      const rows = await this.studentRepo.find({ select: { id: true } });
+      return rows.map((row) => ({ id: row.id, role: UserRole.STUDENT }));
+    }
+    const rows = await this.mentorRepo.find({ select: { id: true } });
+    return rows.map((row) => ({ id: row.id, role: UserRole.MENTOR }));
   }
 
-  /**
-   * Raqamlar bo'yicha tokenlar. Yetib bormagan raqamlar ikki sababga bo'linadi,
-   * chunki admin uchun farqi bor: `notFound` — bunday foydalanuvchi yo'q
-   * (raqam xato), `withoutDevice` — foydalanuvchi bor, lekin ilovaga kirmagan.
-   */
   private async resolvePhones(
     phoneNumbers: string[],
-  ): Promise<{ userIds: string[]; tokens: string[]; notFound: string[]; withoutDevice: string[] }> {
+  ): Promise<{ users: RoleId[]; tokens: string[]; notFound: string[]; withoutDevice: string[] }> {
     const unique = [...new Set(phoneNumbers)];
-    if (unique.length === 0) return { userIds: [], tokens: [], notFound: [], withoutDevice: [] };
+    if (unique.length === 0) return { users: [], tokens: [], notFound: [], withoutDevice: [] };
 
-    const users = await this.userRepo.find({
-      where: { phoneNumber: In(unique) },
-      select: { id: true, phoneNumber: true },
+    const [students, mentors] = await Promise.all([
+      this.studentRepo.find({ where: { phoneNumber: In(unique) }, select: { id: true, phoneNumber: true } }),
+      this.mentorRepo.find({ where: { phoneNumber: In(unique) }, select: { id: true, phoneNumber: true } }),
+    ]);
+    const users: RoleId[] = [
+      ...students.map((s) => ({ id: s.id, role: UserRole.STUDENT })),
+      ...mentors.map((m) => ({ id: m.id, role: UserRole.MENTOR })),
+    ];
+    const known = new Set([...students.map((s) => s.phoneNumber), ...mentors.map((m) => m.phoneNumber)]);
+
+    const tokens = await this.tokensOfUsers(users);
+    const reachedRows = await this.sessionRepo.find({
+      where: [{ student: { phoneNumber: In(unique) } }, { mentor: { phoneNumber: In(unique) } }],
+      relations: { student: true, mentor: true },
+      select: { student: { phoneNumber: true }, mentor: { phoneNumber: true } },
     });
-    const known = new Set(users.map((user) => user.phoneNumber));
-
-    const rows = await this.sessionRepo
-      .createQueryBuilder('session')
-      .select('session.fcmToken', 'fcmToken')
-      .addSelect('user.phoneNumber', 'phoneNumber')
-      .innerJoin('session.user', 'user')
-      .where('user.phoneNumber IN (:...phoneNumbers)', { phoneNumbers: unique })
-      .getRawMany<{ fcmToken: string; phoneNumber: string }>();
-
-    const reached = new Set(rows.map((row) => row.phoneNumber));
+    const reached = new Set(reachedRows.map((row) => row.student?.phoneNumber ?? row.mentor?.phoneNumber));
 
     return {
-      userIds: users.map((user) => user.id),
-      tokens: rows.map((row) => row.fcmToken),
+      users,
+      tokens,
       notFound: unique.filter((phone) => !known.has(phone)),
       withoutDevice: unique.filter((phone) => known.has(phone) && !reached.has(phone)),
     };
   }
 
-  /** Doimiy xabarni har bir foydalanuvchi uchun alohida saqlaydi. */
-  private async savePermanent(userIds: string[], payload: PushPayload): Promise<void> {
-    if (userIds.length === 0) return;
+  private async savePermanent(users: RoleId[], payload: PushPayload): Promise<void> {
+    if (users.length === 0) return;
     try {
       await this.userNotificationRepo.insert(
-        [...new Set(userIds)].map((userId) => ({
-          user: { id: userId },
+        users.map((user) => ({
+          ...ownerRef(user),
           title: payload.title,
           body: payload.body,
           data: payload.data ?? null,
         })),
       );
     } catch (error) {
-      // Hodisa xabarnomasi bazadagi asosiy biznes amalini hech qachon buzmaydi.
       this.logger.error(`Doimiy xabarnomani saqlashda xato: ${payload.title}`, error as Error);
     }
   }
@@ -223,8 +213,6 @@ export class PushService {
     try {
       const result = await this.firebaseService.sendToTokens(tokens, payload);
 
-      // Ro'yxatdan o'tmagan tokenlar bazada qolib ketmasin — ilova o'chirilgan
-      // yoki token yangilangan qurilmalar sessiyasi tozalanadi.
       if (result.deadTokens.length > 0) {
         await this.sessionRepo.delete({ fcmToken: In(result.deadTokens) });
       }
@@ -238,51 +226,40 @@ export class PushService {
     }
   }
 
-  private async tokensOfUsers(userIds: string[]): Promise<string[]> {
-    if (userIds.length === 0) return [];
+  private async tokensOfUsers(users: RoleId[]): Promise<string[]> {
+    const studentIds = users.filter((u) => u.role === UserRole.STUDENT).map((u) => u.id);
+    const mentorIds = users.filter((u) => u.role === UserRole.MENTOR).map((u) => u.id);
+    const adminIds = users.filter((u) => u.role === UserRole.ADMIN).map((u) => u.id);
+    if (studentIds.length === 0 && mentorIds.length === 0 && adminIds.length === 0) return [];
+
+    const where = [
+      ...(studentIds.length ? [{ student: { id: In(studentIds) } }] : []),
+      ...(mentorIds.length ? [{ mentor: { id: In(mentorIds) } }] : []),
+      ...(adminIds.length ? [{ admin: { id: In(adminIds) } }] : []),
+    ];
+    const sessions = await this.sessionRepo.find({ where, select: { fcmToken: true } });
+    return sessions.map((session) => session.fcmToken);
+  }
+
+  private async tokensOfRole(role: 'student' | 'mentor'): Promise<string[]> {
     const sessions = await this.sessionRepo.find({
-      where: { user: { id: In(userIds) } },
+      where: { [role]: Not(IsNull()) },
       select: { fcmToken: true },
     });
     return sessions.map((session) => session.fcmToken);
   }
 
-  /** Talaba profili bor foydalanuvchilarning barcha qurilmalari. */
-  private tokensOfAllStudents(): Promise<string[]> {
-    return this.tokensOfRole('students');
-  }
-
-  private async userIdsOfRole(table: 'students' | 'teachers'): Promise<string[]> {
-    const rows = await this.userRepo
-      .createQueryBuilder('user')
-      .select('user.id', 'userId')
-      .innerJoin(table, 'profile', 'profile.user_id = user.id')
-      .getRawMany<{ userId: string }>();
-    return rows.map((row) => row.userId);
-  }
-
-  /** Berilgan rol jadvalida profili bor foydalanuvchilarning qurilmalari. */
-  private async tokensOfRole(table: 'students' | 'teachers'): Promise<string[]> {
-    const rows = await this.sessionRepo
-      .createQueryBuilder('session')
-      .select('session.fcm_token', 'fcmToken')
-      .innerJoin(table, 'profile', 'profile.user_id = session.user_id')
-      .getRawMany<{ fcmToken: string }>();
-    return rows.map((row) => row.fcmToken);
-  }
-
-  /** Kursga muddati tugamagan faol yozilishi bor talabalar. */
   private async tokensOfCourseStudents(courseId: string): Promise<string[]> {
     const enrollments = await this.enrollmentRepo.find({
       where: { course: { id: courseId }, status: EnrollmentStatus.ACTIVE },
-      relations: { student: { user: true } },
+      relations: { student: true },
     });
 
     const now = new Date();
-    const userIds = enrollments
+    const studentIds = enrollments
       .filter((enrollment) => !isEnrollmentExpired(enrollment, now))
-      .map((enrollment) => enrollment.student.user.id);
+      .map((enrollment) => enrollment.student.id);
 
-    return this.tokensOfUsers([...new Set(userIds)]);
+    return this.tokensOfUsers([...new Set(studentIds)].map((id) => ({ id, role: UserRole.STUDENT })));
   }
 }

@@ -19,7 +19,7 @@ import { Paginated, paginate } from '@/common/dto/pagination-query.dto';
 import { PushService } from '@/core/notification/services/push.service';
 
 const pendingRelations = {
-  user: true,
+  student: true,
   course: true,
   enrollment: true,
 } as const;
@@ -37,15 +37,8 @@ export class PendingEnrollmentService {
     private readonly dataSource: DataSource,
   ) {}
 
-  /**
-   * Tashqi xizmat yozilish so'rovini yuboradi — yozilish hali ochilmaydi,
-   * admin tasdig'ini kutadi.
-   *
-   * Takroriy so'rov yangi yozuv yaratmaydi: shu foydalanuvchi va kurs uchun
-   * kutilayotgan so'rov bo'lsa, sanalari yangilanib o'zi qaytariladi.
-   */
   async createPending(dto: CreatePendingEnrollmentDto): Promise<PendingEnrollment> {
-    const student = await this.studentRepo.findOne({ where: { user: { id: dto.userId } }, relations: { user: true } });
+    const student = await this.studentRepo.findOne({ where: { id: dto.userId } });
     if (!student) throw new NotFoundException('Talaba topilmadi');
 
     const course = await this.courseRepo.findOne({ where: { id: dto.courseId } });
@@ -58,7 +51,6 @@ export class PendingEnrollmentService {
       throw new BadRequestException("Tugash sanasi boshlanish sanasidan keyin bo'lishi kerak");
     }
 
-    // Amaldagi yozilish bor bo'lsa so'rov ma'nosiz — admin vaqtini olmasin.
     const active = await this.enrollmentRepo.findOne({
       where: { student: { id: student.id }, course: { id: course.id }, status: EnrollmentStatus.ACTIVE },
     });
@@ -68,7 +60,7 @@ export class PendingEnrollmentService {
 
     const existing = await this.pendingRepo.findOne({
       where: {
-        user: { id: dto.userId },
+        student: { id: student.id },
         course: { id: course.id },
         status: PendingEnrollmentStatus.CREATED,
       },
@@ -81,13 +73,13 @@ export class PendingEnrollmentService {
       return this.pendingRepo.save(existing);
     }
 
-    const created = await this.pendingRepo.save({ user: student.user, course, start, end });
+    const created = await this.pendingRepo.save({ student, course, start, end });
     return this.findOnePending(created.id);
   }
 
   async findAllPending(query: PendingEnrollmentQuery): Promise<Paginated<PendingEnrollment>> {
     const where: FindOptionsWhere<PendingEnrollment> = {};
-    if (query.userId) where.user = { id: query.userId };
+    if (query.userId) where.student = { id: query.userId };
     if (query.courseId) where.course = { id: query.courseId };
     if (query.status) where.status = query.status;
 
@@ -108,13 +100,6 @@ export class PendingEnrollmentService {
     return pending;
   }
 
-  /**
-   * Admin so'rovni tasdiqlaydi: yozilish `active` bo'ladi, tanlangan tarif bilan
-   * to'langan (`paid`) to'lov yozuvi ochiladi va tarixga yozuv qo'shiladi.
-   *
-   * Pul allaqachon tashqarida (naqd, o'tkazma) yig'ilgan deb hisoblanadi —
-   * to'lov tizimi (Click, Payme) bu yo'lda qatnashmaydi.
-   */
   async acceptPending(id: string, dto: AcceptPendingEnrollmentDto) {
     const pending = await this.findOnePending(id);
     this.assertPendingIsOpen(pending);
@@ -125,15 +110,12 @@ export class PendingEnrollmentService {
       throw new BadRequestException("Tarif so'rovdagi kursga tegishli emas");
     }
 
-    const student = await this.studentRepo.findOne({ where: { user: { id: pending.user.id } } });
-    if (!student) throw new NotFoundException('Talaba topilmadi');
-
     const amount = dto.amount ?? plan.price;
 
     const accepted = await this.dataSource.transaction(async (manager) => {
       const enrollment = await this.enrollmentService.createEnrollment(
         {
-          studentId: student.id,
+          studentId: pending.student.id,
           planId: plan.id,
           start: pending.start?.toISOString(),
           end: pending.end?.toISOString(),
@@ -143,7 +125,7 @@ export class PendingEnrollmentService {
       );
 
       const payment = await manager.getRepository(Payment).save({
-        user: pending.user,
+        student: pending.student,
         enrollment,
         plan,
         amount,
@@ -157,14 +139,11 @@ export class PendingEnrollmentService {
       return { ...pending, enrollment, payment };
     });
 
-    // Xabarnoma commit'dan keyin: tranzaksiya orqaga qaytsa, talabaga
-    // yozilmagan kurs haqida push ketmasin.
-    void this.pushService.notifyCourseEnrolled(pending.user.id, pending.course.id, pending.course.title);
+    void this.pushService.notifyCourseEnrolled(pending.student.id, pending.course.id, pending.course.title);
 
     return accepted;
   }
 
-  /** Admin so'rovni rad etadi — yozilish ham, to'lov ham yaratilmaydi. */
   async rejectPending(id: string): Promise<PendingEnrollment> {
     const pending = await this.findOnePending(id);
     this.assertPendingIsOpen(pending);
@@ -173,7 +152,6 @@ export class PendingEnrollmentService {
     return this.pendingRepo.save(pending);
   }
 
-  /** Yakunlangan so'rov qayta tasdiqlanmaydi va rad etilmaydi. */
   private assertPendingIsOpen(pending: PendingEnrollment): void {
     if (pending.status !== PendingEnrollmentStatus.CREATED) {
       throw new BadRequestException("Faqat kutilayotgan so'rovni tasdiqlash yoki rad etish mumkin");

@@ -37,7 +37,6 @@ export class AdminMaterialController {
   ) {
     if (!file) throw new BadRequestException('Fayl yuborilmagan');
 
-    // Fayl filtri yaroqsiz turlarni allaqachon rad etadi — bu qo'shimcha himoya.
     const type = materialTypeFor(file);
     if (!type) throw new BadRequestException('Faqat PDF yoki Word (doc, docx) fayllari qabul qilinadi');
 

@@ -55,7 +55,6 @@ import { LoggingInterceptor } from '@/common/interceptors/logging.interceptor';
   providers: [
     { provide: APP_GUARD, useClass: JwtAccessGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
-    // DEPLOYMENT muhitida o'zini o'chiradi.
     { provide: APP_INTERCEPTOR, useClass: LoggingInterceptor },
   ],
 })

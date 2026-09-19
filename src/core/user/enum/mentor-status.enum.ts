@@ -1,4 +1,4 @@
-export enum TeacherStatus {
+export enum MentorStatus {
   ACTIVE = 'active',
   FIRED = 'fired',
   SUSPENDED = 'suspended',

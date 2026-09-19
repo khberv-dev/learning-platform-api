@@ -50,8 +50,6 @@ export class AdminCourseController {
     private readonly taskService: TaskService,
   ) {}
 
-  // ── Course ────────────────────────────────────────────────────────────────
-
   @Post()
   @courseUpload()
   createCourse(@Body() dto: CreateCourseDto, @UploadedFile() file?: Express.Multer.File) {
@@ -80,8 +78,6 @@ export class AdminCourseController {
     return this.courseService.deleteCourse(id);
   }
 
-  // ── Unit ──────────────────────────────────────────────────────────────────
-
   @Post(':courseId/units')
   createUnit(@Param('courseId') courseId: string, @Body() dto: CreateUnitDto) {
     return this.unitService.createUnit(courseId, dto);
@@ -97,8 +93,6 @@ export class AdminCourseController {
   deleteUnit(@Param('courseId') courseId: string, @Param('unitId') unitId: string) {
     return this.unitService.deleteUnit(courseId, unitId);
   }
-
-  // ── Lesson ────────────────────────────────────────────────────────────────
 
   @Get(':courseId/units/:unitId/lessons')
   listLessons(@Param('courseId') courseId: string, @Param('unitId') unitId: string) {
@@ -157,8 +151,6 @@ export class AdminCourseController {
     return this.lessonService.deleteLesson(courseId, unitId, lessonId);
   }
 
-  // ── Task ──────────────────────────────────────────────────────────────────
-
   @Post(':courseId/units/:unitId/lessons/:lessonId/tasks')
   createTask(
     @Param('courseId') courseId: string,
@@ -184,12 +176,6 @@ export class AdminCourseController {
   ) {
     return this.taskService.updateTask(courseId, unitId, lessonId, taskId, dto);
   }
-
-  // ── Task questions ────────────────────────────────────────────────────────
-  //
-  // Savollar `jsonb` massivda, o'z id'siz saqlanadi — shuning uchun massivdagi
-  // o'rni (`index`, 0 dan) bilan belgilanadi. Bitta savolni qo'shish uchun
-  // butun massivni qayta yuborish shart emas.
 
   @Post(':courseId/units/:unitId/lessons/:lessonId/tasks/:taskId/questions')
   addTaskQuestion(

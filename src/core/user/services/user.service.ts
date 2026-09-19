@@ -1,61 +1,91 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { User } from '@/core/user/entity/user.entity';
-import { Student, buildStudent } from '@/core/user/entity/student.entity';
-import { StudentLevel } from '@/core/user/enum/student-level.enum';
 import { Repository } from 'typeorm';
-import { hashPassword } from '@/shared/utils/hash.util';
+import { Student } from '@/core/user/entity/student.entity';
+import { StudentLevel } from '@/core/user/enum/student-level.enum';
+import { Mentor } from '@/core/user/entity/mentor.entity';
+import { Admin } from '@/core/user/entity/admin.entity';
 import { UserActivity } from '@/core/user/entity/user-activity.entity';
 import { Enrollment } from '@/core/enrollment/entity/enrollment.entity';
 import { EnrollmentStatus } from '@/core/enrollment/enum/enrollment-status.enum';
 import { isEnrollmentExpired } from '@/core/enrollment/utils/enrollment.util';
+import { UserRole } from '@/core/user/enum/user-role.enum';
+import { type AuthUser, ownerRef } from '@/common/utils/role-owner.util';
+import { hashPassword } from '@/shared/utils/hash.util';
+
+type RoleId = Pick<AuthUser, 'id' | 'role'>;
 
 @Injectable()
 export class UserService {
   constructor(
-    @InjectRepository(User) private readonly userRepo: Repository<User>,
+    @InjectRepository(Student) private readonly studentRepo: Repository<Student>,
+    @InjectRepository(Mentor) private readonly mentorRepo: Repository<Mentor>,
+    @InjectRepository(Admin) private readonly adminRepo: Repository<Admin>,
     @InjectRepository(UserActivity) private readonly userActivityRepo: Repository<UserActivity>,
     @InjectRepository(Enrollment) private readonly enrollmentRepo: Repository<Enrollment>,
   ) {}
+
+  private repoFor(role: UserRole): Repository<Student> | Repository<Mentor> | Repository<Admin> {
+    switch (role) {
+      case UserRole.STUDENT:
+        return this.studentRepo;
+      case UserRole.MENTOR:
+        return this.mentorRepo;
+      case UserRole.ADMIN:
+        return this.adminRepo;
+    }
+  }
+
+  private toAuthUser(role: UserRole, account: Student | Mentor | Admin): AuthUser {
+    return {
+      id: account.id,
+      role,
+      firstName: account.firstName,
+      lastName: account.lastName ?? null,
+      avatar: account.avatar ?? null,
+      email: 'email' in account ? (account.email ?? null) : null,
+      phoneNumber: 'phoneNumber' in account ? (account.phoneNumber ?? null) : null,
+      isActive: account.isActive,
+    };
+  }
+
+  async findAuthUser(id: string, role: UserRole): Promise<AuthUser | null> {
+    const account = await this.repoFor(role).findOne({ where: { id } });
+    if (!account) return null;
+    return this.toAuthUser(role, account);
+  }
 
   private utcDate(date = new Date()): string {
     return date.toISOString().slice(0, 10);
   }
 
-  /** Foydalanuvchida hozir faol va muddati tugamagan kurs yozilishi bormi. */
-  private async hasActiveCourse(userId: string): Promise<boolean> {
+  private async hasActiveCourse(user: RoleId): Promise<boolean> {
+    if (user.role !== UserRole.STUDENT) return false;
     const enrollments = await this.enrollmentRepo.find({
-      where: { student: { user: { id: userId } }, status: EnrollmentStatus.ACTIVE },
+      where: { student: { id: user.id }, status: EnrollmentStatus.ACTIVE },
       select: { id: true, status: true, end: true },
     });
     return enrollments.some((enrollment) => !isEnrollmentExpired(enrollment));
   }
 
-  /**
-   * Foydalanuvchining bugungi (UTC) faolligini qayd etadi. `(user, activityDate)` unique bo'lgani uchun
-   * bir kunda bir necha marta chaqirilsa ham bitta qator qoladi; `recorded` faqat birinchi chaqiruvda `true`.
-   *
-   * `hasCourse` — qayd etilgan paytda faol kursi bormi. Kun davomida kurs sotib olinsa, qator `true` ga
-   * ko'tariladi, lekin hech qachon `false` ga tushirilmaydi: o'sha kuni kursi bo'lgan foydalanuvchi kursli sanaladi.
-   */
-  async recordDailyActivity(userId: string): Promise<{ activityDate: string; hasCourse: boolean; recorded: boolean }> {
+  async recordDailyActivity(user: RoleId): Promise<{ activityDate: string; hasCourse: boolean; recorded: boolean }> {
     const activityDate = this.utcDate();
-    const hasCourse = await this.hasActiveCourse(userId);
-    // `xmax = 0` — qator shu so'rovda yangi qo'shilgan (yangilanmagan). O'zgarish bo'lmasa, qator qaytmaydi.
+    const hasCourse = await this.hasActiveCourse(user);
+    const column = `${user.role === UserRole.MENTOR ? 'mentor' : user.role}_id`;
     const rows: Array<{ inserted: boolean }> = await this.userActivityRepo.query(
-      `INSERT INTO user_activities (user_id, activity_date, has_course)
+      `INSERT INTO user_activities (${column}, activity_date, has_course)
        VALUES ($1, $2, $3)
-       ON CONFLICT (user_id, activity_date) DO UPDATE SET has_course = TRUE
+       ON CONFLICT (${column}, activity_date) DO UPDATE SET has_course = TRUE
          WHERE user_activities.has_course = FALSE AND EXCLUDED.has_course = TRUE
        RETURNING (xmax = 0) AS inserted`,
-      [userId, activityDate, hasCourse],
+      [user.id, activityDate, hasCourse],
     );
     return { activityDate, hasCourse, recorded: rows.some((row) => row.inserted) };
   }
 
-  async getStreak(userId: string) {
+  async getStreak(user: RoleId) {
     const rows = await this.userActivityRepo.find({
-      where: { user: { id: userId } },
+      where: ownerRef(user),
       select: { activityDate: true },
       order: { activityDate: 'DESC' },
     });
@@ -95,127 +125,77 @@ export class UserService {
     };
   }
 
-  async findById(userId: string) {
-    const _user = await this.userRepo.findOne({
-      where: { id: userId },
-      relations: { student: true, teacher: true, admin: true },
-    });
-
-    if (!_user) return null;
-
-    const { student, teacher, admin, ...user } = _user;
-    return { ...user, roles: _user.roles() };
+  async updateAvatar(user: RoleId, avatarPath: string): Promise<AuthUser> {
+    await this.repoFor(user.role).update(user.id, { avatar: avatarPath });
+    return (await this.findAuthUser(user.id, user.role))!;
   }
 
-  findByPhoneNumberForAuth(phoneNumber: string | undefined) {
-    if (!phoneNumber) return null;
-    return this.userRepo
-      .createQueryBuilder('user')
-      .addSelect('user.password')
-      .where('user.phoneNumber = :phoneNumber', { phoneNumber })
-      .getOne();
+  async setPassword(id: string, password: string): Promise<void> {
+    for (const repo of [this.studentRepo, this.mentorRepo, this.adminRepo]) {
+      const exists = await repo.existsBy({ id });
+      if (exists) {
+        await repo.update(id, { password: await hashPassword(password) });
+        return;
+      }
+    }
+    throw new NotFoundException('Foydalanuvchi topilmadi');
   }
 
-  findByPhoneNumberForAuthWithRoles(phoneNumber: string) {
-    return this.userRepo
-      .createQueryBuilder('user')
-      .addSelect('user.password')
-      .leftJoinAndSelect('user.student', 'student')
-      .leftJoinAndSelect('user.teacher', 'teacher')
-      .leftJoinAndSelect('user.admin', 'admin')
-      .where('user.phoneNumber = :phoneNumber', { phoneNumber })
-      .getOne();
+  async findAccountForAuth(identity: {
+    email?: string;
+    phoneNumber?: string;
+  }): Promise<{ id: string; role: UserRole; password: string; isActive: boolean } | null> {
+    const candidates = identity.email
+      ? ([
+          [UserRole.STUDENT, this.studentRepo],
+          [UserRole.ADMIN, this.adminRepo],
+        ] as const)
+      : ([
+          [UserRole.STUDENT, this.studentRepo],
+          [UserRole.MENTOR, this.mentorRepo],
+        ] as const);
+
+    const where = identity.email ? 'LOWER(account.email) = :email' : 'account.phoneNumber = :phoneNumber';
+    const params = identity.email ? { email: identity.email.toLowerCase() } : { phoneNumber: identity.phoneNumber };
+
+    for (const [role, repo] of candidates) {
+      const account = await repo
+        .createQueryBuilder('account')
+        .addSelect('account.password')
+        .where(where, params)
+        .getOne();
+      if (account) return { id: account.id, role, password: account.password, isActive: account.isActive };
+    }
+    return null;
   }
 
-  findByEmailForAuthWithRoles(email: string) {
-    return this.userRepo
-      .createQueryBuilder('user')
-      .addSelect('user.password')
-      .leftJoinAndSelect('user.student', 'student')
-      .leftJoinAndSelect('user.teacher', 'teacher')
-      .leftJoinAndSelect('user.admin', 'admin')
-      .where('LOWER(user.email) = :email', { email: email.toLowerCase() })
-      .getOne();
-  }
-
-  /**
-   * Raqam allaqachon talaba sifatida ro'yxatdan o'tganmi.
-   *
-   * Faqat `student` profili hisobga olinadi: o'qituvchi yoki admin sifatida
-   * mavjud foydalanuvchi keyinchalik talaba rolini ham qo'shishi mumkin
-   * (`signUp` dagi `addStudentRole` oqimi), shuning uchun ular band deb
-   * hisoblanmaydi.
-   */
-  async hasStudentProfile(phoneNumber: string): Promise<boolean> {
-    const count = await this.userRepo
-      .createQueryBuilder('user')
-      .innerJoin('user.student', 'student')
-      .where('user.phoneNumber = :phoneNumber', { phoneNumber })
-      .getCount();
-    return count > 0;
+  hasStudentProfile(phoneNumber: string): Promise<boolean> {
+    return this.studentRepo.existsBy({ phoneNumber });
   }
 
   async hasStudentProfileByEmail(email: string): Promise<boolean> {
-    const count = await this.userRepo
-      .createQueryBuilder('user')
-      .innerJoin('user.student', 'student')
-      .where('LOWER(user.email) = :email', { email: email.toLowerCase() })
+    const count = await this.studentRepo
+      .createQueryBuilder('student')
+      .where('LOWER(student.email) = :email', { email: email.toLowerCase() })
       .getCount();
     return count > 0;
   }
 
-  addStudentRole(userId: string, level?: StudentLevel) {
-    return this.userRepo.save({ id: userId, student: buildStudent(level) });
-  }
-
-  findByPhoneNumber(phoneNumber: string) {
-    if (!phoneNumber) {
-      return null;
-    }
-
-    return this.userRepo.findOne({
-      where: {
-        phoneNumber,
-      },
+  createStudent(data: {
+    firstName: string;
+    lastName?: string;
+    email?: string;
+    phoneNumber?: string;
+    password: string;
+    level?: StudentLevel;
+  }): Promise<Student> {
+    return this.studentRepo.save({
+      firstName: data.firstName,
+      lastName: data.lastName,
+      email: data.email,
+      phoneNumber: data.phoneNumber,
+      password: data.password,
+      ...(data.level ? { level: data.level } : {}),
     });
-  }
-
-  findByEmail(email: string) {
-    if (!email) {
-      return null;
-    }
-
-    return this.userRepo
-      .createQueryBuilder('user')
-      .where('LOWER(user.email) = :email', { email: email.toLowerCase() })
-      .getOne();
-  }
-
-  findByEmailForAuth(email: string | undefined) {
-    if (!email) return null;
-    return this.userRepo
-      .createQueryBuilder('user')
-      .addSelect('user.password')
-      .where('LOWER(user.email) = :email', { email: email.toLowerCase() })
-      .getOne();
-  }
-
-  async updateAvatar(userId: string, avatarPath: string) {
-    await this.userRepo.update(userId, { avatar: avatarPath });
-    return this.findById(userId);
-  }
-
-  save(user: Partial<User>) {
-    return this.userRepo.save(user);
-  }
-
-  async updatePassword(userId: string, passwordHash: string): Promise<void> {
-    await this.userRepo.update(userId, { password: passwordHash });
-  }
-
-  async setPassword(userId: string, password: string): Promise<void> {
-    const exists = await this.userRepo.existsBy({ id: userId });
-    if (!exists) throw new NotFoundException('Foydalanuvchi topilmadi');
-    await this.updatePassword(userId, await hashPassword(password));
   }
 }

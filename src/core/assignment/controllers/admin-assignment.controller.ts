@@ -6,7 +6,7 @@ import { AssignmentService } from '@/core/assignment/services/assignment.service
 import { AssignmentStatus } from '@/core/assignment/enum/assignment-status.enum';
 
 @Roles(UserRole.ADMIN)
-@Controller('assignments')
+@Controller('admin/assignments')
 export class AdminAssignmentController {
   constructor(private readonly assignmentService: AssignmentService) {}
 

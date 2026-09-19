@@ -7,17 +7,17 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { Teacher } from '@/core/user/entity/teacher.entity';
+import { Mentor } from '@/core/user/entity/mentor.entity';
 import { Student } from '@/core/user/entity/student.entity';
 
-@Entity('teacher_feedbacks')
-export class TeacherFeedback {
+@Entity('mentor_feedbacks')
+export class MentorFeedback {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @ManyToOne(() => Teacher, (teacher) => teacher.feedbacks, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Mentor, (mentor) => mentor.feedbacks, { onDelete: 'CASCADE' })
   @JoinColumn()
-  teacher: Teacher;
+  mentor: Mentor;
 
   @ManyToOne(() => Student, { onDelete: 'CASCADE' })
   @JoinColumn()

@@ -4,10 +4,10 @@ import { extname } from 'path';
 import { randomUUID } from 'crypto';
 import { mkdirSync } from 'fs';
 
-const DEST = './uploads/teacher-intro';
+const DEST = './uploads/mentor-intro';
 mkdirSync(DEST, { recursive: true });
 
-export const teacherIntroStorage = diskStorage({
+export const mentorIntroStorage = diskStorage({
   destination: DEST,
   filename: (_req, file, cb) => cb(null, `${randomUUID()}${extname(file.originalname)}`),
 });
@@ -23,4 +23,4 @@ export function introVideoFileFilter(
   cb(null, true);
 }
 
-export const toIntroVideoPath = (filename: string) => `/teacher-intro/${filename}`;
+export const toIntroVideoPath = (filename: string) => `/mentor-intro/${filename}`;

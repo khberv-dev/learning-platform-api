@@ -11,7 +11,6 @@ import { UpdateTaskQuestionDto } from '@/core/course/dto/update-task-question.dt
 import { TaskContentType } from '@/core/course/enum/task-content-type.enum';
 import { TaskQuestion } from '@/core/course/entity/task.entity';
 
-/** `options` doim mavjud bo'lsin — berilmagani ochiq javobli savol degani. */
 function toQuestion(dto: TaskQuestionDto): TaskQuestion {
   return { question: dto.question, options: dto.options ?? null, answer: dto.answer };
 }
@@ -51,11 +50,6 @@ export class TaskService {
     });
   }
 
-  /**
-   * Talaba uchun topshiriqlar ro'yxati: faqat yozilgan kursi bo'yicha va
-   * to'g'ri javoblarsiz. Admin uchun to'liq ma'lumot qaytariladi — u javob
-   * varaqasini ko'rishi kerak.
-   */
   async listTasksForStudent(courseId: string, unitId: string, lessonId: string, studentUserId: string) {
     await this.loadLesson(courseId, unitId, lessonId);
     await assertActiveEnrollmentForLesson(this.enrollmentRepo, studentUserId, lessonId);
@@ -90,13 +84,6 @@ export class TaskService {
     return this.taskRepo.save(task);
   }
 
-  // ── Savollar ──────────────────────────────────────────────────────────────
-  //
-  // Savollar `jsonb` massivda saqlanadi va o'z id'siga ega emas, shuning uchun
-  // ular massivdagi o'rni (`index`, 0 dan boshlab) bilan belgilanadi. Bu
-  // usullar bo'lmasa mijoz bitta savolni qo'shish uchun ham butun massivni
-  // qayta yuborishga majbur bo'ladi.
-
   private async loadTask(courseId: string, unitId: string, lessonId: string, taskId: string): Promise<Task> {
     await this.loadLesson(courseId, unitId, lessonId);
     const task = await this.taskRepo.findOne({ where: { id: taskId, lesson: { id: lessonId } } });
@@ -118,8 +105,6 @@ export class TaskService {
     dto: TaskQuestionDto,
   ): Promise<Task> {
     const task = await this.loadTask(courseId, unitId, lessonId, taskId);
-    // Yangi massiv — TypeORM `jsonb` o'zgarishini havola almashgandagina
-    // sezadi, joyida `push` qilinsa saqlanmaydi.
     task.questions = [...(task.questions ?? []), toQuestion(dto)];
     return this.taskRepo.save(task);
   }
@@ -139,8 +124,6 @@ export class TaskService {
       i === index
         ? {
             question: dto.question ?? current.question,
-            // `options` uchun `undefined` — "tegilmadi", `null` — "ochiq
-            // javobli qilinsin". Shuning uchun `??` emas, aniq tekshiruv.
             options: dto.options !== undefined ? (dto.options ?? null) : current.options,
             answer: dto.answer ?? current.answer,
           }

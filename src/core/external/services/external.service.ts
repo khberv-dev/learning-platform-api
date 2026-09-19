@@ -43,14 +43,9 @@ export class ExternalService {
     private readonly pendingEnrollmentService: PendingEnrollmentService,
   ) {}
 
-  /**
-   * Telefon raqamning bir qismi bo'yicha qidiruv. Tashqi xizmatga faqat
-   * kerakli maydonlar qaytariladi — butun foydalanuvchi obyekti emas.
-   */
   async searchStudentsByPhone(query: SearchStudentsQuery): Promise<Paginated<ExternalStudent>> {
     const [students, total] = await this.studentRepo.findAndCount({
-      where: { user: { phoneNumber: ILike(`%${query.phone}%`) } },
-      relations: { user: true },
+      where: { phoneNumber: ILike(`%${query.phone}%`) },
       order: { createdAt: 'DESC' },
       skip: query.skip,
       take: query.take,
@@ -58,23 +53,16 @@ export class ExternalService {
 
     const data = students.map((student) => ({
       studentId: student.id,
-      userId: student.user.id,
-      firstName: student.user.firstName,
-      lastName: student.user.lastName ?? null,
-      phoneNumber: student.user.phoneNumber,
+      userId: student.id,
+      firstName: student.firstName,
+      lastName: student.lastName ?? null,
+      phoneNumber: student.phoneNumber,
       level: student.level,
     }));
 
     return paginate(data, total, query);
   }
 
-  /**
-   * Faol kurslar va ularning faol tariflari. Tashqi xizmat yozilish ochish uchun
-   * `planId` yoki `courseId` ni shu ro'yxatdan oladi. Kurs mazmuni (unit, lesson)
-   * qaytarilmaydi — faqat tanlash uchun kerakli maydonlar.
-   *
-   * Tarifsiz kurslar ham qaytariladi: ular `courseId` + `end` bilan ochiladi.
-   */
   async listCourses(): Promise<ExternalCourse[]> {
     const courses = await this.courseRepo.find({
       where: { isActive: true },
@@ -99,7 +87,6 @@ export class ExternalService {
     }));
   }
 
-  /** Yozilishni to'langan summa bilan ochadi — admin qo'lda yozish bilan bir xil yo'l. */
   createEnrollment(dto: ExternalEnrollmentDto) {
     return this.enrollmentService.createEnrollment({
       studentId: dto.studentId,
@@ -111,15 +98,10 @@ export class ExternalService {
     });
   }
 
-  /**
-   * Yozilish so'rovini navbatga qo'yadi — yozilish darhol ochilmaydi, admin
-   * tasdiqlashi kerak. Tasdiqlanganda tarif tanlanadi va to'lov yozuvi yaratiladi.
-   */
   createPendingEnrollment(dto: CreatePendingEnrollmentDto) {
     return this.pendingEnrollmentService.createPending(dto);
   }
 
-  /** So'rov holatini kuzatish uchun — tashqi xizmat javobni shu yerdan oladi. */
   findPendingEnrollment(id: string) {
     return this.pendingEnrollmentService.findOnePending(id);
   }

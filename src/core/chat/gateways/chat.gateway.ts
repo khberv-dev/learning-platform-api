@@ -14,9 +14,10 @@ import { Namespace, Server, Socket } from 'socket.io';
 import { UserService } from '@/core/user/services/user.service';
 import { ChatService } from '@/core/chat/services/chat.service';
 import { ChatMessage } from '@/core/chat/entity/chat-message.entity';
+import { UserRole } from '@/core/user/enum/user-role.enum';
 
 interface AuthedSocket extends Socket {
-  data: { userId: string };
+  data: { userId: string; role: UserRole };
 }
 
 const roomKey = (roomId: string) => `room:${roomId}`;
@@ -38,38 +39,36 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       const token = this.extractToken(socket);
       if (!token) return next(new Error('Token topilmadi'));
 
-      let payload: { sub: string };
+      let payload: { sub: string; role: UserRole };
       try {
-        payload = await this.jwtService.verifyAsync<{ sub: string }>(token);
+        payload = await this.jwtService.verifyAsync<{ sub: string; role: UserRole }>(token);
       } catch {
         return next(new Error("Token noto'g'ri"));
       }
 
-      const user = await this.userService.findById(payload.sub);
+      const user = await this.userService.findAuthUser(payload.sub, payload.role);
       if (!user) return next(new Error('Foydalanuvchi topilmadi'));
 
       socket.data.userId = user.id;
+      socket.data.role = user.role;
       next();
     });
   }
 
   async handleConnection(socket: AuthedSocket) {
-    const userId = socket.data.userId;
-    const roomIds = await this.chatService.listRoomIdsForUser(userId);
+    const roomIds = await this.chatService.listRoomIdsForUser({ id: socket.data.userId, role: socket.data.role });
     for (const roomId of roomIds) socket.join(roomKey(roomId));
-    this.logger.log(`Connected user=${userId} rooms=${roomIds.length}`);
+    this.logger.log(`Connected user=${socket.data.userId} rooms=${roomIds.length}`);
   }
 
   handleDisconnect(socket: Socket) {
-    const userId: string | undefined = socket.data.userId;
+    const userId: string | undefined = (socket as AuthedSocket).data?.userId;
     this.logger.log(`Disconnected user=${userId} socket=${socket.id}`);
   }
 
-  // ─── room management ──────────────────────────────────────────────────────
-
   @SubscribeMessage('join')
   async onJoin(@ConnectedSocket() socket: AuthedSocket, @MessageBody() body: { roomId: string }) {
-    const roomIds = await this.chatService.listRoomIdsForUser(socket.data.userId);
+    const roomIds = await this.chatService.listRoomIdsForUser({ id: socket.data.userId, role: socket.data.role });
     if (!roomIds.includes(body?.roomId)) {
       socket.emit('error', { message: 'Siz bu chatda emassiz' });
       return;
@@ -85,8 +84,6 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     socket.emit('left', { roomId: body.roomId });
   }
 
-  // ─── messaging ────────────────────────────────────────────────────────────
-
   @SubscribeMessage('send')
   async onSend(@ConnectedSocket() socket: AuthedSocket, @MessageBody() body: { roomId: string; text: string }) {
     if (!body?.roomId || !body?.text?.trim()) {
@@ -94,14 +91,16 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       return;
     }
     try {
-      const message = await this.chatService.sendText(socket.data.userId, body.roomId, body.text.trim());
+      const message = await this.chatService.sendText(
+        { id: socket.data.userId, role: socket.data.role },
+        body.roomId,
+        body.text.trim(),
+      );
       this.broadcastMessage(body.roomId, message);
     } catch (err: unknown) {
       socket.emit('error', { message: (err as Error).message });
     }
   }
-
-  // ─── presence ─────────────────────────────────────────────────────────────
 
   @SubscribeMessage('typing')
   onTyping(@ConnectedSocket() socket: AuthedSocket, @MessageBody() body: { roomId: string }) {
@@ -114,8 +113,6 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     if (!body?.roomId) return;
     socket.to(roomKey(body.roomId)).emit('stop-typing', { userId: socket.data.userId, roomId: body.roomId });
   }
-
-  // ─── internal ─────────────────────────────────────────────────────────────
 
   broadcastMessage(roomId: string, message: ChatMessage | null) {
     if (!message) return;

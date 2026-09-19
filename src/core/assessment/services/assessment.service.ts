@@ -25,21 +25,20 @@ export class AssessmentService {
     private readonly geminiService: GeminiService,
   ) {}
 
-  private async loadStudent(studentUserId: string) {
-    const student = await this.studentRepo.findOne({ where: { user: { id: studentUserId } } });
+  private async loadStudent(studentId: string) {
+    const student = await this.studentRepo.findOne({ where: { id: studentId } });
     if (!student) throw new NotFoundException('Talaba topilmadi');
     return student;
   }
 
-  async createConversation(studentUserId: string) {
-    const student = await this.loadStudent(studentUserId);
+  async createConversation(studentId: string) {
+    const student = await this.loadStudent(studentId);
     return this.conversationRepo.save({ student });
   }
 
-  async listConversations(studentUserId: string, query: PaginationQuery): Promise<Paginated<Conversation>> {
-    const student = await this.loadStudent(studentUserId);
+  async listConversations(studentId: string, query: PaginationQuery): Promise<Paginated<Conversation>> {
     const [data, total] = await this.conversationRepo.findAndCount({
-      where: { student: { id: student.id } },
+      where: { student: { id: studentId } },
       order: { updatedAt: 'DESC' },
       skip: query.skip,
       take: query.take,
@@ -47,10 +46,9 @@ export class AssessmentService {
     return paginate(data, total, query);
   }
 
-  async getConversation(studentUserId: string, conversationId: string) {
-    const student = await this.loadStudent(studentUserId);
+  async getConversation(studentId: string, conversationId: string) {
     const conversation = await this.conversationRepo.findOne({
-      where: { id: conversationId, student: { id: student.id } },
+      where: { id: conversationId, student: { id: studentId } },
       relations: { messages: true },
     });
     if (!conversation) throw new NotFoundException('Suhbat topilmadi');

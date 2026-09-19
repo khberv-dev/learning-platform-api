@@ -15,24 +15,18 @@ import { isEnrollmentExpired } from '@/core/enrollment/utils/enrollment.util';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const PAYME_RELATIONS = { plan: true, enrollment: { course: true }, user: true } as const;
+const PAYME_RELATIONS = { plan: true, enrollment: { course: true }, student: true } as const;
 
-/** Payme tranzaksiyasining amal qilish muddati — 12 soat. */
 const TRANSACTION_TIMEOUT_MS = 12 * 60 * 60 * 1000;
 
-/** 1 so'm = 100 tiyin. `payment.amount` so'mda, Payme esa tiyinda ishlaydi. */
 const TIYIN_IN_SUM = 100;
 
-/** Payme kabinetidagi hisob (account) maydonining sukut bo'yicha nomi. */
 const DEFAULT_ACCOUNT_FIELD = 'payment_id';
 
-/** PostgreSQL: unikal cheklov buzilgani. */
 const UNIQUE_VIOLATION = '23505';
 
-/** Chek turi: 0 — sotuv. */
 const RECEIPT_TYPE_SALE = 0;
 
-/** Ichki xato — `handle` uni JSON-RPC javobiga o'giradi. */
 class PaymeRpcError extends Error {
   constructor(
     readonly code: PaymeError,
@@ -61,10 +55,6 @@ export class PaymeService {
     return this.configService.get<string>('PAYME_ACCOUNT_FIELD') || DEFAULT_ACCOUNT_FIELD;
   }
 
-  /**
-   * Payme `Authorization: Basic base64("Paycom:<merchant_key>")` yuboradi.
-   * Kalit sozlanmagan bo'lsa barcha so'rovlar rad etiladi — Click'dagi kabi.
-   */
   private authorized(header: string | undefined): boolean {
     const key = this.merchantKey;
     if (!key) {
@@ -82,7 +72,6 @@ export class PaymeService {
     return login === 'Paycom' && this.matches(password, key);
   }
 
-  /** Vaqt bo'yicha hujumlarni oldini olish uchun doimiy vaqtli solishtirish. */
   private matches(received: string, expected: string): boolean {
     const a = Buffer.from(received);
     const b = Buffer.from(expected);
@@ -102,7 +91,6 @@ export class PaymeService {
     };
   }
 
-  /** Kelgan so'rovni log'ga yozadi (maxfiy kalitsiz). */
   private logRequest(body: PaymeRequest): void {
     this.logger.log(
       `[${body?.params?.id ?? '-'}] ${body?.method ?? '-'} <- ${JSON.stringify({
@@ -119,12 +107,10 @@ export class PaymeService {
     return response;
   }
 
-  /** POST bo'lmagan so'rov — spetsifikatsiya bo'yicha `-32300`. */
   rejectNonPost(body: PaymeRequest): PaymeResponse {
     return this.logResponse(body, this.failure(body?.id ?? null, PaymeError.NON_POST));
   }
 
-  /** JSON-RPC kirish nuqtasi. Har doim HTTP 200 — natija javob tanasida. */
   async handle(authorization: string | undefined, body: PaymeRequest): Promise<PaymeResponse> {
     this.logRequest(body);
     const id = body?.id ?? null;
@@ -137,7 +123,6 @@ export class PaymeService {
     }
 
     const params = body.params ?? {};
-    // Noma'lum metodni `default` ushlaydi, shu sababli turga keltirish xavfsiz.
     const method = body.method as PaymeMethod;
 
     try {
@@ -163,31 +148,19 @@ export class PaymeService {
       if (error instanceof PaymeRpcError) {
         return this.logResponse(body, this.failure(id, error.code, error.data));
       }
-      // Kutilmagan nosozlik — biznes qoidasi bo'yicha rad etish emas, shuning
-      // uchun `-31008` emas, `-32400` qaytariladi.
       this.logger.error(`Payme so'rovini bajarishda xato (${body.method})`, error as Error);
       return this.logResponse(body, this.failure(id, PaymeError.SYSTEM));
     }
   }
 
-  // ── Yordamchilar ────────────────────────────────────────────────────────────
-
-  /** Millisekundlarni sanaga; Payme vaqtlarni ms epoch'da yuboradi. */
   private toDate(value: unknown): Date | null {
     return typeof value === 'number' && Number.isFinite(value) ? new Date(value) : null;
   }
 
-  /** Bo'sh vaqt Payme'ga `0` bo'lib qaytadi (null emas). */
   private toMs(value: Date | null): number {
     return value ? value.getTime() : 0;
   }
 
-  /**
-   * Hisob (account) maydonidan to'lovni topadi. Click'dagi kabi qiymat
-   * to'lov (payment) id yoki foydalanuvchi (user) id bo'lishi mumkin: avval
-   * to'lov id sifatida qidiriladi, topilmasa foydalanuvchining kutilayotgan
-   * to'lovlaridan summasi mos keladigani tanlanadi.
-   */
   private async resolvePayment(params: PaymeParams): Promise<Payment> {
     const field = this.accountField;
     const raw = params.account?.[field];
@@ -201,7 +174,7 @@ export class PaymeService {
     if (byPaymentId) return byPaymentId;
 
     const pending = await this.paymentRepo.find({
-      where: { user: { id: value }, status: PaymentStatus.CREATED },
+      where: { student: { id: value }, status: PaymentStatus.CREATED },
       relations: PAYME_RELATIONS,
       order: { createdAt: 'DESC' },
     });
@@ -212,14 +185,9 @@ export class PaymeService {
     return pending.find((payment) => payment.amount * TIYIN_IN_SUM === params.amount) ?? pending[0];
   }
 
-  /**
-   * Summa to'lov yaratilgandagi tarif narxi bilan solishtiriladi.
-   * Kelgan qiymat **tiyinda** bo'lishi kerak: 250 000 so'm → `25000000`.
-   */
   private assertAmount(payment: Payment, amount: unknown): void {
     const expected = payment.amount * TIYIN_IN_SUM;
     if (typeof amount !== 'number' || !Number.isFinite(amount) || amount !== expected) {
-      // Eng ko'p uchraydigan sabab — to'lov havolasida summa so'mda yuborilgani.
       this.logger.warn(
         `To'lov ${payment.id}: summa mos emas — kutilgan ${expected} tiyin (${payment.amount} so'm), ` +
           `kelgan ${JSON.stringify(amount)}`,
@@ -228,21 +196,12 @@ export class PaymeService {
     }
   }
 
-  /** To'lov hali yopilmaganini tekshiradi. */
   private assertPayable(payment: Payment): void {
     if (payment.status !== PaymentStatus.CREATED) {
       throw new PaymeRpcError(PaymeError.ORDER_NOT_PAYABLE, this.accountField);
     }
   }
 
-  /**
-   * Shu to'lovda tugallanmagan tranzaksiya yo'qligini tekshiradi. Muddati
-   * o'tgani avtomatik bekor qilinadi va yo'lni bo'shatadi.
-   *
-   * Payme sandbox buni `CreateTransaction` da ham, `CheckPerformTransaction`
-   * da ham talab qiladi: hisobda kutilayotgan tranzaksiya bo'lsa, javob
-   * hisob (account) oralig'idagi xato bo'lishi kerak.
-   */
   private async assertNoPendingTransaction(payment: Payment): Promise<void> {
     const pending = await this.transactionRepo.findOne({
       where: { payment: { id: payment.id }, state: PaymeTransactionState.CREATED },
@@ -264,7 +223,6 @@ export class PaymeService {
     return transaction;
   }
 
-  /** 12 soatdan oshgan kutilayotgan tranzaksiya avtomatik bekor qilinadi. */
   private async cancelIfExpired(transaction: PaymeTransaction): Promise<boolean> {
     if (transaction.state !== PaymeTransactionState.CREATED) return false;
     if (Date.now() - transaction.createTime.getTime() <= TRANSACTION_TIMEOUT_MS) return false;
@@ -277,9 +235,6 @@ export class PaymeService {
     return true;
   }
 
-  // ── Metodlar ────────────────────────────────────────────────────────────────
-
-  /** To'lovni amalga oshirish mumkinligini tekshiradi. */
   private async checkPerformTransaction(params: PaymeParams) {
     const payment = await this.resolvePayment(params);
     this.assertAmount(payment, params.amount);
@@ -290,11 +245,6 @@ export class PaymeService {
     return detail ? { allow: true, detail } : { allow: true };
   }
 
-  /**
-   * Fiskalizatsiya uchun chek tafsiloti. Tarifda IKPU kodi bo'lmasa `null`
-   * qaytadi va `detail` javobga qo'shilmaydi — Payme uni ixtiyoriy deb qabul
-   * qiladi. Narx tiyinda, bitta pozitsiya (tarif) sifatida yuboriladi.
-   */
   private buildFiscalDetail(payment: Payment) {
     const plan = payment.plan;
     if (!plan?.ikpu) return null;
@@ -314,11 +264,6 @@ export class PaymeService {
     };
   }
 
-  /**
-   * Payme fiskal chek ma'lumotlarini yuboradi (chek muvaffaqiyatli holatga
-   * o'tgach). Spetsifikatsiya bo'yicha majburiy emas, ammo `fiscal_sign` va
-   * `qr_code_url` ni saqlab qo'yish — chekni keyin ko'rsatish imkonini beradi.
-   */
   private async setFiscalData(params: PaymeParams) {
     const transaction = await this.findTransaction(params);
     const type = typeof params.type === 'string' ? params.type : 'PERFORM';
@@ -330,10 +275,6 @@ export class PaymeService {
     return { success: true };
   }
 
-  /**
-   * Tranzaksiya yaratadi. Takroriy so'rov (xuddi shu `id`) avvalgi javobni
-   * qaytaradi — Payme buni idempotent deb kutadi.
-   */
   private async createTransaction(params: PaymeParams) {
     if (typeof params.id !== 'string' || !params.id) {
       throw new PaymeRpcError(PaymeError.INVALID_PARAMS);
@@ -365,7 +306,6 @@ export class PaymeService {
     const paymeTime = this.toDate(params.time);
     if (!paymeTime) throw new PaymeRpcError(PaymeError.INVALID_PARAMS);
 
-    // Shu to'lov uchun boshqa kutilayotgan tranzaksiya bo'lsa, yangisi ochilmaydi.
     await this.assertNoPendingTransaction(payment);
 
     let transaction: PaymeTransaction;
@@ -379,7 +319,6 @@ export class PaymeService {
         createTime: new Date(),
       });
     } catch (error) {
-      // Qisman unikal indeks: bir vaqtda kelgan ikkinchi so'rov shu yerda to'xtaydi.
       if ((error as { code?: string })?.code === UNIQUE_VIOLATION) {
         throw new PaymeRpcError(PaymeError.PAYMENT_IN_PROGRESS, this.accountField);
       }
@@ -397,7 +336,6 @@ export class PaymeService {
     };
   }
 
-  /** To'lovni tasdiqlaydi: to'lov `paid`, yozilish `active` bo'ladi. */
   private async performTransaction(params: PaymeParams) {
     const transaction = await this.findTransaction(params);
 
@@ -415,10 +353,6 @@ export class PaymeService {
       throw new PaymeRpcError(PaymeError.UNABLE_TO_PERFORM);
     }
 
-    // To'lov allaqachon yopilgan bo'lsa `markPaid` qayta chaqirilmaydi: aks holda
-    // `enrollment_histories` ga takroriy yozuv tushib, muddat yana bir marta
-    // uzayib ketardi. Bu holat `markPaid` bajarilib, tranzaksiya holati
-    // saqlanmay qolganda (Payme so'rovni qaytadan yuboradi) yuzaga keladi.
     if (transaction.payment.status === PaymentStatus.PAID) {
       this.logger.warn(
         `[${transaction.transactionId}] to'lov ${transaction.payment.id} allaqachon yopilgan — ` +
@@ -443,14 +377,6 @@ export class PaymeService {
     };
   }
 
-  /**
-   * Tranzaksiyani bekor qiladi.
-   *
-   * To'lanmagan tranzaksiya bekor qilinganda **to'lov `created` holatida qoladi**:
-   * foydalanuvchi to'lovni yarim yo'lda tashlab ketgan bo'lishi mumkin, shunda u
-   * qayta urinib ko'radi va yozilishdagi progress saqlanadi. To'langan tranzaksiya
-   * bekor qilinsa (qaytarim) — to'lov ham, yozilish ham bekor qilinadi.
-   */
   private async cancelTransaction(params: PaymeParams) {
     const transaction = await this.findTransaction(params);
 
@@ -466,7 +392,6 @@ export class PaymeService {
     }
 
     if (transaction.state === PaymeTransactionState.PERFORMED) {
-      // Muddati tugagan yozilish — xizmat to'liq ko'rsatilgan, qaytarib bo'lmaydi.
       const enrollment = transaction.payment.enrollment;
       if (enrollment && isEnrollmentExpired(enrollment)) {
         throw new PaymeRpcError(PaymeError.UNABLE_TO_CANCEL);
@@ -492,7 +417,6 @@ export class PaymeService {
     };
   }
 
-  /** Tranzaksiya holatini qaytaradi. */
   private async checkTransaction(params: PaymeParams) {
     const transaction = await this.findTransaction(params);
     return {
@@ -505,14 +429,11 @@ export class PaymeService {
     };
   }
 
-  /** Berilgan oraliqdagi tranzaksiyalar — Payme solishtirish (sverka) uchun so'raydi. */
   private async getStatement(params: PaymeParams) {
     const from = this.toDate(params.from);
     const to = this.toDate(params.to);
     if (!from || !to) throw new PaymeRpcError(PaymeError.INVALID_PARAMS);
 
-    // Oraliq Payme tomonidagi yaratilish vaqti (`time`) bo'yicha filtrlanadi —
-    // bizdagi `createTime` emas, aks holda solishtirish (sverka) mos kelmaydi.
     const transactions = await this.transactionRepo.find({
       where: { paymeTime: Between(from, to) },
       relations: { payment: true },

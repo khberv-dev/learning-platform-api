@@ -4,8 +4,8 @@ import { Roles } from '@/common/decorators/roles.decorator';
 import { UserRole } from '@/core/user/enum/user-role.enum';
 import { MaterialService } from '@/core/material/services/material.service';
 
-@Roles(UserRole.STUDENT, UserRole.TEACHER, UserRole.ADMIN)
-@Controller('lessons/:lessonId/materials')
+@Roles(UserRole.STUDENT, UserRole.MENTOR)
+@Controller(['student/lessons/:lessonId/materials', 'mentor/lessons/:lessonId/materials'])
 export class MaterialController {
   constructor(private readonly materialService: MaterialService) {}
 

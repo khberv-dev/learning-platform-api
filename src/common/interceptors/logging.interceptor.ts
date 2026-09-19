@@ -4,17 +4,10 @@ import { Observable, tap } from 'rxjs';
 import type { Request, Response } from 'express';
 import { isDevelopment } from '@/shared/config/environment.config';
 
-/** Log'ga tushmasligi kerak bo'lgan maydonlar. */
 const SECRET_KEYS = /password|token|secret|authorization|sign_string|fcmToken|apiKey/i;
 
-/** Juda uzun tana (masalan base64 audio) log'ni to'ldirib yubormasligi uchun. */
 const MAX_BODY_CHARS = 2000;
 
-/**
- * So'rov va javobni batafsil log'ga yozadi. Faqat **DEVELOPMENT** muhitida
- * ishlaydi: DEPLOYMENT'da o'zini o'chiradi, chunki tana ichida shaxsiy
- * ma'lumotlar bo'ladi va log hajmi keraksiz o'sadi.
- */
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
   private readonly logger = new Logger('HTTP');
@@ -54,12 +47,10 @@ export class LoggingInterceptor implements NestInterceptor {
       if (!text) return '';
       return text.length > MAX_BODY_CHARS ? `${text.slice(0, MAX_BODY_CHARS)}…` : text;
     } catch {
-      // Aylanma havolali obyektlar (masalan `Request`) — tanani tashlab ketamiz.
       return "[serialize qilib bo'lmadi]";
     }
   }
 
-  /** Maxfiy maydonlarni yulduzcha bilan almashtiradi. */
   private redact(value: unknown, depth = 0): unknown {
     if (depth > 5 || value === null || typeof value !== 'object') return value;
     if (Array.isArray(value)) return value.map((item) => this.redact(item, depth + 1));

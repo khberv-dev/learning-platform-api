@@ -34,7 +34,6 @@ export class ApiKeyGuard implements CanActivate {
     return true;
   }
 
-  /** Vaqt bo'yicha hujumlarni oldini olish uchun doimiy vaqtli solishtirish. */
   private matches(received: string, expected: string): boolean {
     const a = Buffer.from(received);
     const b = Buffer.from(expected);

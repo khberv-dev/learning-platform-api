@@ -4,10 +4,10 @@ import { In, LessThanOrEqual, MoreThanOrEqual, Not, Repository } from 'typeorm';
 import { Assignment } from '@/core/assignment/entity/assignment.entity';
 import { AssignmentStatus } from '@/core/assignment/enum/assignment-status.enum';
 import { CreateAssignmentDto } from '@/core/assignment/dto/create-assignment.dto';
-import { Teacher } from '@/core/user/entity/teacher.entity';
+import { Mentor } from '@/core/user/entity/mentor.entity';
 import { Student } from '@/core/user/entity/student.entity';
 import { Enrollment } from '@/core/enrollment/entity/enrollment.entity';
-import { TeacherStatus } from '@/core/user/enum/teacher-status.enum';
+import { MentorStatus } from '@/core/user/enum/mentor-status.enum';
 import { paginate, Paginated, PaginationQuery } from '@/common/dto/pagination-query.dto';
 import { ChatService } from '@/core/chat/services/chat.service';
 import { countScheduleSlots, validateScheduleShape } from '@/core/user/dto/set-schedule.dto';
@@ -17,7 +17,7 @@ import { PushService } from '@/core/notification/services/push.service';
 export class AssignmentService {
   constructor(
     @InjectRepository(Assignment) private readonly assignmentRepo: Repository<Assignment>,
-    @InjectRepository(Teacher) private readonly teacherRepo: Repository<Teacher>,
+    @InjectRepository(Mentor) private readonly mentorRepo: Repository<Mentor>,
     @InjectRepository(Student) private readonly studentRepo: Repository<Student>,
     @InjectRepository(Enrollment) private readonly enrollmentRepo: Repository<Enrollment>,
     private readonly chatService: ChatService,
@@ -50,8 +50,8 @@ export class AssignmentService {
     }));
   }
 
-  async createOffer(studentUserId: string, dto: CreateAssignmentDto) {
-    const student = await this.studentRepo.findOne({ where: { user: { id: studentUserId } } });
+  async createOffer(studentId: string, dto: CreateAssignmentDto) {
+    const student = await this.studentRepo.findOne({ where: { id: studentId } });
     if (!student) throw new NotFoundException('Talaba topilmadi');
 
     const pending = await this.assignmentRepo.findOne({
@@ -59,8 +59,8 @@ export class AssignmentService {
     });
     if (pending) throw new BadRequestException('You have a pending request');
 
-    const teacher = await this.teacherRepo.findOne({ where: { id: dto.teacherId, status: TeacherStatus.ACTIVE } });
-    if (!teacher) throw new NotFoundException("O'qituvchi topilmadi");
+    const mentor = await this.mentorRepo.findOne({ where: { id: dto.mentorId, status: MentorStatus.ACTIVE } });
+    if (!mentor) throw new NotFoundException('Mentor topilmadi');
 
     let selectedSchedule: Record<string, string[]> | null = null;
     if (dto.selectedSchedule) {
@@ -70,7 +70,7 @@ export class AssignmentService {
       const totalSlots = countScheduleSlots(dto.selectedSchedule);
       if (totalSlots > 3) throw new BadRequestException('Haftada maksimal 3 ta vaqt tanlash mumkin');
 
-      const mentorSchedule = teacher.schedule ?? {};
+      const mentorSchedule = mentor.schedule ?? {};
       for (const [day, slots] of Object.entries(dto.selectedSchedule)) {
         const available = mentorSchedule[day] ?? [];
         for (const slot of slots) {
@@ -84,7 +84,7 @@ export class AssignmentService {
 
     return this.assignmentRepo.save({
       student,
-      teacher,
+      mentor,
       startDate: new Date(dto.startDate),
       status: AssignmentStatus.PENDING,
       selectedSchedule,
@@ -94,7 +94,7 @@ export class AssignmentService {
   async findAll(status?: AssignmentStatus) {
     const assignments = await this.assignmentRepo.find({
       where: status ? { status } : {},
-      relations: { teacher: { user: true }, student: { user: true } },
+      relations: { mentor: true, student: true },
       order: { createdAt: 'DESC' },
     });
     return this.attachIsActive(assignments);
@@ -103,30 +103,24 @@ export class AssignmentService {
   async findOne(id: string) {
     const assignment = await this.assignmentRepo.findOne({
       where: { id },
-      relations: { teacher: { user: true }, student: { user: true } },
+      relations: { mentor: true, student: true },
     });
     if (!assignment) throw new NotFoundException('Topshiriq topilmadi');
     return (await this.attachIsActive([assignment]))[0];
   }
 
-  async findPendingForTeacher(teacherUserId: string) {
-    const teacher = await this.teacherRepo.findOne({ where: { user: { id: teacherUserId } } });
-    if (!teacher) throw new NotFoundException("O'qituvchi topilmadi");
-
+  async findPendingForMentor(mentorId: string) {
     return this.assignmentRepo.find({
-      where: { teacher: { id: teacher.id }, status: AssignmentStatus.PENDING },
-      relations: { student: { user: true } },
+      where: { mentor: { id: mentorId }, status: AssignmentStatus.PENDING },
+      relations: { student: true },
       order: { createdAt: 'DESC' },
     });
   }
 
-  async findAssignmentsForTeacher(teacherUserId: string, query: PaginationQuery): Promise<Paginated<any>> {
-    const teacher = await this.teacherRepo.findOne({ where: { user: { id: teacherUserId } } });
-    if (!teacher) throw new NotFoundException("O'qituvchi topilmadi");
-
+  async findAssignmentsForMentor(mentorId: string, query: PaginationQuery): Promise<Paginated<any>> {
     const [assignments, total] = await this.assignmentRepo.findAndCount({
-      where: { teacher: { id: teacher.id }, status: Not(AssignmentStatus.PENDING) },
-      relations: { student: { user: true } },
+      where: { mentor: { id: mentorId }, status: Not(AssignmentStatus.PENDING) },
+      relations: { student: true },
       order: { createdAt: 'DESC' },
       skip: query.skip,
       take: query.take,
@@ -135,42 +129,35 @@ export class AssignmentService {
     return paginate(withIsActive, total, query);
   }
 
-  private async loadTeacherAssignment(teacherUserId: string, assignmentId: string) {
-    const teacher = await this.teacherRepo.findOne({ where: { user: { id: teacherUserId } } });
-    if (!teacher) throw new NotFoundException("O'qituvchi topilmadi");
-
+  private async loadMentorAssignment(mentorId: string, assignmentId: string) {
     const assignment = await this.assignmentRepo.findOne({
       where: { id: assignmentId },
-      relations: { teacher: true, student: { user: true } },
+      relations: { mentor: true, student: true },
     });
     if (!assignment) throw new NotFoundException('Topshiriq topilmadi');
-    if (assignment.teacher.id !== teacher.id) throw new ForbiddenException('Ruxsat berilmagan');
+    if (assignment.mentor.id !== mentorId) throw new ForbiddenException('Ruxsat berilmagan');
 
-    return { assignment, teacher };
+    return assignment;
   }
 
-  async accept(teacherUserId: string, assignmentId: string) {
-    const { assignment, teacher } = await this.loadTeacherAssignment(teacherUserId, assignmentId);
+  async accept(mentorId: string, assignmentId: string) {
+    const assignment = await this.loadMentorAssignment(mentorId, assignmentId);
     if (assignment.status !== AssignmentStatus.PENDING) {
       throw new BadRequestException('Faqat kutilayotgan topshiriqlarni qabul qilish mumkin');
     }
     assignment.status = AssignmentStatus.ACTIVE;
     const saved = await this.assignmentRepo.save(assignment);
 
-    const teacherWithUser = await this.teacherRepo.findOneOrFail({
-      where: { id: teacher.id },
-      relations: { user: true },
-    });
-    await this.chatService.createDirectRoom(teacherWithUser.user.id, assignment.student.user.id, assignmentId);
+    await this.chatService.createDirectRoom(assignment.student.id, assignment.mentor.id, assignmentId);
 
-    const teacherName = [teacherWithUser.user.firstName, teacherWithUser.user.lastName].filter(Boolean).join(' ');
-    void this.pushService.notifyTeacherAssigned(assignment.student.user.id, teacherName, assignmentId);
+    const mentorName = [assignment.mentor.firstName, assignment.mentor.lastName].filter(Boolean).join(' ');
+    void this.pushService.notifyMentorAssigned(assignment.student.id, mentorName, assignmentId);
 
     return (await this.attachIsActive([saved]))[0];
   }
 
-  async reject(teacherUserId: string, assignmentId: string) {
-    const { assignment } = await this.loadTeacherAssignment(teacherUserId, assignmentId);
+  async reject(mentorId: string, assignmentId: string) {
+    const assignment = await this.loadMentorAssignment(mentorId, assignmentId);
     if (assignment.status !== AssignmentStatus.PENDING) {
       throw new BadRequestException('Faqat kutilayotgan topshiriqlarni rad etish mumkin');
     }

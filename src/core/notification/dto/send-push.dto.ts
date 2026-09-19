@@ -13,7 +13,6 @@ import {
 import { Transform } from 'class-transformer';
 import { PushAudience } from '@/core/notification/enum/push-audience.enum';
 
-/** Bitta so'rovda yuboriladigan maksimal raqamlar soni. */
 export const MAX_PUSH_PHONE_NUMBERS = 500;
 
 export class SendPushDto {
@@ -32,7 +31,7 @@ export class SendPushDto {
   @IsOptional()
   isPermanent: boolean = false;
 
-  @IsEnum(PushAudience, { message: 'audience `all`, `students`, `teachers` yoki `phones` bo`lishi kerak' })
+  @IsEnum(PushAudience, { message: 'audience `all`, `students`, `mentors` yoki `phones` bo`lishi kerak' })
   audience: PushAudience;
 
   @ValidateIf((dto: SendPushDto) => dto.audience === PushAudience.PHONES)

@@ -8,8 +8,8 @@ import { CreateLiveLessonDto } from '@/core/live-lesson/dto/create-live-lesson.d
 import { UpdateLiveLessonDto } from '@/core/live-lesson/dto/update-live-lesson.dto';
 import { PaginationQuery } from '@/common/dto/pagination-query.dto';
 
-@Roles(UserRole.TEACHER)
-@Controller('live-lessons')
+@Roles(UserRole.MENTOR)
+@Controller('mentor/live-lessons')
 export class LiveLessonController {
   constructor(private readonly liveLessonService: LiveLessonService) {}
 
@@ -21,12 +21,6 @@ export class LiveLessonController {
   @Get()
   findAll(@CurrentUser() user: { id: string }, @Query() query: PaginationQuery) {
     return this.liveLessonService.findAll(user.id, query);
-  }
-
-  @Get('my')
-  @Roles(UserRole.STUDENT)
-  findMy(@CurrentUser() user: { id: string }, @Query() query: PaginationQuery) {
-    return this.liveLessonService.findForStudent(user.id, query);
   }
 
   @Get(':id')

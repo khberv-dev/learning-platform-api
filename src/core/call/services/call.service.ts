@@ -2,16 +2,28 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Call } from '@/core/call/entity/call.entity';
-import { User } from '@/core/user/entity/user.entity';
+import { UserRole } from '@/core/user/enum/user-role.enum';
+
+type RolePeer = { id: string; role: UserRole };
+
+function peerColumns(prefix: 'peerA' | 'peerB', peer: RolePeer): Record<string, { id: string }> {
+  const column =
+    peer.role === UserRole.STUDENT
+      ? `${prefix}Student`
+      : peer.role === UserRole.MENTOR
+        ? `${prefix}Mentor`
+        : `${prefix}Admin`;
+  return { [column]: { id: peer.id } };
+}
 
 @Injectable()
 export class CallService {
   constructor(@InjectRepository(Call) private readonly callRepo: Repository<Call>) {}
 
-  async start(peerAId: string, peerBId: string): Promise<string> {
+  async start(peerA: RolePeer, peerB: RolePeer): Promise<string> {
     const call = await this.callRepo.save({
-      peerA: { id: peerAId } as User,
-      peerB: { id: peerBId } as User,
+      ...peerColumns('peerA', peerA),
+      ...peerColumns('peerB', peerB),
       startDate: new Date(),
     });
     return call.id;

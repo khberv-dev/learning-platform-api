@@ -9,7 +9,7 @@ import { SelectPaymentTypeDto } from '@/core/payment/dto/select-payment-type.dto
 import { PaginationQuery } from '@/common/dto/pagination-query.dto';
 
 @Roles(UserRole.STUDENT)
-@Controller('payments')
+@Controller('student/payments')
 export class PaymentController {
   constructor(private readonly paymentService: PaymentService) {}
 

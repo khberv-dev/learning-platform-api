@@ -6,10 +6,8 @@ import { EnrollmentService } from '@/core/enrollment/services/enrollment.service
 import { CreateEnrollmentDto } from '@/core/enrollment/dto/create-enrollment.dto';
 import { EnrollmentQuery } from '@/core/enrollment/dto/enrollment-query.dto';
 
-// `enrollments` — eski yo'l, moslik uchun saqlangan; `admin/enrollments` — asosiysi.
-
 @Roles(UserRole.ADMIN)
-@Controller(['admin/enrollments', 'enrollments'])
+@Controller('admin/enrollments')
 export class AdminEnrollmentController {
   constructor(private readonly enrollmentService: EnrollmentService) {}
 

@@ -19,7 +19,7 @@ import { assessmentInputStorage, audioFileFilter } from '@/core/assessment/stora
 import { PaginationQuery } from '@/common/dto/pagination-query.dto';
 
 @Roles(UserRole.STUDENT)
-@Controller('assessments')
+@Controller('student/assessments')
 export class AssessmentController {
   constructor(
     private readonly assessmentService: AssessmentService,

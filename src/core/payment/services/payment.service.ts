@@ -19,12 +19,11 @@ import { PushService } from '@/core/notification/services/push.service';
 
 const paymentRelations = {
   paymentType: true,
-  user: true,
+  student: true,
   plan: true,
   enrollment: { course: true },
 } as const;
 
-/** To'lovga biriktirilgan to'lov turining shablon url'ini to'ldirib qaytaradi. */
 function withResolvedUrl(payment: Payment): Payment {
   if (!payment.paymentType) return payment;
   return {
@@ -45,13 +44,8 @@ export class PaymentService {
     private readonly pushService: PushService,
   ) {}
 
-  /**
-   * Tarif (plan) uchun to'lov so'rovi: yozilish (created) va to'lov (created)
-   * yaratiladi, javobda esa faol to'lov turlari qaytariladi. Takroriy so'rov
-   * mavjud kutilayotgan to'lovni qaytaradi.
-   */
-  async requestPayment(userId: string, dto: RequestPaymentDto) {
-    const student = await this.studentRepo.findOne({ where: { user: { id: userId } } });
+  async requestPayment(studentId: string, dto: RequestPaymentDto) {
+    const student = await this.studentRepo.findOne({ where: { id: studentId } });
     if (!student) throw new NotFoundException('Talaba topilmadi');
 
     const plan = await this.planRepo.findOne({
@@ -78,8 +72,6 @@ export class PaymentService {
     if (!existing) {
       enrollment = await this.enrollmentRepo.save({ student, course: plan.course });
     } else if (existing.status === EnrollmentStatus.ACTIVE) {
-      // Muddati tugagan yozilish qayta sotib olinmoqda: kutish holatiga qaytariladi.
-      // Eski muddat `enrollment_histories` da saqlanib qoladi.
       existing.status = EnrollmentStatus.CREATED;
       existing.start = null;
       existing.end = null;
@@ -94,14 +86,18 @@ export class PaymentService {
     });
 
     if (payment) {
-      // Foydalanuvchi boshqa tarifni tanlagan bo'lsa, kutilayotgan to'lov yangilanadi.
       if (payment.plan?.id !== plan.id || payment.amount !== plan.price) {
         payment.plan = plan;
         payment.amount = plan.price;
         payment = await this.paymentRepo.save(payment);
       }
     } else {
-      const created = await this.paymentRepo.save({ user: { id: userId }, enrollment, plan, amount: plan.price });
+      const created = await this.paymentRepo.save({
+        student: { id: studentId },
+        enrollment,
+        plan,
+        amount: plan.price,
+      });
       payment = await this.findOnePayment(created.id);
     }
 
@@ -110,16 +106,14 @@ export class PaymentService {
       order: { createdAt: 'ASC' },
     });
 
-    // Har bir to'lov turining url shabloni shu to'lov ma'lumotlari bilan to'ldiriladi.
     const paymentTypes = types.map((type) => ({ ...type, url: buildPaymentUrl(type.url, payment) }));
 
     return { payment: withResolvedUrl(payment), paymentTypes };
   }
 
-  /** Foydalanuvchi tanlagan to'lov turini kutilayotgan to'lovga biriktiradi. */
-  async selectPaymentType(userId: string, paymentId: string, dto: SelectPaymentTypeDto): Promise<Payment> {
+  async selectPaymentType(studentId: string, paymentId: string, dto: SelectPaymentTypeDto): Promise<Payment> {
     const payment = await this.paymentRepo.findOne({
-      where: { id: paymentId, user: { id: userId } },
+      where: { id: paymentId, student: { id: studentId } },
       relations: paymentRelations,
     });
     if (!payment) throw new NotFoundException("To'lov topilmadi");
@@ -135,10 +129,6 @@ export class PaymentService {
     return withResolvedUrl(await this.paymentRepo.save(payment));
   }
 
-  /**
-   * To'lovni tasdiqlaydi: yozilish faollashadi va to'lov tarixi yoziladi.
-   * Sanalar berilmasa, hozirdan boshlab tarifdagi oylar soni bo'yicha hisoblanadi.
-   */
   async markPaid(payment: Payment, start?: Date, end?: Date): Promise<Payment> {
     const from = start ?? new Date();
     const months = payment.plan?.month ?? 1;
@@ -161,14 +151,13 @@ export class PaymentService {
       });
 
       const course = payment.enrollment.course;
-      if (course) void this.pushService.notifyCourseEnrolled(payment.user.id, course.id, course.title);
+      if (course) void this.pushService.notifyCourseEnrolled(payment.student.id, course.id, course.title);
     }
 
     payment.status = PaymentStatus.PAID;
     return this.paymentRepo.save(payment);
   }
 
-  /** To'lovni va unga bog'langan yozilishni bekor qiladi. */
   async markCancelled(payment: Payment): Promise<Payment> {
     if (payment.enrollment) {
       payment.enrollment.status = EnrollmentStatus.CANCELLED;
@@ -180,7 +169,7 @@ export class PaymentService {
 
   async findAllPayments(query: PaymentQuery): Promise<Paginated<Payment>> {
     const where: FindOptionsWhere<Payment> = {};
-    if (query.userId) where.user = { id: query.userId };
+    if (query.studentId) where.student = { id: query.studentId };
     if (query.paymentTypeId) where.paymentType = { id: query.paymentTypeId };
     if (query.enrollmentId) where.enrollment = { id: query.enrollmentId };
     if (query.planId) where.plan = { id: query.planId };
@@ -196,9 +185,9 @@ export class PaymentService {
     return paginate(data, total, query);
   }
 
-  async findMyPayments(userId: string, query: PaginationQuery): Promise<Paginated<Payment>> {
+  async findMyPayments(studentId: string, query: PaginationQuery): Promise<Paginated<Payment>> {
     const [data, total] = await this.paymentRepo.findAndCount({
-      where: { user: { id: userId } },
+      where: { student: { id: studentId } },
       relations: paymentRelations,
       order: { createdAt: 'DESC' },
       skip: query.skip,
@@ -213,9 +202,9 @@ export class PaymentService {
     return payment;
   }
 
-  async findMyPayment(userId: string, id: string): Promise<Payment> {
+  async findMyPayment(studentId: string, id: string): Promise<Payment> {
     const payment = await this.paymentRepo.findOne({
-      where: { id, user: { id: userId } },
+      where: { id, student: { id: studentId } },
       relations: paymentRelations,
     });
     if (!payment) throw new NotFoundException("To'lov topilmadi");

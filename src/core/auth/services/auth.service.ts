@@ -19,30 +19,23 @@ import { OtpPurpose } from '@/core/auth/enum/otp-purpose.enum';
 import { RecoverPasswordDto } from '@/core/auth/dto/recover-password.dto';
 import { Otp } from '@/core/auth/entity/otp.entity';
 import { comparePassword, hashPassword } from '@/shared/utils/hash.util';
-import { buildStudent } from '@/core/user/entity/student.entity';
-import { User } from '@/core/user/entity/user.entity';
 import { NotificationService } from '@/core/notification/services/notification.service';
 import { SlidingWindowLimiter } from '@/core/auth/utils/sliding-window-limiter';
 import { isDevelopment } from '@/shared/config/environment.config';
+import { UserRole } from '@/core/user/enum/user-role.enum';
+import type { AuthUser } from '@/common/utils/role-owner.util';
 
 const OTP_TTL_MS = 5 * 60 * 1000;
 
-/** Bitta telefon yoki emailga ketma-ket kod so'rashlar orasidagi eng kam vaqt. */
 const OTP_RESEND_COOLDOWN_MS = 60 * 1000;
-/** Bitta telefon yoki emailga bir soatda yuboriladigan maksimal kod soni. */
 const OTP_MAX_PER_RECIPIENT_PER_HOUR = 5;
 const OTP_MAX_VERIFY_ATTEMPTS = 5;
 const HOUR_MS = 60 * 60 * 1000;
 
-/** 100000–999999 oralig'idagi 6 xonali kod (crypto — bashorat qilib bo'lmaydi). */
 function generateOtpCode(): string {
   return String(randomInt(100_000, 1_000_000));
 }
 
-/**
- * DEVELOPMENT muhitida SMS yuborilmaydi, shuning uchun kod doimiy bo'ladi —
- * aks holda ro'yxatdan o'tishni sinab ko'rib bo'lmaydi.
- */
 const DEVELOPMENT_OTP_CODE = '666666';
 
 type AuthIdentity = { phoneNumber: string; email?: never } | { phoneNumber?: never; email: string };
@@ -64,10 +57,6 @@ export class AuthService {
     private readonly notificationService: NotificationService,
     @InjectRepository(Otp) private readonly otpRepo: Repository<Otp>,
   ) {
-    // IP bo'yicha cheklov ixtiyoriy: reverse proxy ortida `trust proxy`
-    // sozlanmagan bo'lsa, barcha so'rovlar bitta IP dek ko'rinadi va haqiqiy
-    // foydalanuvchilarni bloklab qo'yishi mumkin. Shuning uchun faqat
-    // OTP_MAX_PER_IP_PER_HOUR berilganda yoqiladi.
     const perIp = Number(this.configService.get<string>('OTP_MAX_PER_IP_PER_HOUR'));
     this.ipLimiter = Number.isFinite(perIp) && perIp > 0 ? new SlidingWindowLimiter(perIp, HOUR_MS) : null;
     this.isDevelopment = isDevelopment(this.configService);
@@ -76,8 +65,8 @@ export class AuthService {
   private readonly ipLimiter: SlidingWindowLimiter | null;
   private readonly isDevelopment: boolean;
 
-  issueTokens(userId: string) {
-    const payload = { sub: userId };
+  issueTokens(id: string, role: UserRole) {
+    const payload = { sub: id, role };
 
     const accessToken = this.jwtService.sign(payload);
     const refreshToken = this.jwtService.sign(payload, {
@@ -112,64 +101,47 @@ export class AuthService {
     const identity = resolveIdentity(data);
     await this.consumeOtp(identity, data.code, OtpPurpose.REGISTRATION);
 
-    const existingUser = identity.email
-      ? await this.userService.findByEmailForAuthWithRoles(identity.email)
-      : await this.userService.findByPhoneNumberForAuthWithRoles(identity.phoneNumber!);
-
-    if (existingUser) {
-      if (existingUser.student) {
-        throw new BadRequestException(
-          identity.email ? "Bu email allaqachon ro'yxatdan o'tgan" : "Bu telefon raqam allaqachon ro'yxatdan o'tgan",
-        );
-      }
-      if (!(await comparePassword(data.password, existingUser.password))) {
-        throw new BadRequestException("Login yoki parol noto'g'ri");
-      }
-      await this.userService.addStudentRole(existingUser.id, data.level);
-      const fullUser = await this.userService.findById(existingUser.id);
-      return { ...this.issueTokens(existingUser.id), roles: fullUser!.roles };
+    const taken = identity.email
+      ? await this.userService.hasStudentProfileByEmail(identity.email)
+      : await this.userService.hasStudentProfile(identity.phoneNumber!);
+    if (taken) {
+      throw new BadRequestException(
+        identity.email ? "Bu email allaqachon ro'yxatdan o'tgan" : "Bu telefon raqam allaqachon ro'yxatdan o'tgan",
+      );
     }
 
     const passwordHash = await hashPassword(data.password);
 
-    const newUser = await this.userService.save({
+    const student = await this.userService.createStudent({
       firstName: data.firstName,
+      lastName: data.lastName,
       ...identity,
       password: passwordHash,
-      student: buildStudent(data.level),
+      level: data.level,
     });
 
-    const fullUser = await this.userService.findById(newUser.id);
-
-    return { ...this.issueTokens(newUser.id), roles: fullUser!.roles };
+    return { ...this.issueTokens(student.id, UserRole.STUDENT), role: UserRole.STUDENT };
   }
 
   async signIn(data: SignInRequest) {
-    const user = data.email
-      ? await this.userService.findByEmailForAuth(data.email)
-      : await this.userService.findByPhoneNumberForAuth(data.phoneNumber);
+    const identity = resolveIdentity(data);
+    const account = await this.userService.findAccountForAuth(identity);
 
-    if (!user || !(await comparePassword(data.password, user.password))) {
+    if (!account || !(await comparePassword(data.password, account.password))) {
       throw new BadRequestException("Login yoki parol noto'g'ri");
     }
 
-    if (!user.isActive) {
+    if (!account.isActive) {
       throw new UnauthorizedException('Hisobingiz faol emas');
     }
 
-    const fullUser = await this.userService.findById(user.id);
-
-    return { ...this.issueTokens(user.id), roles: fullUser!.roles };
+    return { ...this.issueTokens(account.id, account.role), role: account.role };
   }
 
-  refresh(user: Pick<User, 'id'>) {
-    return this.issueTokens(user.id);
+  refresh(user: Pick<AuthUser, 'id' | 'role'>) {
+    return this.issueTokens(user.id, user.role);
   }
 
-  /**
-   * Kod so'rash chastotasini cheklaydi — SMS byudjetini himoya qilish va
-   * takroriy so'rovlar bilan raqamni "bombardimon" qilishning oldini olish uchun.
-   */
   private async assertOtpAllowed(identity: AuthIdentity, ip?: string): Promise<void> {
     if (ip && this.ipLimiter?.hit(ip)) {
       throw new HttpException("Juda ko'p so'rov yuborildi, keyinroq urinib ko'ring", HttpStatus.TOO_MANY_REQUESTS);
@@ -197,13 +169,8 @@ export class AuthService {
 
   async sendOtp(dto: SendOtpDto, ip?: string): Promise<{ message: string }> {
     const identity = resolveIdentity(dto);
-    // Chastota cheklovi bandlik tekshiruvidan oldin: aks holda raqamlarni
-    // birma-bir tekshirib, qaysi biri ro'yxatdan o'tganini bepul aniqlash
-    // mumkin bo'lardi.
     await this.assertOtpAllowed(identity, ip);
 
-    // Ro'yxatdan o'tish uchun band raqamga kod yuborilmaydi. Parolni tiklashda
-    // tekshirilmaydi — u aynan mavjud raqam uchun ishlaydi.
     if (dto.purpose === OtpPurpose.REGISTRATION) {
       const hasStudent = identity.email
         ? await this.userService.hasStudentProfileByEmail(identity.email)
@@ -217,8 +184,6 @@ export class AuthService {
 
     const code = this.isDevelopment ? DEVELOPMENT_OTP_CODE : generateOtpCode();
 
-    // Avval xabar yuboriladi: yuborilmasa, foydalanuvchi ololmaydigan kod
-    // bazada qolib ketmaydi.
     if (identity.email) {
       await this.notificationService.sendEmailOtp(identity.email, code);
     } else {
@@ -236,13 +201,10 @@ export class AuthService {
     const identity = resolveIdentity(dto);
     await this.consumeOtp(identity, dto.code, OtpPurpose.RECOVER);
 
-    const user = identity.email
-      ? await this.userService.findByEmail(identity.email)
-      : await this.userService.findByPhoneNumber(identity.phoneNumber!);
-    if (!user) throw new NotFoundException('Foydalanuvchi topilmadi');
+    const account = await this.userService.findAccountForAuth(identity);
+    if (!account) throw new NotFoundException('Foydalanuvchi topilmadi');
 
-    const passwordHash = await hashPassword(dto.newPassword);
-    await this.userService.updatePassword(user.id, passwordHash);
+    await this.userService.setPassword(account.id, dto.newPassword);
 
     return { message: 'Parol yangilandi' };
   }

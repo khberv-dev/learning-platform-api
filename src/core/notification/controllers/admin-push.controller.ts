@@ -16,8 +16,6 @@ export class AdminPushController {
 
   @Post('push')
   async send(@Body() dto: SendPushDto) {
-    // Hodisa xabarnomalari jimgina o'tkazib yuboriladi, lekin admin qo'lda
-    // yuborganda javob "0 ta yuborildi" bo'lib qolmasligi kerak.
     if (!this.firebaseService.isConfigured()) {
       throw new ServiceUnavailableException('Push xizmati sozlanmagan');
     }

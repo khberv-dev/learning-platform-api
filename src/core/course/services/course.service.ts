@@ -12,32 +12,14 @@ import { Progress } from '@/core/enrollment/entity/progress.entity';
 
 export const COURSE_RELATIONS = { units: { lessons: true } } as const;
 
-/**
- * Bo'lim va darslar admin belgilagan `index` bo'yicha saralanadi.
- * `createdAt` — ikkinchi mezon: `index` teng bo'lganda (masalan hammasi
- * standart 0 bo'lsa) tartib avvalgidek yaratilish vaqti bo'yicha qoladi.
- */
 export const UNIT_ORDER = { index: 'ASC', createdAt: 'ASC' } as const;
 export const LESSON_ORDER = { index: 'ASC', createdAt: 'ASC' } as const;
 export const COURSE_ORDER = { units: { ...UNIT_ORDER, lessons: LESSON_ORDER } } as const;
 
-/**
- * Kurslar ham `index` bo'yicha saralanadi. Ikkinchi mezon — `createdAt` DESC:
- * tartib belgilanmagan (hammasi 0) kurslar avvalgidek yangisidan boshlab
- * ko'rsatiladi.
- */
 export const COURSE_LIST_ORDER = { index: 'ASC', createdAt: 'DESC' } as const;
 
-/**
- * Darslarni ketma-ket ochish vaqtincha o'chirilgan — hamma dars ochiq turadi.
- *
- * `isLocked` javobdan olib tashlanmadi: mijozlar uni o'qiydi, shuning uchun
- * maydon qoladi, lekin doim `false` bo'ladi. Qaytadan yoqish uchun shu yerni
- * `true` qilish yetarli — tekshirish mantig'i va so'rovlar joyida turibdi.
- */
 const LESSON_LOCKING_ENABLED = false;
 
-/** Oldingi dars shu ulushdan past bo'lsa, keyingisi qulflanadi. */
 const LESSON_UNLOCK_PERCENT = 80;
 
 @Injectable()
@@ -56,8 +38,6 @@ export class CourseService {
     let previousLessonId: string | undefined;
     const units = course.units.map((unit) => {
       const lessons = unit.lessons.map((lesson) => {
-        // Topshirig'i yo'q dars keyingisini to'smaydi — aks holda faqat videodan
-        // iborat dars o'tib bo'lmaydigan to'siqqa aylanardi.
         const previousLessonHasTasks =
           previousLessonId !== undefined && (taskCountByLesson.get(previousLessonId) ?? 0) > 0;
         const isLocked =
@@ -73,11 +53,6 @@ export class CourseService {
     return { ...course, units, lessonsCount: units.reduce((sum, u) => sum + u.lessonsCount, 0) };
   }
 
-  /**
-   * Qulflashni hisoblash uchun kerakli ikki jadval: dars progressi va
-   * topshiriqlar soni. Qulflash o'chirilganda so'rovlar umuman yuborilmaydi —
-   * natijasi baribir ishlatilmaydi.
-   */
   private async lockContext(
     studentUserId: string,
     lessonIds: string[],
@@ -94,11 +69,10 @@ export class CourseService {
       .createQueryBuilder('progress')
       .innerJoin('progress.enrollment', 'enrollment')
       .innerJoin('enrollment.student', 'student')
-      .innerJoin('student.user', 'user')
       .innerJoin('progress.lesson', 'lesson')
       .select('lesson.id', 'lessonId')
       .addSelect('MAX(progress.progress)', 'progress')
-      .where('user.id = :studentUserId', { studentUserId })
+      .where('student.id = :studentUserId', { studentUserId })
       .andWhere('lesson.id IN (:...lessonIds)', { lessonIds })
       .groupBy('lesson.id')
       .getRawMany<{ lessonId: string; progress: string }>();
@@ -127,14 +101,6 @@ export class CourseService {
     return course;
   }
 
-  /**
-   * Talabalarga "yangi kurs" xabarnomasini yuboradi.
-   *
-   * Kurs yaratilganda odatda `isActive: false` bo'ladi (qoralama), shuning
-   * uchun xabarnoma kurs talabalarga ko'rinadigan bo'lgan paytda — yaratilishda
-   * yoki keyinroq faollashtirilganda — yuboriladi. `announcedAt` takroriy
-   * e'londan saqlaydi.
-   */
   private async announceIfPublished(course: Course): Promise<void> {
     if (!course.isActive || course.announcedAt) return;
 
@@ -142,13 +108,6 @@ export class CourseService {
     void this.pushService.notifyCourseCreated(course.id, course.title);
   }
 
-  /**
-   * Admin ro'yxati — bo'lim va darslar yuklanmaydi, faqat sanoqlari qaytariladi.
-   * Ilgari har bir kurs uchun butun daraxt (barcha bo'lim va darslar) yuklanardi:
-   * ro'yxatga kerak bo'lmagan, lekin javobning katta qismini egallagan ma'lumot.
-   *
-   * Sanoqlar bitta so'rovda hisoblanadi — kurslar soniga qarab so'rov ko'paymaydi.
-   */
   async findAllCourses() {
     const { entities, raw } = await this.courseRepo
       .createQueryBuilder('course')
@@ -181,11 +140,6 @@ export class CourseService {
     return courses.map((course) => this.withLessonsCount(course, progressByLesson, taskCountByLesson));
   }
 
-  /**
-   * Admin uchun bitta kurs — bo'limlar ro'yxati bilan, lekin darslar ichida
-   * emas: har bir bo'limda faqat `lessonsCount`. Darslar alohida endpoint
-   * orqali olinadi (`GET /admin/courses/:courseId/units/:unitId/lessons`).
-   */
   async findOneCourse(id: string) {
     const course = await this.courseRepo.findOne({
       where: { id },
@@ -205,12 +159,6 @@ export class CourseService {
     };
   }
 
-  /**
-   * Kurs id -> bo'lim va darslar soni. Bitta guruhlangan so'rov.
-   *
-   * Sanoq uchun butun daraxtni yuklash shart emas — kurslar ro'yxatida
-   * (masalan talabaning kurslarida) faqat shu ikki son kerak bo'ladi.
-   */
   async contentCountsByCourse(courseIds: string[]): Promise<Map<string, { unitsCount: number; lessonsCount: number }>> {
     if (courseIds.length === 0) return new Map();
 
@@ -229,7 +177,6 @@ export class CourseService {
     );
   }
 
-  /** Bo'lim id -> darslar soni. Bitta guruhlangan so'rov. */
   private async lessonCountsByUnit(unitIds: string[]): Promise<Map<string, number>> {
     if (unitIds.length === 0) return new Map();
 
@@ -256,15 +203,10 @@ export class CourseService {
     return this.withLessonsCount(course, progressByLesson, taskCountByLesson);
   }
 
-  /**
-   * Kurs ustunlarini yangilaydi. Bo'lim va darslar yuklanmaydi — ular
-   * o'zgarmaydi, lekin ilgari saqlashdan oldin butun daraxt o'qilardi.
-   */
   async updateCourse(id: string, dto: UpdateCourseDto, image?: string) {
     const course = await this.courseRepo.findOne({ where: { id } });
     if (!course) throw new NotFoundException('Kurs topilmadi');
     const saved = await this.courseRepo.save({ ...course, ...dto, ...(image && { image }) });
-    // Qoralama kurs endi faollashtirilgan bo'lsa, talabalarga e'lon qilinadi.
     await this.announceIfPublished(saved);
     return this.findOneCourse(id);
   }

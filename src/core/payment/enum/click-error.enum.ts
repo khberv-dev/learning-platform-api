@@ -1,4 +1,3 @@
-/** Click Merchant API xato kodlari. */
 export enum ClickError {
   SUCCESS = 0,
   SIGN_CHECK_FAILED = -1,

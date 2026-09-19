@@ -6,7 +6,7 @@ import { UserRole } from '@/core/user/enum/user-role.enum';
 import { EnrollmentService } from '@/core/enrollment/services/enrollment.service';
 
 @Roles(UserRole.STUDENT)
-@Controller('enrollments')
+@Controller('student/enrollments')
 export class EnrollmentController {
   constructor(private readonly enrollmentService: EnrollmentService) {}
 

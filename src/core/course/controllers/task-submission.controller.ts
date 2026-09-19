@@ -7,33 +7,18 @@ import { TaskSubmissionService } from '@/core/course/services/task-submission.se
 import { parseSubmitTasksBody } from '@/core/course/dto/submit-tasks.dto';
 
 @Roles(UserRole.STUDENT)
-@Controller('task-submissions')
+@Controller('student/task-submissions')
 export class TaskSubmissionController {
   constructor(private readonly taskSubmissionService: TaskSubmissionService) {}
 
   @Post()
   submit(@CurrentUser() user: { id: string }, @Body() body: unknown) {
-    // Kalitlari dinamik bo'lgani uchun global ValidationPipe bu tanani
-    // tekshirmaydi — qo'lda tekshiriladi.
     return this.taskSubmissionService.submit(user.id, parseSubmitTasksBody(body));
   }
 
   @Get('lessons/:lessonId')
   getLessonResults(@CurrentUser() user: { id: string }, @Param('lessonId') lessonId: string) {
     return this.taskSubmissionService.getLessonResults(user.id, lessonId);
-  }
-
-  /**
-   * Admin talabaning javoblarini ko'radi. Sinfdagi `@Roles(STUDENT)` shu
-   * metodda `@Roles(ADMIN)` bilan almashtiriladi (`getAllAndOverride`), shuning
-   * uchun bu yo'lga faqat admin kira oladi.
-   *
-   * `:taskId` dan oldin e'lon qilinadi — yo'llar e'lon tartibida solishtiriladi.
-   */
-  @Roles(UserRole.ADMIN)
-  @Get('students/:studentId/lessons/:lessonId')
-  getStudentLessonResults(@Param('studentId') studentId: string, @Param('lessonId') lessonId: string) {
-    return this.taskSubmissionService.getStudentLessonResults(studentId, lessonId);
   }
 
   @Get(':taskId')

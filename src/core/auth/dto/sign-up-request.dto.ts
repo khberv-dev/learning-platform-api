@@ -7,6 +7,10 @@ export class SignUpRequest {
   @IsNotEmpty()
   firstName: string;
 
+  @IsString()
+  @IsOptional()
+  lastName?: string;
+
   @ValidateIf((dto: SignUpRequest) => !dto.email)
   @Matches(/^998\d{9}$/, { message: "Telefon raqam 998XXXXXXXXX formatida bo'lishi kerak" })
   phoneNumber?: string;
@@ -22,8 +26,6 @@ export class SignUpRequest {
   @IsString()
   @Length(6, 6)
   code: string;
-
-  /** Berilmasa `Student` entitydagi sukut — `A1` qo'llaniladi. */
 
   @IsEnum(StudentLevel)
   @IsOptional()

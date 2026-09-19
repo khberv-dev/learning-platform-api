@@ -2,10 +2,8 @@ import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config';
 import { isDevelopment } from '@/shared/config/environment.config';
 
-// Eskiz tokenlari ~30 kun amal qiladi; biroz erta yangilanadi.
 const TOKEN_TTL_MS = 25 * 24 * 60 * 60 * 1000;
 const SMS_FROM = '4546';
-/** Provayder javob bermasa so'rov cheksiz osilib qolmasligi uchun. */
 const REQUEST_TIMEOUT_MS = 10_000;
 
 interface LoginResponse {
@@ -20,11 +18,6 @@ export class EskizService {
 
   constructor(private readonly configService: ConfigService) {}
 
-  /**
-   * Sozlamalar konstruktorda emas, yuborish paytida o'qiladi — shunda Eskiz
-   * sozlanmagan bo'lsa ham ilova ishga tushadi va xato faqat SMS yuborishda
-   * chiqadi.
-   */
   private get credentials(): { baseUrl: string; email: string; password: string } {
     const baseUrl = this.configService.get<string>('ESKIZ_API_URL');
     const email = this.configService.get<string>('ESKIZ_API_USER');
@@ -41,8 +34,6 @@ export class EskizService {
   async sendSms(phoneNumber: string, message: string): Promise<void> {
     const mobilePhone = this.normalizePhone(phoneNumber);
 
-    // DEVELOPMENT muhitida haqiqiy SMS yuborilmaydi — balans sarflanmasin va
-    // sinov raqamlariga xabar bormasin. Xabar log'ga yoziladi.
     if (isDevelopment(this.configService)) {
       this.logger.log(`[DEVELOPMENT] SMS yuborilmadi (${this.maskPhone(mobilePhone)}): ${message}`);
       return;
@@ -52,7 +43,6 @@ export class EskizService {
 
     let response = await this.post('message/sms/send', body, await this.getToken());
     if (response.status === 401) {
-      // Token eskirgan bo'lishi mumkin — bir marta yangilab qayta urinamiz.
       response = await this.post('message/sms/send', body, await this.getToken(true));
     }
 
@@ -105,10 +95,6 @@ export class EskizService {
     });
   }
 
-  /**
-   * Timeout bilan so'rov. Busiz provayder javob bermasa HTTP so'rov cheksiz
-   * kutib qoladi va ulanishlarni band qiladi.
-   */
   private async request(url: string, init: RequestInit): Promise<Response> {
     try {
       return await fetch(url, { ...init, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
@@ -118,12 +104,10 @@ export class EskizService {
     }
   }
 
-  /** Eskiz 998XXXXXXXXX kutadi — faqat raqamlar, `+` siz. */
   private normalizePhone(phoneNumber: string): string {
     return phoneNumber.replace(/\D/g, '');
   }
 
-  /** Log'da to'liq raqam ko'rinmasligi uchun. */
   private maskPhone(phoneNumber: string): string {
     return phoneNumber.replace(/^(\d{5})\d+(\d{2})$/, '$1****$2');
   }

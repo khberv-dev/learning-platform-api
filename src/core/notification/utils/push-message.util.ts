@@ -1,22 +1,13 @@
 import { PushPayload } from '@/core/notification/services/firebase.service';
 
-/**
- * Push xabarnoma hodisalari. Kod `data.event` sifatida qurilmaga yuboriladi —
- * ilova shu bo'yicha qaysi ekranga o'tishni hal qiladi.
- */
 export enum PushEvent {
   COURSE_ENROLLED = 'course_enrolled',
-  TEACHER_ASSIGNED = 'teacher_assigned',
+  MENTOR_ASSIGNED = 'mentor_assigned',
   COURSE_CREATED = 'course_created',
   LESSON_ADDED = 'lesson_added',
-  /** Admin qo'lda yozgan xabar — matni shu yerda emas, so'rovda keladi. */
   ADMIN_MESSAGE = 'admin_message',
 }
 
-/**
- * Barcha xabarnoma matnlari shu yerda — tarjimani bir joydan o'qib chiqish
- * va o'zgartirish uchun. Matnlar o'zbek tilida, foydalanuvchiga ko'rinadi.
- */
 export function courseEnrolledMessage(courseTitle: string, courseId: string): PushPayload {
   return {
     title: 'Kursga yozildingiz',
@@ -25,11 +16,11 @@ export function courseEnrolledMessage(courseTitle: string, courseId: string): Pu
   };
 }
 
-export function teacherAssignedMessage(teacherName: string, assignmentId: string): PushPayload {
+export function mentorAssignedMessage(mentorName: string, assignmentId: string): PushPayload {
   return {
     title: 'Mentor tayinlandi',
-    body: `${teacherName} sizga mentor sifatida tayinlandi. Suhbatni boshlashingiz mumkin.`,
-    data: { event: PushEvent.TEACHER_ASSIGNED, assignmentId },
+    body: `${mentorName} sizga mentor sifatida tayinlandi. Suhbatni boshlashingiz mumkin.`,
+    data: { event: PushEvent.MENTOR_ASSIGNED, assignmentId },
   };
 }
 

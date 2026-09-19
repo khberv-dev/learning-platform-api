@@ -26,7 +26,6 @@ export function videoFileFilter(
 
 export const toMediaPath = (filename: string) => `/lesson/${filename}`;
 
-/** Faqat shu storage yaratgan lokal faylni o'chiradi; tashqi yoki traversal yo'llariga tegmaydi. */
 export async function removeLessonMediaFile(media: string | null | undefined): Promise<void> {
   if (!media?.startsWith('/lesson/')) return;
   const filename = basename(media);

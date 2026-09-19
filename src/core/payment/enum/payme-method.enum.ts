@@ -1,4 +1,3 @@
-/** Payme (Paycom) Merchant API JSON-RPC metodlari. */
 export enum PaymeMethod {
   CHECK_PERFORM_TRANSACTION = 'CheckPerformTransaction',
   CREATE_TRANSACTION = 'CreateTransaction',

@@ -5,11 +5,6 @@ import { ClickService } from '@/core/payment/services/click.service';
 import { ClickPrepareDto } from '@/core/payment/dto/click-prepare.dto';
 import { ClickCompleteDto } from '@/core/payment/dto/click-complete.dto';
 
-/**
- * Click Merchant API webhook'lari. Click serverlari chaqiradi, JWT yo'q —
- * so'rov haqiqiyligi `sign_string` orqali tekshiriladi.
- */
-
 @Public()
 @Controller('payment/click')
 export class ClickController {

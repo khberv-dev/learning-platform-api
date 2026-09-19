@@ -3,7 +3,6 @@ import { IsEnum, IsIn, IsOptional, IsUUID } from 'class-validator';
 import { PaginationQuery } from '@/common/dto/pagination-query.dto';
 import { PendingEnrollmentStatus } from '@/core/enrollment/enum/pending-enrollment-status.enum';
 
-/** Saralash faqat shu ustunlar bo'yicha — boshqasi SQL ga tushmaydi. */
 export const PENDING_ENROLLMENT_SORT_FIELDS = ['createdAt', 'updatedAt', 'start', 'end', 'status'] as const;
 export type PendingEnrollmentSortField = (typeof PENDING_ENROLLMENT_SORT_FIELDS)[number];
 

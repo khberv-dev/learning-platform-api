@@ -7,7 +7,7 @@ import { CourseService } from '@/core/course/services/course.service';
 import { TaskService } from '@/core/course/services/task.service';
 
 @Roles(UserRole.STUDENT)
-@Controller('courses')
+@Controller('student/courses')
 export class CourseController {
   constructor(
     private readonly courseService: CourseService,
@@ -24,21 +24,13 @@ export class CourseController {
     return this.courseService.findOneActiveCourse(id, user.id);
   }
 
-  /**
-   * Talabaga to'g'ri javoblar ko'rsatilmaydi va faqat yozilgan kursi ochiq.
-   * Admin bu marshrutdan to'liq ma'lumot oladi (javob varaqasi bilan).
-   */
   @Get(':courseId/units/:unitId/lessons/:lessonId/tasks')
-  @Roles(UserRole.STUDENT, UserRole.ADMIN)
   listTasks(
-    @CurrentUser() user: { id: string; roles: UserRole[] },
+    @CurrentUser() user: { id: string },
     @Param('courseId') courseId: string,
     @Param('unitId') unitId: string,
     @Param('lessonId') lessonId: string,
   ) {
-    if (user.roles.includes(UserRole.ADMIN)) {
-      return this.taskService.listTasks(courseId, unitId, lessonId);
-    }
     return this.taskService.listTasksForStudent(courseId, unitId, lessonId, user.id);
   }
 }

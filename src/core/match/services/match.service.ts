@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { Socket } from 'socket.io';
 import { CallService } from '@/core/call/services/call.service';
+import { UserRole } from '@/core/user/enum/user-role.enum';
 
 type SessionState = 'waiting' | 'active';
 
@@ -34,21 +35,26 @@ interface EndedSession {
 export class MatchService {
   private readonly logger = new Logger(MatchService.name);
   private readonly socketByUser = new Map<string, Socket>();
+  private readonly roleByUser = new Map<string, UserRole>();
   private readonly sessions = new Map<string, Session>();
   private readonly sessionByUser = new Map<string, string>();
   private readonly waitingSessionIds: string[] = [];
 
   constructor(private readonly callService: CallService) {}
 
-  registerSocket(userId: string, socket: Socket): Socket | null {
+  registerSocket(userId: string, role: UserRole, socket: Socket): Socket | null {
     const existing = this.socketByUser.get(userId);
     this.socketByUser.set(userId, socket);
+    this.roleByUser.set(userId, role);
     return existing && existing.id !== socket.id ? existing : null;
   }
 
   unregisterSocket(userId: string, socketId: string) {
     const current = this.socketByUser.get(userId);
-    if (current && current.id === socketId) this.socketByUser.delete(userId);
+    if (current && current.id === socketId) {
+      this.socketByUser.delete(userId);
+      this.roleByUser.delete(userId);
+    }
   }
 
   getSocket(userId: string): Socket | null {
@@ -86,7 +92,10 @@ export class MatchService {
       joinable.state = 'active';
       this.sessionByUser.set(userId, joinable.id);
       const partnerId = joinable.peers[0];
-      joinable.callId = await this.callService.start(partnerId, userId);
+      joinable.callId = await this.callService.start(
+        { id: partnerId, role: this.roleByUser.get(partnerId)! },
+        { id: userId, role: this.roleByUser.get(userId)! },
+      );
       this.logger.log(
         `Session ${joinable.id} member added: ${userId} (caller) joined; active peers=[${joinable.peers.join(', ')}]; callId=${joinable.callId}`,
       );

@@ -8,25 +8,18 @@ import { MaterialType } from '@/core/material/enum/material-type.enum';
 const DEST = './uploads/material';
 mkdirSync(DEST, { recursive: true });
 
-/** Qabul qilinadigan mime turlari va ularga mos material turi. */
 const MIME_TYPES: Record<string, MaterialType> = {
   'application/pdf': MaterialType.PDF,
   'application/msword': MaterialType.DOC,
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document': MaterialType.DOC,
 };
 
-/**
- * Ba'zi mijozlar `.doc` / `.docx` uchun noto'g'ri mime yuboradi
- * (masalan `application/octet-stream`), shuning uchun kengaytma zaxira sifatida
- * tekshiriladi.
- */
 const EXTENSIONS: Record<string, MaterialType> = {
   '.pdf': MaterialType.PDF,
   '.doc': MaterialType.DOC,
   '.docx': MaterialType.DOC,
 };
 
-/** Fayl turini aniqlaydi — mos kelmasa `undefined`. */
 export function materialTypeFor(file: Express.Multer.File): MaterialType | undefined {
   return MIME_TYPES[file.mimetype] ?? EXTENSIONS[extname(file.originalname).toLowerCase()];
 }

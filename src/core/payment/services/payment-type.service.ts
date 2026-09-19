@@ -21,10 +21,6 @@ export class PaymentTypeService {
     return this.paymentTypeRepo.find({ order: { createdAt: 'ASC' } });
   }
 
-  findActivePaymentTypes(): Promise<PaymentType[]> {
-    return this.paymentTypeRepo.find({ where: { isActive: true }, order: { createdAt: 'ASC' } });
-  }
-
   async findOnePaymentType(id: string): Promise<PaymentType> {
     const paymentType = await this.paymentTypeRepo.findOne({ where: { id } });
     if (!paymentType) throw new NotFoundException("To'lov turi topilmadi");

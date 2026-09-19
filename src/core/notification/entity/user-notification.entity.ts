@@ -1,13 +1,22 @@
-import { Column, CreateDateColumn, Entity, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
-import { User } from '@/core/user/entity/user.entity';
+import { Check, Column, CreateDateColumn, Entity, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+import { Student } from '@/core/user/entity/student.entity';
+import { Mentor } from '@/core/user/entity/mentor.entity';
+import { Admin } from '@/core/user/entity/admin.entity';
 
 @Entity('user_notifications')
+@Check(`(("student_id" IS NOT NULL)::int + ("mentor_id" IS NOT NULL)::int + ("admin_id" IS NOT NULL)::int) = 1`)
 export class UserNotification {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @ManyToOne(() => User, { onDelete: 'CASCADE' })
-  user: User;
+  @ManyToOne(() => Student, { onDelete: 'CASCADE', nullable: true })
+  student: Student | null;
+
+  @ManyToOne(() => Mentor, { onDelete: 'CASCADE', nullable: true })
+  mentor: Mentor | null;
+
+  @ManyToOne(() => Admin, { onDelete: 'CASCADE', nullable: true })
+  admin: Admin | null;
 
   @Column()
   title: string;

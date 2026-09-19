@@ -6,24 +6,21 @@ export type Period = 7 | 14 | 30;
 
 type ActiveUserCounts = { total: string; course: string; courseless: string };
 
+const OWNER_ID = 'COALESCE(student_id, mentor_id, admin_id)';
+
 @Injectable()
 export class StatsService {
   constructor(@InjectDataSource() private readonly ds: DataSource) {}
 
-  /**
-   * `assignments` va `enrollments` — faqat `active` holatdagilari.
-   * Bekor qilingan yoki to'lov kutayotganlari umumiy ko'rsatkichni shishirib
-   * yuborardi. `users` va `mentors` — barchasi.
-   */
   async getSummary() {
     const today = new Date().toISOString().slice(0, 10);
     const [[users], [assignments], [enrollments], [mentors], [activeUsers]] = await Promise.all([
-      this.ds.query<[{ count: string }]>('SELECT COUNT(*) FROM users'),
+      this.ds.query<[{ count: string }]>(
+        'SELECT (SELECT COUNT(*) FROM students) + (SELECT COUNT(*) FROM mentors) + (SELECT COUNT(*) FROM admins) AS count',
+      ),
       this.ds.query<[{ count: string }]>("SELECT COUNT(*) FROM assignments WHERE status = 'active'"),
       this.ds.query<[{ count: string }]>("SELECT COUNT(*) FROM enrollments WHERE status = 'active'"),
-      this.ds.query<[{ count: string }]>('SELECT COUNT(*) FROM teachers'),
-      // Har bir oyna (kun/hafta/oy) uchun foydalanuvchi o'sha oynadagi birorta kunda kursli bo'lsa — kursli,
-      // aks holda kurssiz. Timeseries bilan bir xil qoida: `course + courseless = total`.
+      this.ds.query<[{ count: string }]>('SELECT COUNT(*) FROM mentors'),
       this.ds.query<[Record<`${'dau' | 'wau' | 'mau'}_${keyof ActiveUserCounts}`, string>]>(
         `SELECT
            COUNT(*) FILTER (WHERE d) AS dau_total,
@@ -36,7 +33,7 @@ export class StatsService {
            COUNT(*) FILTER (WHERE mc) AS mau_course,
            COUNT(*) FILTER (WHERE NOT mc) AS mau_courseless
          FROM (
-           SELECT user_id,
+           SELECT ${OWNER_ID} AS owner_id,
              BOOL_OR(activity_date = $1::date) AS d,
              BOOL_OR(has_course) FILTER (WHERE activity_date = $1::date) AS dc,
              BOOL_OR(activity_date >= $1::date - 6) AS w,
@@ -44,7 +41,7 @@ export class StatsService {
              BOOL_OR(has_course) AS mc
            FROM user_activities
            WHERE activity_date BETWEEN $1::date - 29 AND $1::date
-           GROUP BY user_id
+           GROUP BY owner_id
          ) AS u`,
         [today],
       ),
@@ -85,25 +82,33 @@ export class StatsService {
         [from, to],
       );
 
+    const usersQuery = this.ds.query<Array<{ date: Date; count: string }>>(
+      `SELECT DATE_TRUNC('day', created_at) AS date, COUNT(*) AS count
+       FROM (
+         SELECT created_at FROM students
+         UNION ALL SELECT created_at FROM mentors
+         UNION ALL SELECT created_at FROM admins
+       ) AS accounts
+       WHERE created_at >= $1 AND created_at <= $2
+       GROUP BY date
+       ORDER BY date ASC`,
+      [from, to],
+    );
+
     const today = to.toISOString().slice(0, 10);
 
-    /**
-     * Har bir oraliq (`bucket`) uchun faol foydalanuvchilarni uch xil sanaydi: jami, kursli va kurssiz.
-     * Foydalanuvchi oraliqdagi birorta kunda kursli bo'lgan bo'lsa — kursli, aks holda kurssiz sanaladi,
-     * shuning uchun `course + courseless = total` har doim to'g'ri.
-     */
     const activeUsersQuery = <T>(labels: string, series: string, range: string) =>
       this.ds.query<Array<T & ActiveUserCounts>>(
         `SELECT ${labels},
-           COUNT(u.user_id) AS total,
-           COUNT(u.user_id) FILTER (WHERE u.has_course) AS course,
-           COUNT(u.user_id) FILTER (WHERE NOT u.has_course) AS courseless
+           COUNT(u.owner_id) AS total,
+           COUNT(u.owner_id) FILTER (WHERE u.has_course) AS course,
+           COUNT(u.owner_id) FILTER (WHERE NOT u.has_course) AS courseless
          FROM ${series} AS bucket
          LEFT JOIN LATERAL (
-           SELECT user_id, BOOL_OR(has_course) AS has_course
+           SELECT ${OWNER_ID} AS owner_id, BOOL_OR(has_course) AS has_course
            FROM user_activities
            WHERE ${range}
-           GROUP BY user_id
+           GROUP BY owner_id
          ) AS u ON TRUE
          GROUP BY bucket
          ORDER BY bucket ASC`,
@@ -129,16 +134,15 @@ export class StatsService {
     );
 
     const [users, assignments, enrollments, mentors, dau, wau, mau] = await Promise.all([
-      query('users'),
+      usersQuery,
       query('assignments'),
       query('enrollments'),
-      query('teachers'),
+      query('mentors'),
       dauQuery,
       wauQuery,
       mauQuery,
     ]);
 
-    // Build zero-filled skeleton for all days in the period
     const skeleton = new Map<
       string,
       {

@@ -1,10 +1,3 @@
-/**
- * Oddiy xotiradagi sirpanuvchi oyna hisoblagichi.
- *
- * Bitta instansiya doirasida ishlaydi va qayta ishga tushganda tozalanadi —
- * shuning uchun faqat qo'shimcha himoya sifatida ishlatiladi, asosiy cheklov
- * bazadagi OTP yozuvlariga tayanadi.
- */
 export class SlidingWindowLimiter {
   private readonly hits = new Map<string, number[]>();
 
@@ -13,7 +6,6 @@ export class SlidingWindowLimiter {
     private readonly windowMs: number,
   ) {}
 
-  /** Urinishni qayd etadi. `true` — limitdan oshgan (urinish hisoblanmaydi). */
   hit(key: string, now = Date.now()): boolean {
     const cutoff = now - this.windowMs;
     const times = (this.hits.get(key) ?? []).filter((t) => t > cutoff);
@@ -26,7 +18,6 @@ export class SlidingWindowLimiter {
     times.push(now);
     this.hits.set(key, times);
 
-    // Map cheksiz o'smasligi uchun vaqti-vaqti bilan tozalanadi.
     if (this.hits.size > 500) this.prune(cutoff);
 
     return false;

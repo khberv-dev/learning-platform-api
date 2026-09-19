@@ -26,13 +26,6 @@ export class EnrollmentService {
     private readonly pushService: PushService,
   ) {}
 
-  /**
-   * Admin uchun yozilishlar ro'yxati: filtr, saralash va sahifalash bilan.
-   *
-   * `isExpired` muddat bo'yicha filtr — u berilganda va alohida `status`
-   * ko'rsatilmaganda status `active` deb olinadi, chunki muddat faqat faol
-   * yozilishda ma'noga ega.
-   */
   async findAllEnrollments(query: EnrollmentQuery): Promise<Paginated<Enrollment>> {
     const where: FindOptionsWhere<Enrollment> = {};
     if (query.studentId) where.student = { id: query.studentId };
@@ -47,7 +40,7 @@ export class EnrollmentService {
 
     const [data, total] = await this.enrollmentRepo.findAndCount({
       where,
-      relations: { student: { user: true }, course: true },
+      relations: { student: true, course: true },
       order: { [query.sortBy]: query.sortOrder },
       skip: query.skip,
       take: query.take,
@@ -56,14 +49,6 @@ export class EnrollmentService {
     return paginate(data, total, query);
   }
 
-  /**
-   * Admin uchun bitta yozilishdagi to'liq o'zlashtirish daraxti.
-   *
-   * Progress yozuvi hali yaratilmagan darslar ham javobga kiradi va ularning
-   * qiymati 0 bo'ladi. Kurs progressi barcha darslar bo'yicha hisoblanadi;
-   * bo'lim progresslarining o'rtachasi olinmaydi, chunki bo'limlardagi darslar
-   * soni har xil bo'lishi mumkin.
-   */
   async getStudentCourseProgress(studentId: string, enrollmentId: string) {
     const studentExists = await this.studentRepo.exists({ where: { id: studentId } });
     if (!studentExists) throw new NotFoundException('Talaba topilmadi');
@@ -119,36 +104,22 @@ export class EnrollmentService {
     return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
   }
 
-  async getAvailableCourses(userId: string) {
-    const student = await this.studentRepo.findOne({ where: { user: { id: userId } } });
-    if (!student) return [];
-
-    // Faqat muddati tugamagan faol yozilish kursni ro'yxatdan chiqaradi.
-    // `created` (to'lov kutilmoqda) va muddati tugaganlari to'smaydi.
+  async getAvailableCourses(studentId: string) {
     const taken = await this.enrollmentRepo.find({
-      where: { student: { id: student.id }, status: EnrollmentStatus.ACTIVE },
+      where: { student: { id: studentId }, status: EnrollmentStatus.ACTIVE },
       relations: { course: true },
     });
 
     const now = new Date();
     const blockedCourseIds = new Set(taken.filter((e) => !isEnrollmentExpired(e, now)).map((e) => e.course.id));
-    const activeCourses = await this.courseService.findActiveCourses(userId);
+    const activeCourses = await this.courseService.findActiveCourses(studentId);
     return activeCourses.filter((c) => !blockedCourseIds.has(c.id));
   }
 
-  /**
-   * Talabaning faol kurslari. Kurs mazmuni (bo'lim va darslar) yuklanmaydi —
-   * ilgari butun daraxt faqat `lessonsCount` ni hisoblash uchun o'qilardi va
-   * javobning deyarli hammasini egallardi. Ilova darslar ro'yxatini alohida
-   * `GET /api/courses/:id` orqali oladi.
-   */
-  async getMyCourses(userId: string) {
-    const student = await this.studentRepo.findOne({ where: { user: { id: userId } } });
-    if (!student) return [];
-
+  async getMyCourses(studentId: string) {
     const now = new Date();
     const enrollments = await this.enrollmentRepo.find({
-      where: { student: { id: student.id }, status: EnrollmentStatus.ACTIVE },
+      where: { student: { id: studentId }, status: EnrollmentStatus.ACTIVE },
       relations: { course: true, progresses: true },
       order: { createdAt: 'DESC' },
     });
@@ -170,28 +141,14 @@ export class EnrollmentService {
     });
   }
 
-  async getHistory(userId: string) {
-    const student = await this.studentRepo.findOne({ where: { user: { id: userId } } });
-    if (!student) return [];
-
+  async getHistory(studentId: string) {
     return this.historyRepo.find({
-      where: { enrollment: { student: { id: student.id } } },
+      where: { enrollment: { student: { id: studentId } } },
       relations: { enrollment: { course: true } },
       order: { createdAt: 'DESC' },
     });
   }
 
-  /**
-   * Admin talabani kursga qo'lda yozadi — to'lovsiz. To'lov (payment) yozuvi
-   * yaratilmaydi, faqat yozilish faollashadi va tarixga yozuv qo'shiladi.
-   *
-   * Talabada shu kurs uchun yozilish allaqachon bo'lsa (muddati tugagan yoki
-   * to'lov kutayotgan), yangisi yaratilmaydi — mavjudi qayta faollashtiriladi,
-   * shunda progress saqlanib qoladi.
-   *
-   * `manager` berilsa yozuvlar o'sha tranzaksiya ichida saqlanadi — kutilayotgan
-   * so'rovni tasdiqlashda yozilish, to'lov va so'rov birga yoziladi.
-   */
   async createEnrollment(dto: CreateEnrollmentDto, manager?: EntityManager) {
     const studentRepo = manager?.getRepository(Student) ?? this.studentRepo;
     const courseRepo = manager?.getRepository(Course) ?? this.courseRepo;
@@ -199,7 +156,7 @@ export class EnrollmentService {
     const enrollmentRepo = manager?.getRepository(Enrollment) ?? this.enrollmentRepo;
     const historyRepo = manager?.getRepository(EnrollmentHistory) ?? this.historyRepo;
 
-    const student = await studentRepo.findOne({ where: { id: dto.studentId }, relations: { user: true } });
+    const student = await studentRepo.findOne({ where: { id: dto.studentId } });
     if (!student) throw new NotFoundException('Talaba topilmadi');
 
     let plan: Plan | null = null;
@@ -256,11 +213,8 @@ export class EnrollmentService {
       end,
     });
 
-    // Tranzaksiya ichida chaqirilganda xabarnoma bu yerdan yuborilmaydi:
-    // yozuvlar hali saqlanmagan bo'lishi mumkin. U holda commit'dan keyin
-    // chaqiruvchi (`PendingEnrollmentService`) yuboradi.
     if (!manager) {
-      void this.pushService.notifyCourseEnrolled(student.user.id, course.id, course.title);
+      void this.pushService.notifyCourseEnrolled(student.id, course.id, course.title);
     }
 
     return enrollment;

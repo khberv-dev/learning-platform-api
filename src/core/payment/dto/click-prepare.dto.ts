@@ -1,11 +1,6 @@
 import { Transform } from 'class-transformer';
 import { IsOptional, IsString } from 'class-validator';
 
-/**
- * Click `x-www-form-urlencoded` yuboradi, ya'ni barcha qiymatlar matn.
- * `sign_string` xuddi shu xom qiymatlardan hisoblangani uchun ular raqamga
- * o'girilmaydi — aks holda imzo tekshiruvi buziladi.
- */
 export const asString = () =>
   Transform(({ value }: { value: unknown }): unknown =>
     typeof value === 'number' || typeof value === 'boolean' ? String(value) : value,

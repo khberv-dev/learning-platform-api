@@ -21,12 +21,6 @@ export class CreateTaskDto {
   @IsOptional()
   name?: string | null;
 
-  /**
-   * Berilmasa — bo'sh ro'yxat. Topshiriq avval yaratilib, savollar keyin
-   * bittalab qo'shilishi mumkin (`POST .../tasks/:taskId/questions`), shuning
-   * uchun yaratishda savol majburiy emas.
-   */
-
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => TaskQuestionDto)

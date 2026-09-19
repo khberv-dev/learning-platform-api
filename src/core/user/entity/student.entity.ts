@@ -1,14 +1,4 @@
-import {
-  Column,
-  CreateDateColumn,
-  Entity,
-  JoinColumn,
-  OneToMany,
-  OneToOne,
-  PrimaryGeneratedColumn,
-  UpdateDateColumn,
-} from 'typeorm';
-import { User } from '@/core/user/entity/user.entity';
+import { Column, CreateDateColumn, Entity, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 import { Enrollment } from '@/core/enrollment/entity/enrollment.entity';
 import { StudentLevel } from '@/core/user/enum/student-level.enum';
 
@@ -17,18 +7,32 @@ export class Student {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @OneToOne(() => User, (user) => user.student)
-  @JoinColumn()
-  user: User;
+  @Column()
+  firstName: string;
+
+  @Column({ nullable: true })
+  lastName: string;
+
+  @Column({ nullable: true })
+  avatar: string;
+
+  @Column({ nullable: true, unique: true })
+  email: string;
+
+  @Column({ nullable: true, unique: true })
+  phoneNumber: string;
+
+  @Column({ select: false })
+  password: string;
+
+  @Column({ default: true })
+  isActive: boolean;
 
   @Column({ type: 'int', default: 0 })
   points: number;
 
   @Column({ type: 'int', default: 0 })
   coins: number;
-
-  @Column({ type: 'int', default: 0 })
-  balance: number;
 
   @Column({ type: 'enum', enum: StudentLevel, default: StudentLevel.A1 })
   level: StudentLevel;
@@ -41,16 +45,4 @@ export class Student {
 
   @UpdateDateColumn()
   updatedAt: Date;
-}
-
-/**
- * Yangi talaba profili. Daraja berilmasa ustundagi sukut (`A1`) qoladi.
- * Talaba ikki yo'l bilan yaratiladi — ro'yxatdan o'tish va mavjud
- * foydalanuvchiga talaba rolini qo'shish — ikkalasi ham shu yerdan o'tadi,
- * shunda darajani biri qo'llab, ikkinchisi unutib qo'ymaydi.
- */
-export function buildStudent(level?: StudentLevel): Student {
-  const student = new Student();
-  if (level) student.level = level;
-  return student;
 }

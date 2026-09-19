@@ -8,7 +8,7 @@ import { BadRequestException } from '@nestjs/common';
 const VALID_PERIODS: Period[] = [7, 14, 30];
 
 @Roles(UserRole.ADMIN)
-@Controller('stats')
+@Controller('admin/stats')
 export class StatsController {
   constructor(private readonly statsService: StatsService) {}
 

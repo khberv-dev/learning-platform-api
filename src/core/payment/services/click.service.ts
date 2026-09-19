@@ -13,7 +13,7 @@ import { PaymentService } from '@/core/payment/services/payment.service';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const CLICK_RELATIONS = { plan: true, enrollment: { course: true }, user: true } as const;
+const CLICK_RELATIONS = { plan: true, enrollment: { course: true }, student: true } as const;
 
 export interface ClickPrepareResponse {
   click_trans_id: string;
@@ -49,10 +49,6 @@ export class ClickService {
     return this.configService.get<string>('CLICK_SERVICE_ID');
   }
 
-  /**
-   * sign_string = md5(click_trans_id + service_id + SECRET_KEY + merchant_trans_id
-   *   [+ merchant_prepare_id] + amount + action + sign_time)
-   */
   private verifySign(dto: ClickCompleteDto, withPrepareId: boolean): boolean {
     const secret = this.secretKey;
     if (!secret) {
@@ -74,19 +70,16 @@ export class ClickService {
     const expected = createHash('md5').update(parts.join('')).digest('hex');
     const matches = expected === dto.sign_string?.toLowerCase();
     if (!matches) {
-      // Maxfiy kalit hech qachon log'ga yozilmaydi — faqat hash'lar.
       this.logger.warn(`[${dto.click_trans_id ?? '-'}] imzo mos emas: kutilgan=${expected} kelgan=${dto.sign_string}`);
     }
     return matches;
   }
 
   private amountMatches(payment: Payment, amount: string | undefined): boolean {
-    // To'lov yaratilgandagi summa bilan solishtiriladi — tarif keyin o'zgarsa ham.
     const received = Number(amount);
     return Number.isFinite(received) && Math.abs(received - payment.amount) < 0.01;
   }
 
-  /** Kelgan so'rovni to'liq log'ga yozadi (maxfiy kalitsiz). */
   private logRequest(stage: string, dto: ClickCompleteDto): void {
     this.logger.log(
       `[${dto.click_trans_id ?? '-'}] ${stage} <- ${JSON.stringify({
@@ -104,7 +97,6 @@ export class ClickService {
     );
   }
 
-  /** Javobni log'ga yozadi: muvaffaqiyat — log, xato — warn. */
   private logResponse<T extends { error: ClickError }>(stage: string, dto: ClickPrepareDto, response: T): T {
     const line = `[${dto.click_trans_id ?? '-'}] ${stage} -> ${JSON.stringify(response)}`;
     if (response.error === ClickError.SUCCESS) this.logger.log(line);
@@ -112,12 +104,6 @@ export class ClickService {
     return response;
   }
 
-  /**
-   * `merchant_trans_id` — to'lov (payment) id yoki foydalanuvchi (user) id
-   * bo'lishi mumkin: qaysi biri to'lov sahifasining `transaction_param` iga
-   * qo'yilganiga bog'liq. Avval to'lov id sifatida qidiriladi (aniq moslik),
-   * topilmasa foydalanuvchining kutilayotgan to'lovlari ichidan tanlanadi.
-   */
   private async resolvePendingPayment(merchantTransId: string, amount?: string): Promise<Payment | null> {
     const byPaymentId = await this.paymentRepo.findOne({
       where: { id: merchantTransId, status: PaymentStatus.CREATED },
@@ -126,7 +112,7 @@ export class ClickService {
     if (byPaymentId) return byPaymentId;
 
     const candidates = await this.paymentRepo.find({
-      where: { user: { id: merchantTransId }, status: PaymentStatus.CREATED },
+      where: { student: { id: merchantTransId }, status: PaymentStatus.CREATED },
       relations: CLICK_RELATIONS,
       order: { createdAt: 'DESC' },
     });
@@ -135,12 +121,8 @@ export class ClickService {
     return candidates.find((p) => this.amountMatches(p, amount)) ?? candidates[0];
   }
 
-  /**
-   * Javobdagi `merchant_trans_id` — foydalanuvchi (user) id. To'lov topilgan
-   * bo'lsa uning egasidan olinadi, aks holda so'rovdagi qiymat qaytariladi.
-   */
   private merchantTransId(dto: ClickPrepareDto, payment?: Payment): string {
-    return payment?.user?.id ?? dto.merchant_trans_id ?? '';
+    return payment?.student?.id ?? dto.merchant_trans_id ?? '';
   }
 
   private prepareResponse(dto: ClickPrepareDto, error: ClickError, payment?: Payment): ClickPrepareResponse {
@@ -163,10 +145,6 @@ export class ClickService {
     });
   }
 
-  /**
-   * 1-bosqich. To'lovga Click tranzaksiya identifikatorini biriktiradi va
-   * merchant_prepare_id sifatida to'lov (payment) id qaytaradi.
-   */
   async prepare(dto: ClickPrepareDto): Promise<ClickPrepareResponse> {
     this.logRequest('prepare', dto);
 
@@ -208,10 +186,6 @@ export class ClickService {
     return this.prepareResponse(dto, ClickError.SUCCESS, payment);
   }
 
-  /**
-   * 2-bosqich. To'lovni `paid` holatiga o'tkazadi va yozilishni faollashtiradi.
-   * merchant_confirm_id sifatida to'lov (payment) id qaytariladi.
-   */
   async complete(dto: ClickCompleteDto): Promise<ClickCompleteResponse> {
     this.logRequest('complete', dto);
 
@@ -243,8 +217,7 @@ export class ClickService {
       relations: CLICK_RELATIONS,
     });
 
-    // merchant_trans_id prepare'dagidek to'lov id yoki foydalanuvchi id bo'lishi mumkin.
-    if (!payment || (payment.user.id !== dto.merchant_trans_id && payment.id !== dto.merchant_trans_id)) {
+    if (!payment || (payment.student.id !== dto.merchant_trans_id && payment.id !== dto.merchant_trans_id)) {
       return this.completeResponse(dto, ClickError.TRANSACTION_NOT_FOUND);
     }
     if (payment.providerPaymentId && payment.providerPaymentId !== dto.click_trans_id) {

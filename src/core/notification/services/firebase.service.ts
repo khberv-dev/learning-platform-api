@@ -3,55 +3,38 @@ import { ConfigService } from '@nestjs/config';
 import { App, cert, initializeApp, ServiceAccount } from 'firebase-admin/app';
 import { getMessaging } from 'firebase-admin/messaging';
 
-/** FCM bitta so'rovda maksimal 500 ta tokenni qabul qiladi. */
 const MULTICAST_LIMIT = 500;
 
-/** Shu kodlar token endi yaroqsiz ekanini bildiradi — sessiya o'chiriladi. */
 const DEAD_TOKEN_CODES = new Set([
   'messaging/registration-token-not-registered',
   'messaging/invalid-registration-token',
   'messaging/invalid-argument',
 ]);
 
-/** Ilova ichida bitta nomlangan Firebase app — standart app bilan to'qnashmasin. */
 const APP_NAME = 'iteach-push';
 
 export interface PushPayload {
   title: string;
   body: string;
-  /** Ilova deep-link uchun ishlatadigan qo'shimcha maydonlar — faqat matn. */
   data?: Record<string, string>;
 }
 
 export interface PushResult {
   sent: number;
   failed: number;
-  /** Ro'yxatdan o'tmagan tokenlar — chaqiruvchi ularni bazadan tozalaydi. */
   deadTokens: string[];
 }
 
 const EMPTY_RESULT: PushResult = { sent: 0, failed: 0, deadTokens: [] };
 
-/**
- * FCM transport qatlami: faqat yuborish bilan shug'ullanadi, kimga
- * yuborilishini `PushService` hal qiladi.
- *
- * Xizmat hisobi kaliti `GOOGLE_SERVICES_JSON` da saqlanadi — base64 yoki
- * to'g'ridan-to'g'ri JSON matn sifatida.
- */
 @Injectable()
 export class FirebaseService {
   private readonly logger = new Logger(FirebaseService.name);
   private app: App | null = null;
-  /** Sozlama yaroqsiz bo'lsa har yuborishda qayta urinilmaydi va log to'lmaydi. */
   private initFailed = false;
 
   constructor(private readonly configService: ConfigService) {}
 
-  /**
-   * Sozlama konstruktorda emas, birinchi yuborishda o'qiladi — Firebase
-   * sozlanmagan bo'lsa ham ilova ishga tushaveradi (Eskiz'dagi kabi).
-   */
   private getApp(): App | null {
     if (this.app || this.initFailed) return this.app;
 
@@ -74,10 +57,6 @@ export class FirebaseService {
     }
   }
 
-  /**
-   * Kalit ikki ko'rinishda bo'lishi mumkin: base64 (tavsiya etiladi — `.env`
-   * da qator ko'chishi muammosi bo'lmaydi) yoki xom JSON.
-   */
   private parseServiceAccount(raw: string): ServiceAccount & { projectId: string } {
     const trimmed = raw.trim();
     const json = trimmed.startsWith('{') ? trimmed : Buffer.from(trimmed, 'base64').toString('utf8');
@@ -90,25 +69,14 @@ export class FirebaseService {
     return {
       projectId: parsed.project_id,
       clientEmail: parsed.client_email,
-      // `.env` ga yozilganda qator ko'chishi ko'pincha `\n` matniga aylanadi.
       privateKey: parsed.private_key.replace(/\\n/g, '\n'),
     };
   }
 
-  /**
-   * Firebase sozlanganmi. Hodisa xabarnomalari uchun kerak emas (ular jimgina
-   * o'tkazib yuboriladi), lekin admin qo'lda yuborganda "0 ta yuborildi"
-   * o'rniga aniq xato qaytarish uchun ishlatiladi.
-   */
   isConfigured(): boolean {
     return this.getApp() !== null;
   }
 
-  /**
-   * Tokenlarga xabar yuboradi. Push yordamchi funksiya — hech qachon xato
-   * otmaydi, chunki xabarnoma yuborilmagani asosiy amalni (yozilish, to'lov)
-   * buzmasligi kerak.
-   */
   async sendToTokens(tokens: string[], payload: PushPayload): Promise<PushResult> {
     const unique = [...new Set(tokens.filter(Boolean))];
     if (unique.length === 0) return EMPTY_RESULT;

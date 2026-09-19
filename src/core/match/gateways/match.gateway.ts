@@ -13,9 +13,10 @@ import {
 import { Namespace, Server, Socket } from 'socket.io';
 import { UserService } from '@/core/user/services/user.service';
 import { MatchService } from '@/core/match/services/match.service';
+import { UserRole } from '@/core/user/enum/user-role.enum';
 
 interface AuthedSocket extends Socket {
-  data: { userId: string; firstName: string; lastName: string | null; avatar: string | null };
+  data: { userId: string; role: UserRole; firstName: string; lastName: string | null; avatar: string | null };
 }
 
 @WebSocketGateway({ namespace: '/match', cors: { origin: '*' } })
@@ -35,17 +36,18 @@ export class MatchGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
       const token = this.extractToken(socket);
       if (!token) return next(new Error('Token topilmadi'));
 
-      let payload: { sub: string };
+      let payload: { sub: string; role: UserRole };
       try {
-        payload = await this.jwtService.verifyAsync<{ sub: string }>(token);
+        payload = await this.jwtService.verifyAsync<{ sub: string; role: UserRole }>(token);
       } catch {
         return next(new Error("Token noto'g'ri"));
       }
 
-      const user = await this.userService.findById(payload.sub);
+      const user = await this.userService.findAuthUser(payload.sub, payload.role);
       if (!user) return next(new Error('Foydalanuvchi topilmadi'));
 
       socket.data.userId = user.id;
+      socket.data.role = user.role;
       socket.data.firstName = user.firstName;
       socket.data.lastName = user.lastName ?? null;
       socket.data.avatar = user.avatar ?? null;
@@ -55,7 +57,7 @@ export class MatchGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
 
   handleConnection(socket: AuthedSocket) {
     const userId = socket.data.userId;
-    const replaced = this.matchService.registerSocket(userId, socket);
+    const replaced = this.matchService.registerSocket(userId, socket.data.role, socket);
     if (replaced) {
       replaced.emit('replaced');
       replaced.disconnect(true);

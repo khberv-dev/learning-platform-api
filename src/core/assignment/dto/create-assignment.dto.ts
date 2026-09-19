@@ -2,7 +2,7 @@ import { IsDateString, IsObject, IsOptional, IsUUID } from 'class-validator';
 
 export class CreateAssignmentDto {
   @IsUUID()
-  teacherId: string;
+  mentorId: string;
 
   @IsDateString()
   startDate: string;

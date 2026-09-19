@@ -7,7 +7,7 @@ import { AssignmentService } from '@/core/assignment/services/assignment.service
 import { CreateAssignmentDto } from '@/core/assignment/dto/create-assignment.dto';
 
 @Roles(UserRole.STUDENT)
-@Controller('assignments')
+@Controller('student/assignments')
 export class StudentAssignmentController {
   constructor(private readonly assignmentService: AssignmentService) {}
 

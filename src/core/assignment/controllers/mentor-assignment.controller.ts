@@ -6,19 +6,19 @@ import { UserRole } from '@/core/user/enum/user-role.enum';
 import { AssignmentService } from '@/core/assignment/services/assignment.service';
 import { PaginationQuery } from '@/common/dto/pagination-query.dto';
 
-@Roles(UserRole.TEACHER)
-@Controller('assignments')
-export class TeacherAssignmentController {
+@Roles(UserRole.MENTOR)
+@Controller('mentor/assignments')
+export class MentorAssignmentController {
   constructor(private readonly assignmentService: AssignmentService) {}
 
   @Get('pending')
   findPending(@CurrentUser() user: { id: string }) {
-    return this.assignmentService.findPendingForTeacher(user.id);
+    return this.assignmentService.findPendingForMentor(user.id);
   }
 
   @Get('history')
   findHistory(@CurrentUser() user: { id: string }, @Query() query: PaginationQuery) {
-    return this.assignmentService.findAssignmentsForTeacher(user.id, query);
+    return this.assignmentService.findAssignmentsForMentor(user.id, query);
   }
 
   @Patch(':id/accept')

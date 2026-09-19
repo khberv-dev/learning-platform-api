@@ -2,11 +2,6 @@ import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGenerat
 import { Student } from '@/core/user/entity/student.entity';
 import { Task } from '@/core/course/entity/task.entity';
 
-/**
- * Har bir talaba har bir topshiriq uchun bitta javob yozuvi saqlaydi.
- * Unikal cheklov bir vaqtda kelgan so'rovlar nusxa yaratishining oldini oladi —
- * nusxalar progress foizini 100 dan oshirib yuborardi.
- */
 @Entity('task_submissions')
 @Unique('UQ_task_submission_student_task', ['student', 'task'])
 export class TaskSubmission {
@@ -27,11 +22,6 @@ export class TaskSubmission {
   @Column()
   isCorrect: boolean;
 
-  /**
-   * Topshiriq birinchi marta o'tganda tanga va ball berilgani.
-   * Bir marta `true` bo'lgach o'zgarmaydi — topshiriqni qayta yechish yoki
-   * yiqilib qayta o'tish mukofotni takrorlamaydi.
-   */
   @Column({ default: false })
   rewarded: boolean;
 

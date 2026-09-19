@@ -7,7 +7,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { Teacher } from '@/core/user/entity/teacher.entity';
+import { Mentor } from '@/core/user/entity/mentor.entity';
 import { Assignment } from '@/core/assignment/entity/assignment.entity';
 
 @Entity('live_lessons')
@@ -27,9 +27,9 @@ export class LiveLesson {
   @Column({ type: 'timestamp' })
   endTime: Date;
 
-  @ManyToOne(() => Teacher, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Mentor, { onDelete: 'CASCADE' })
   @JoinColumn()
-  teacher: Teacher;
+  mentor: Mentor;
 
   @ManyToOne(() => Assignment, { onDelete: 'CASCADE' })
   @JoinColumn()

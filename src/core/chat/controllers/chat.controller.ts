@@ -12,13 +12,14 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
+import type { AuthUser } from '@/common/utils/role-owner.util';
 import { ChatService } from '@/core/chat/services/chat.service';
 import { ChatGateway } from '@/core/chat/gateways/chat.gateway';
 import { SendMessageDto } from '@/core/chat/dto/send-message.dto';
 import { PaginationQuery } from '@/common/dto/pagination-query.dto';
 import { CHAT_FILE_MAX_BYTES, chatFileStorage } from '@/core/chat/storage/chat-file.storage';
 
-@Controller('chat')
+@Controller(['student/chat', 'mentor/chat', 'admin/chat'])
 export class ChatController {
   constructor(
     private readonly chatService: ChatService,
@@ -26,36 +27,32 @@ export class ChatController {
   ) {}
 
   @Get('rooms')
-  listRooms(@CurrentUser() user: { id: string }, @Query() query: PaginationQuery) {
-    return this.chatService.listRooms(user.id, query);
+  listRooms(@CurrentUser() user: AuthUser, @Query() query: PaginationQuery) {
+    return this.chatService.listRooms(user, query);
   }
 
   @Get('rooms/:id')
-  getRoom(@CurrentUser() user: { id: string }, @Param('id') id: string) {
-    return this.chatService.getRoom(user.id, id);
+  getRoom(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.chatService.getRoom(user, id);
   }
 
   @Get('rooms/:id/messages')
-  listMessages(@CurrentUser() user: { id: string }, @Param('id') id: string, @Query() query: PaginationQuery) {
-    return this.chatService.listMessages(user.id, id, query);
+  listMessages(@CurrentUser() user: AuthUser, @Param('id') id: string, @Query() query: PaginationQuery) {
+    return this.chatService.listMessages(user, id, query);
   }
 
   @Post('rooms/:id/messages')
-  async sendText(@CurrentUser() user: { id: string }, @Param('id') id: string, @Body() dto: SendMessageDto) {
-    const message = await this.chatService.sendText(user.id, id, dto.text);
+  async sendText(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: SendMessageDto) {
+    const message = await this.chatService.sendText(user, id, dto.text);
     this.chatGateway.broadcastMessage(id, message);
     return message;
   }
 
   @Post('rooms/:id/messages/file')
   @UseInterceptors(FileInterceptor('file', { storage: chatFileStorage, limits: { fileSize: CHAT_FILE_MAX_BYTES } }))
-  async sendFile(
-    @CurrentUser() user: { id: string },
-    @Param('id') id: string,
-    @UploadedFile() file: Express.Multer.File,
-  ) {
+  async sendFile(@CurrentUser() user: AuthUser, @Param('id') id: string, @UploadedFile() file: Express.Multer.File) {
     if (!file) throw new BadRequestException('Fayl yuborilmagan');
-    const message = await this.chatService.sendFile(user.id, id, file);
+    const message = await this.chatService.sendFile(user, id, file);
     this.chatGateway.broadcastMessage(id, message);
     return message;
   }

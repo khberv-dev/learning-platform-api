@@ -11,33 +11,19 @@ import { assertActiveEnrollmentForLesson } from '@/core/enrollment/utils/enrollm
 import { SubmitTasksBody } from '@/core/course/dto/submit-tasks.dto';
 import { taskAnswersMatch } from '@/core/course/utils/task-answer.util';
 
-/** Javob varaqasi talabaga ko'rsatilmaydi — faqat savol va variantlar. */
 function stripAnswer(question: TaskQuestion) {
   return { question: question.question, options: question.options };
 }
 
-/**
- * Topshiriq "to'g'ri yechilgan" hisoblanishi uchun kerak bo'lgan eng kam ulush.
- * Barcha savolga to'g'ri javob shart emas — 80% yetarli.
- */
 const PASS_PERCENT = 80;
 
-/** Topshiriq birinchi marta o'tganda beriladigan mukofot. */
 const COINS_PER_PASSED_TASK = 5;
 const POINTS_PER_PASSED_TASK = 10;
 
-/** Nechta savolga to'g'ri javob berilgan. */
 function countCorrect(questions: TaskQuestion[], answers: string[]): number {
   return questions.filter((q, i) => answers[i] !== undefined && taskAnswersMatch(answers[i], q.answer)).length;
 }
 
-/**
- * Topshiriq o'tdimi — to'g'ri javoblar ulushi `PASS_PERCENT` dan kam bo'lmasa.
- * Butun sonlarda solishtiriladi: `correct / total >= 0.8` kasr sonlarda
- * 16/20 kabi holatlarda ham xato natija berishi mumkin.
- *
- * Savoli yo'q topshiriqni yechib bo'lmaydi — u hech qachon o'tmaydi.
- */
 function isTaskPassed(questions: TaskQuestion[], answers: string[]): boolean {
   if (questions.length === 0) return false;
   return countCorrect(questions, answers) * 100 >= questions.length * PASS_PERCENT;
@@ -54,20 +40,8 @@ export class TaskSubmissionService {
     private readonly dataSource: DataSource,
   ) {}
 
-  /**
-   * Topshiriq javoblarini saqlaydi va tegishli darslarning progressini yangilaydi.
-   *
-   * `isCorrect` — topshiriq o'tgan-o'tmagani: to'g'ri javoblar `PASS_PERCENT`
-   * (80%) dan kam bo'lmasa `true`. Barcha savolga to'g'ri javob shart emas.
-   *
-   * Topshiriq birinchi marta o'tganda talabaga tanga va ball qo'shiladi
-   * (`rewarded: true`). Qayta topshirishda mukofot takrorlanmaydi.
-   *
-   * Hammasi bitta tranzaksiyada: bir topshiriq topilmasa, oldingilari ham
-   * saqlanmaydi — aks holda so'rov xato qaytarsa ham ma'lumot o'zgarib qolardi.
-   */
-  async submit(studentUserId: string, answers: SubmitTasksBody) {
-    const student = await this.studentRepo.findOne({ where: { user: { id: studentUserId } } });
+  async submit(studentId: string, answers: SubmitTasksBody) {
+    const student = await this.studentRepo.findOne({ where: { id: studentId } });
     if (!student) throw new NotFoundException('Talaba topilmadi');
 
     const taskIds = Object.keys(answers);
@@ -78,10 +52,9 @@ export class TaskSubmissionService {
       if (!taskMap.has(taskId)) throw new NotFoundException(`Topshiriq topilmadi: ${taskId}`);
     }
 
-    // Talaba faqat o'zi yozilgan kursning topshirig'ini yechishi mumkin.
     const lessonIds = [...new Set(tasks.map((t) => t.lesson.id))];
     for (const lessonId of lessonIds) {
-      await assertActiveEnrollmentForLesson(this.enrollmentRepo, studentUserId, lessonId);
+      await assertActiveEnrollmentForLesson(this.enrollmentRepo, studentId, lessonId);
     }
 
     return this.dataSource.transaction(async (manager) => {
@@ -94,8 +67,6 @@ export class TaskSubmissionService {
 
         const isCorrect = isTaskPassed(task.questions, studentAnswers);
 
-        // Unikal cheklovga tayangan upsert: parallel so'rovlar nusxa yaratmaydi.
-        // `rewarded` bu yerda yangilanmaydi — bir marta berilgan mukofot saqlanadi.
         await manager
           .createQueryBuilder()
           .insert()
@@ -123,13 +94,6 @@ export class TaskSubmissionService {
     });
   }
 
-  /**
-   * Mukofotni "band qiladi": `rewarded` ni faqat hali berilmagan bo'lsa `true`
-   * qiladi va shu yozuvni o'zgartira olgan bo'lsa `true` qaytaradi.
-   *
-   * Shart bitta UPDATE ichida tekshirilgani uchun bir vaqtda kelgan so'rovlardan
-   * faqat bittasi yozuvni o'zgartira oladi — mukofot ikki marta berilmaydi.
-   */
   private async claimReward(manager: EntityManager, studentId: string, taskId: string): Promise<boolean> {
     const result = await manager
       .createQueryBuilder()
@@ -144,11 +108,6 @@ export class TaskSubmissionService {
     return result.affected === 1;
   }
 
-  /**
-   * Dars progressi = to'g'ri yechilgan topshiriqlar ulushi (0–100).
-   * Savoli yo'q topshiriqlar hisobga olinmaydi — ularni yechib bo'lmaydi,
-   * shuning uchun ular bo'lsa ham progress 100 ga yeta oladi.
-   */
   private async upsertLessonProgress(manager: EntityManager, student: Student, lessonId: string): Promise<void> {
     const totalTasks = await manager
       .createQueryBuilder(Task, 'task')
@@ -181,15 +140,14 @@ export class TaskSubmissionService {
     });
   }
 
-  /** Dars topshiriqlari va talabaning javoblari — to'g'ri javoblarsiz. */
-  async getLessonResults(studentUserId: string, lessonId: string) {
-    const student = await this.studentRepo.findOne({ where: { user: { id: studentUserId } } });
+  async getLessonResults(studentId: string, lessonId: string) {
+    const student = await this.studentRepo.findOne({ where: { id: studentId } });
     if (!student) throw new NotFoundException('Talaba topilmadi');
 
     const lesson = await this.lessonRepo.findOne({ where: { id: lessonId } });
     if (!lesson) throw new NotFoundException('Dars topilmadi');
 
-    await assertActiveEnrollmentForLesson(this.enrollmentRepo, studentUserId, lessonId);
+    await assertActiveEnrollmentForLesson(this.enrollmentRepo, studentId, lessonId);
 
     const tasks = await this.taskRepo.find({
       where: { lesson: { id: lessonId } },
@@ -222,15 +180,14 @@ export class TaskSubmissionService {
     });
   }
 
-  /** Bitta topshiriq bo'yicha talabaning savollari va bergan javoblari. */
-  async getTaskResult(studentUserId: string, taskId: string) {
-    const student = await this.studentRepo.findOne({ where: { user: { id: studentUserId } } });
+  async getTaskResult(studentId: string, taskId: string) {
+    const student = await this.studentRepo.findOne({ where: { id: studentId } });
     if (!student) throw new NotFoundException('Talaba topilmadi');
 
     const task = await this.taskRepo.findOne({ where: { id: taskId }, relations: { lesson: true } });
     if (!task) throw new NotFoundException('Topshiriq topilmadi');
 
-    await assertActiveEnrollmentForLesson(this.enrollmentRepo, studentUserId, task.lesson.id);
+    await assertActiveEnrollmentForLesson(this.enrollmentRepo, studentId, task.lesson.id);
 
     const submission = await this.submissionRepo.findOne({
       where: { student: { id: student.id }, task: { id: task.id } },
@@ -252,18 +209,6 @@ export class TaskSubmissionService {
     };
   }
 
-  /**
-   * Admin uchun: bitta darsning topshiriqlari va talabaning javoblari.
-   *
-   * Talabaga ko'rsatilmaydigan to'g'ri javob (`answer`) bu yerda qaytariladi —
-   * admin javobni nimaga solishtirishni bilmasa, natijani baholay olmaydi.
-   *
-   * `studentId` — Student yozuvining id si (talabaning user id si emas), chunki
-   * admin panelida talaba shu id bilan ochiladi.
-   *
-   * Yozilish tekshirilmaydi: admin muddati tugagan yoki bekor qilingan
-   * yozilishning natijasini ham ko'ra olishi kerak.
-   */
   async getStudentLessonResults(studentId: string, lessonId: string) {
     const student = await this.studentRepo.findOne({ where: { id: studentId } });
     if (!student) throw new NotFoundException('Talaba topilmadi');
@@ -276,7 +221,6 @@ export class TaskSubmissionService {
       order: { createdAt: 'ASC' },
     });
 
-    // Bo'sh ro'yxatli `In([])` so'rovi xato beradi, shuning uchun oldindan tekshiriladi.
     const submissions = tasks.length
       ? await this.submissionRepo.find({
           where: { student: { id: student.id }, task: { id: In(tasks.map((t) => t.id)) } },
@@ -296,7 +240,6 @@ export class TaskSubmissionService {
           name: task.name,
           file: task.file,
           contentType: task.contentType,
-          // Topshirilmagan topshiriq "noto'g'ri" emas — natijasi yo'q.
           isCorrect: submission ? submission.isCorrect : null,
           submittedAt: submission ? submission.createdAt : null,
           questions: task.questions.map((question, index) => {

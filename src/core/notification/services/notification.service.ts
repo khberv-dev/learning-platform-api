@@ -9,10 +9,6 @@ export class NotificationService {
     private readonly resendEmailService: ResendEmailService,
   ) {}
 
-  sendSms(phoneNumber: string, message: string): Promise<void> {
-    return this.eskizService.sendSms(phoneNumber, message);
-  }
-
   sendOtp(phoneNumber: string, code: string): Promise<void> {
     return this.eskizService.sendSms(phoneNumber, `iTeach ilovasiga kirish uchun kod: ${code}`);
   }

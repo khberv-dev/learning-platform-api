@@ -7,7 +7,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { User } from '@/core/user/entity/user.entity';
+import { Student } from '@/core/user/entity/student.entity';
 import { Enrollment } from '@/core/enrollment/entity/enrollment.entity';
 import { PaymentType } from '@/core/payment/entity/payment-type.entity';
 import { PaymentStatus } from '@/core/payment/enum/payment-status.enum';
@@ -22,9 +22,9 @@ export class Payment {
   @JoinColumn()
   paymentType: PaymentType | null;
 
-  @ManyToOne(() => User, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Student, { onDelete: 'CASCADE' })
   @JoinColumn()
-  user: User;
+  student: Student;
 
   @ManyToOne(() => Enrollment, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn()
@@ -34,14 +34,12 @@ export class Payment {
   @JoinColumn()
   plan: Plan | null;
 
-  /** To'lov summasi — yaratilgan paytdagi tarif narxi (keyin tarif o'zgarsa ham saqlanadi). */
   @Column({ type: 'int', default: 0 })
   amount: number;
 
   @Column({ type: 'enum', enum: PaymentStatus, default: PaymentStatus.CREATED })
   status: PaymentStatus;
 
-  /** To'lov tizimidagi tranzaksiya identifikatori (masalan Click click_trans_id). */
   @Column({ nullable: true })
   providerPaymentId: string;
 

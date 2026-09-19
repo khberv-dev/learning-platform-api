@@ -5,7 +5,7 @@ import { PaymentStatus } from '@/core/payment/enum/payment-status.enum';
 export class PaymentQuery extends PaginationQuery {
   @IsUUID()
   @IsOptional()
-  userId?: string;
+  studentId?: string;
 
   @IsUUID()
   @IsOptional()
