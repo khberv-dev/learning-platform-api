@@ -13,4 +13,4 @@ export const chatFileStorage = diskStorage({
   filename: (_req, file, cb) => cb(null, `${randomUUID()}${extname(file.originalname)}`),
 });
 
-export const toChatFilePath = (filename: string) => `/chat/${filename}`;
+export const toChatFilePath = (filename: string) => `chat/${filename}`;

@@ -23,4 +23,4 @@ export function iconFileFilter(
   cb(null, true);
 }
 
-export const toIconPath = (filename: string) => `/payment-type/${filename}`;
+export const toIconPath = (filename: string) => `payment-type/${filename}`;

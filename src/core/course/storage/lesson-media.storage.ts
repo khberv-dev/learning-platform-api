@@ -24,12 +24,12 @@ export function videoFileFilter(
   cb(null, true);
 }
 
-export const toMediaPath = (filename: string) => `/lesson/${filename}`;
+export const toMediaPath = (filename: string) => `lesson/${filename}`;
 
 export async function removeLessonMediaFile(media: string | null | undefined): Promise<void> {
-  if (!media?.startsWith('/lesson/')) return;
+  if (!media?.startsWith('lesson/')) return;
   const filename = basename(media);
-  if (media !== `/lesson/${filename}`) return;
+  if (media !== `lesson/${filename}`) return;
 
   try {
     await unlink(resolve(DEST, filename));

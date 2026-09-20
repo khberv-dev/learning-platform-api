@@ -169,6 +169,37 @@ export class UserService {
     return null;
   }
 
+  private async accountForAuthByField<T extends { id: string; password: string; isActive: boolean }>(
+    repo: Repository<T>,
+    alias: string,
+    where: string,
+    params: Record<string, unknown>,
+  ): Promise<{ id: string; password: string; isActive: boolean } | null> {
+    const account = await repo.createQueryBuilder(alias).addSelect(`${alias}.password`).where(where, params).getOne();
+    return account ? { id: account.id, password: account.password, isActive: account.isActive } : null;
+  }
+
+  findStudentForAuth(identity: {
+    email?: string;
+    phoneNumber?: string;
+  }): Promise<{ id: string; password: string; isActive: boolean } | null> {
+    const where = identity.email ? 'LOWER(student.email) = :email' : 'student.phoneNumber = :phoneNumber';
+    const params = identity.email ? { email: identity.email.toLowerCase() } : { phoneNumber: identity.phoneNumber };
+    return this.accountForAuthByField(this.studentRepo, 'student', where, params);
+  }
+
+  findMentorForAuth(phoneNumber: string): Promise<{ id: string; password: string; isActive: boolean } | null> {
+    return this.accountForAuthByField(this.mentorRepo, 'mentor', 'mentor.phoneNumber = :phoneNumber', {
+      phoneNumber,
+    });
+  }
+
+  findAdminForAuth(email: string): Promise<{ id: string; password: string; isActive: boolean } | null> {
+    return this.accountForAuthByField(this.adminRepo, 'admin', 'LOWER(admin.email) = :email', {
+      email: email.toLowerCase(),
+    });
+  }
+
   hasStudentProfile(phoneNumber: string): Promise<boolean> {
     return this.studentRepo.existsBy({ phoneNumber });
   }

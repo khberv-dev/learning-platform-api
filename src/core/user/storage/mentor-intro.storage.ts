@@ -23,4 +23,4 @@ export function introVideoFileFilter(
   cb(null, true);
 }
 
-export const toIntroVideoPath = (filename: string) => `/mentor-intro/${filename}`;
+export const toIntroVideoPath = (filename: string) => `mentor-intro/${filename}`;

@@ -10,9 +10,10 @@ documented here.
 - **Auth header:** `Authorization: Bearer <accessToken>` on every route except `auth/*`.
 - **Content type:** `application/json` unless the route uploads a file, which uses
   `multipart/form-data` (called out per-route below).
-- **Uploaded files** (avatars, chat files, recordings, assessment audio, …) are returned as
-  relative paths like `/avatar/xxxx.png`. Resolve them against `{HOST}/public`, e.g.
-  `{HOST}/public/avatar/xxxx.png`.
+- **Uploaded files** (avatars, chat files, recordings, assessment audio, …) come back as full,
+  ready-to-use URLs already, e.g. `"avatar": "{HOST}/public/avatar/xxxx.png"` — the server stores
+  just the relative path and expands it to `{FILES_BASE_URL}/public/<path>` (`{HOST}` above) on
+  every response, so there's nothing for the client to resolve.
 - **Pagination:** any endpoint returning a page takes `?page=1&limit=10` (`page` ≥ 1, `limit` 1–100,
   defaults `1`/`10`) and returns:
   ```json
@@ -87,8 +88,11 @@ account) · `400 OTP noto'g'ri yoki muddati o'tgan` (bad/expired/already-used co
 
 ### Sign in
 
+Sign-in is role-scoped, not shared — the student app always calls the student route (there's no
+`role` field to send; the route itself picks the table).
+
 ```http
-POST auth/sign-in
+POST auth/student/sign-in
 ```
 
 ```json
@@ -169,7 +173,7 @@ Also records today's activity (streak) as a side effect.
   "id": "f2c8a0e0-1111-2222-3333-444455556666",
   "firstName": "Sevara",
   "lastName": "Karimova",
-  "avatar": "/avatar/9f1c.png",
+  "avatar": "{HOST}/public/avatar/9f1c2a3b-1111-2222-3333-444455556666.png",
   "email": null,
   "phoneNumber": "998901234567",
   "isActive": true,
@@ -244,7 +248,7 @@ GET student/courses
     "id": "c0000000-0000-0000-0000-000000000001",
     "title": "English A1",
     "description": "Beginner course",
-    "image": "/course/abcd.jpg",
+    "image": "{HOST}/public/course/abcd0000-1111-2222-3333-444455556666.jpg",
     "isActive": true,
     "index": 0,
     "units": [
@@ -257,7 +261,7 @@ GET student/courses
             "id": "l0000000-0000-0000-0000-000000000001",
             "title": "Greetings",
             "description": "...",
-            "media": "/lesson/xyz.mp4",
+            "media": "{HOST}/public/lesson/xyz00000-1111-2222-3333-444455556666.mp4",
             "index": 0,
             "isLocked": false
           }
@@ -406,7 +410,7 @@ GET student/lessons/:lessonId/materials
   {
     "id": "m0000000-0000-0000-0000-000000000001",
     "name": "Grammar sheet",
-    "url": "/material/xyz.pdf",
+    "url": "{HOST}/public/material/xyz00000-1111-2222-3333-444455556666.pdf",
     "type": "pdf",
     "createdAt": "2026-01-01T00:00:00.000Z",
     "updatedAt": "2026-01-01T00:00:00.000Z"
@@ -414,7 +418,7 @@ GET student/lessons/:lessonId/materials
 ]
 ```
 
-`type` is `pdf`, `doc`, or `image`. `url` resolves against `{HOST}/public`.
+`type` is `pdf`, `doc`, or `image`. `url` is already a full URL.
 
 ---
 
@@ -494,7 +498,7 @@ GET student/task-submissions/lessons/:lessonId
     "taskId": "t0000000-0000-0000-0000-000000000002",
     "name": "Listening",
     "questions": [{ "question": "...", "options": null }],
-    "file": "/task-audio/xyz.mp3",
+    "file": "{HOST}/public/task-audio/xyz00000-1111-2222-3333-444455556666.mp3",
     "contentType": "audio",
     "submission": null
   }
@@ -544,10 +548,10 @@ GET student/mentors
     "id": "mn000000-0000-0000-0000-000000000001",
     "firstName": "Aziz",
     "lastName": "Yusupov",
-    "avatar": "/avatar/mentor.png",
+    "avatar": "{HOST}/public/avatar/mentor00-1111-2222-3333-444455556666.png",
     "status": "active",
     "profession": "IELTS trainer",
-    "introVideo": "/mentor-intro/xyz.mp4",
+    "introVideo": "{HOST}/public/mentor-intro/xyz00000-1111-2222-3333-444455556666.mp4",
     "schedule": { "Mon": ["09:00", "10:00"], "Wed": ["09:00"] },
     "summaryRating": 4.8,
     "createdAt": "2026-01-01T00:00:00.000Z",
@@ -703,7 +707,7 @@ GET student/live-lesson-recordings/my
   {
     "id": "rc000000-0000-0000-0000-000000000001",
     "title": "Speaking practice recording",
-    "videoUrl": "/live-lesson-recording/xyz.mp4",
+    "videoUrl": "{HOST}/public/live-lesson-recording/xyz00000-1111-2222-3333-444455556666.mp4",
     "assignment": { "id": "as000000-0000-0000-0000-000000000001", "...": "..." },
     "createdAt": "2026-05-20T10:00:00.000Z",
     "updatedAt": "2026-05-20T10:00:00.000Z"
@@ -779,7 +783,7 @@ payment's plan/amount instead of creating a new one.
   "paymentTypes": [
     {
       "id": "pt000000-0000-0000-0000-000000000001",
-      "icon": "/payment-type/click.png",
+      "icon": "{HOST}/public/payment-type/click000-1111-2222-3333-444455556666.png",
       "title": "Click",
       "url": "https://my.click.uz/services/pay?merchant_id=...&merchant_user_id=f2c8a0e0-...&amount=250000",
       "isActive": true
@@ -914,14 +918,14 @@ GET student/assessments/conversations/:id
       "id": "cm000000-0000-0000-0000-000000000001",
       "role": "user",
       "text": "Hi, how are you?",
-      "audioPath": "/assessment-input/xyz.wav",
+      "audioPath": "{HOST}/public/assessment-input/xyz00000-1111-2222-3333-444455556666.wav",
       "createdAt": "2026-05-18T10:01:00.000Z"
     },
     {
       "id": "cm000000-0000-0000-0000-000000000002",
       "role": "assistant",
       "text": "I'm doing great, thanks for asking! How about you?",
-      "audioPath": "/assessment-output/xyz.wav",
+      "audioPath": "{HOST}/public/assessment-output/xyz00000-1111-2222-3333-444455556666.wav",
       "createdAt": "2026-05-18T10:01:05.000Z"
     }
   ]
@@ -945,14 +949,14 @@ Field name: `audio` (audio file, the student's recorded clip). **200/201 OK**
     "id": "cm000000-0000-0000-0000-000000000003",
     "role": "user",
     "text": "What's the weather like today?",
-    "audioPath": "/assessment-input/abc.wav",
+    "audioPath": "{HOST}/public/assessment-input/abc00000-1111-2222-3333-444455556666.wav",
     "createdAt": "2026-05-18T10:02:00.000Z"
   },
   "assistantMessage": {
     "id": "cm000000-0000-0000-0000-000000000004",
     "role": "assistant",
     "text": "I don't have a window to look out of, but I hope it's nice where you are!",
-    "audioPath": "/assessment-output/def.wav",
+    "audioPath": "{HOST}/public/assessment-output/def00000-1111-2222-3333-444455556666.wav",
     "createdAt": "2026-05-18T10:02:03.000Z"
   }
 }
@@ -994,10 +998,10 @@ GET student/chat/rooms/:id
   "id": "cr000000-0000-0000-0000-000000000001",
   "assignment": { "id": "as000000-0000-0000-0000-000000000001" },
   "student": { "id": "f2c8a0e0-...", "firstName": "Sevara", "lastName": "Karimova", "avatar": null },
-  "mentor": { "id": "mn000000-...", "firstName": "Aziz", "lastName": "Yusupov", "avatar": "/avatar/m.png" },
+  "mentor": { "id": "mn000000-...", "firstName": "Aziz", "lastName": "Yusupov", "avatar": "{HOST}/public/avatar/m0000000-1111-2222-3333-444455556666.png" },
   "members": [
     { "id": "mb1", "user": { "id": "f2c8a0e0-...", "firstName": "Sevara", "lastName": "Karimova", "avatar": null }, "joinedAt": "..." },
-    { "id": "mb2", "user": { "id": "mn000000-...", "firstName": "Aziz", "lastName": "Yusupov", "avatar": "/avatar/m.png" }, "joinedAt": "..." }
+    { "id": "mb2", "user": { "id": "mn000000-...", "firstName": "Aziz", "lastName": "Yusupov", "avatar": "{HOST}/public/avatar/m0000000-1111-2222-3333-444455556666.png" }, "joinedAt": "..." }
   ],
   "createdAt": "2026-05-18T10:00:00.000Z",
   "updatedAt": "2026-05-18T10:05:00.000Z"
@@ -1063,7 +1067,8 @@ Content-Type: multipart/form-data
 ```
 
 Field name: `file`. **200/201 OK** — same message shape with `type: "file"` and `filePath`/
-`fileName`/`fileSize`/`fileMimeType` filled in. `filePath` resolves against `{HOST}/public`.
+`fileName`/`fileSize`/`fileMimeType` filled in. `filePath` is already a full URL, same as every
+other uploaded-file field.
 
 **Errors:** `400 Fayl yuborilmagan`.
 

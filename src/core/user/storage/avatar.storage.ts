@@ -23,4 +23,4 @@ export function avatarFileFilter(
   cb(null, true);
 }
 
-export const toAvatarPath = (filename: string) => `/avatar/${filename}`;
+export const toAvatarPath = (filename: string) => `avatar/${filename}`;

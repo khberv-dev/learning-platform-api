@@ -23,4 +23,4 @@ export function imageFileFilter(
   cb(null, true);
 }
 
-export const toImagePath = (filename: string) => `/course/${filename}`;
+export const toImagePath = (filename: string) => `course/${filename}`;

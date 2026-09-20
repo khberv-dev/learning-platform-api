@@ -2,7 +2,9 @@ import { Body, Controller, Ip, Post, Request, UseGuards } from '@nestjs/common';
 
 import { AuthService } from '@/core/auth/services/auth.service';
 import { SignUpRequest } from '@/core/auth/dto/sign-up-request.dto';
-import { SignInRequest } from '@/core/auth/dto/sign-in-request.dto';
+import { StudentSignInDto } from '@/core/auth/dto/student-sign-in.dto';
+import { MentorSignInDto } from '@/core/auth/dto/mentor-sign-in.dto';
+import { AdminSignInDto } from '@/core/auth/dto/admin-sign-in.dto';
 import { SendOtpDto } from '@/core/auth/dto/send-otp.dto';
 import { RecoverPasswordDto } from '@/core/auth/dto/recover-password.dto';
 import { Public } from '@/common/decorators/public.decorator';
@@ -19,9 +21,21 @@ export class AuthController {
   }
 
   @Public()
-  @Post('sign-in')
-  signIn(@Body() body: SignInRequest) {
-    return this.authService.signIn(body);
+  @Post('student/sign-in')
+  signInStudent(@Body() body: StudentSignInDto) {
+    return this.authService.signInStudent(body);
+  }
+
+  @Public()
+  @Post('mentor/sign-in')
+  signInMentor(@Body() body: MentorSignInDto) {
+    return this.authService.signInMentor(body);
+  }
+
+  @Public()
+  @Post('admin/sign-in')
+  signInAdmin(@Body() body: AdminSignInDto) {
+    return this.authService.signInAdmin(body);
   }
 
   @Public()

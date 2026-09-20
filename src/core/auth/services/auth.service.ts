@@ -13,7 +13,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { MoreThan, Repository } from 'typeorm';
 import { UserService } from '@/core/user/services/user.service';
 import { SignUpRequest } from '@/core/auth/dto/sign-up-request.dto';
-import { SignInRequest } from '@/core/auth/dto/sign-in-request.dto';
+import { StudentSignInDto } from '@/core/auth/dto/student-sign-in.dto';
+import { MentorSignInDto } from '@/core/auth/dto/mentor-sign-in.dto';
+import { AdminSignInDto } from '@/core/auth/dto/admin-sign-in.dto';
 import { SendOtpDto } from '@/core/auth/dto/send-otp.dto';
 import { OtpPurpose } from '@/core/auth/enum/otp-purpose.enum';
 import { RecoverPasswordDto } from '@/core/auth/dto/recover-password.dto';
@@ -123,11 +125,12 @@ export class AuthService {
     return { ...this.issueTokens(student.id, UserRole.STUDENT), role: UserRole.STUDENT };
   }
 
-  async signIn(data: SignInRequest) {
-    const identity = resolveIdentity(data);
-    const account = await this.userService.findAccountForAuth(identity);
-
-    if (!account || !(await comparePassword(data.password, account.password))) {
+  private async finishSignIn(
+    account: { id: string; password: string; isActive: boolean } | null,
+    password: string,
+    role: UserRole,
+  ) {
+    if (!account || !(await comparePassword(password, account.password))) {
       throw new BadRequestException("Login yoki parol noto'g'ri");
     }
 
@@ -135,7 +138,23 @@ export class AuthService {
       throw new UnauthorizedException('Hisobingiz faol emas');
     }
 
-    return { ...this.issueTokens(account.id, account.role), role: account.role };
+    return { ...this.issueTokens(account.id, role), role };
+  }
+
+  async signInStudent(data: StudentSignInDto) {
+    const identity = resolveIdentity(data);
+    const account = await this.userService.findStudentForAuth(identity);
+    return this.finishSignIn(account, data.password, UserRole.STUDENT);
+  }
+
+  async signInMentor(data: MentorSignInDto) {
+    const account = await this.userService.findMentorForAuth(data.phoneNumber);
+    return this.finishSignIn(account, data.password, UserRole.MENTOR);
+  }
+
+  async signInAdmin(data: AdminSignInDto) {
+    const account = await this.userService.findAdminForAuth(data.email);
+    return this.finishSignIn(account, data.password, UserRole.ADMIN);
   }
 
   refresh(user: Pick<AuthUser, 'id' | 'role'>) {

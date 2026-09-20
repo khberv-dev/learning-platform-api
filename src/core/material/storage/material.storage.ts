@@ -40,4 +40,4 @@ export function materialFileFilter(
   cb(null, true);
 }
 
-export const toMaterialPath = (filename: string) => `/material/${filename}`;
+export const toMaterialPath = (filename: string) => `material/${filename}`;

@@ -25,6 +25,7 @@ import { SessionModule } from '@/core/session/session.module';
 import { JwtAccessGuard } from '@/common/guards/jwt-access.guard';
 import { RolesGuard } from '@/common/guards/roles.guard';
 import { LoggingInterceptor } from '@/common/interceptors/logging.interceptor';
+import { FileUrlInterceptor } from '@/common/interceptors/file-url.interceptor';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { LoggingInterceptor } from '@/common/interceptors/logging.interceptor';
   providers: [
     { provide: APP_GUARD, useClass: JwtAccessGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
+    { provide: APP_INTERCEPTOR, useClass: FileUrlInterceptor },
     { provide: APP_INTERCEPTOR, useClass: LoggingInterceptor },
   ],
 })

@@ -29,6 +29,7 @@ Coverage is thin and deliberate — the specs cover pure logic and branch-heavy 
 | Variable | Notes |
 |---|---|
 | `PORT` | HTTP port |
+| `FILES_BASE_URL` | required; public base URL uploaded files are served from, e.g. `http://localhost:8000` — read with `getOrThrow` by `FileUrlInterceptor`, but only once it finds an actual file path to expand, so an unset value only 500s responses that contain one, not the whole API |
 | `ENVIRONMENT` | `DEVELOPMENT` or `DEPLOYMENT`; anything else (including unset) resolves to `DEPLOYMENT`. See "Environment switches" below |
 | `DB_HOST`, `DB_PORT`, `DB_USERNAME`, `DB_PASSWORD`, `DB_DATABASE` | PostgreSQL |
 | `JWT_ACCESS_SECRET`, `JWT_ACCESS_EXPIRE` | e.g. `1h` |
@@ -224,7 +225,9 @@ Students `POST /api/student/assessments/conversations/:id/messages` with an audi
 
 ### File uploads
 
-Each module that accepts files has a `storage/*.storage.ts` defining a `multer.diskStorage` destination (created with `mkdirSync` at import time), a UUID filename, an optional mime filter, and a path helper (`toMaterialPath`, `toAvatarPath`, …) that produces the public URL. `uploads/` maps to `/public/`.
+Each module that accepts files has a `storage/*.storage.ts` defining a `multer.diskStorage` destination (created with `mkdirSync` at import time), a UUID filename, an optional mime filter, and a path helper (`toMaterialPath`, `toAvatarPath`, …) that produces the *relative* path stored in the DB column — no leading slash, e.g. `avatar/<uuid>.png`. `uploads/` maps to `/public/`.
+
+That relative path never reaches a client as-is. `FileUrlInterceptor` (`src/common/interceptors/file-url.interceptor.ts`, global `APP_INTERCEPTOR`) walks every JSON response recursively and rewrites any string matching `<known-upload-folder>/<uuid>.<ext>` into `{FILES_BASE_URL}/public/<path>` — so `Student.avatar`, `Course.image`, `ChatMessage.filePath`, `PaymentType.icon`, and every other stored file path come back as full URLs, while the DB keeps only the portable relative form. `UPLOAD_FOLDERS` in that file is the exact, closed list of recognized prefixes (`avatar`, `course`, `lesson`, `chat`, `task-audio`, `task-picture`, `payment-type`, `live-lesson-recording`, `mentor-intro`, `assessment-input`, `assessment-output`, `material`) — the UUID-shaped match keeps it from ever touching unrelated strings (e.g. Click's `PaymentType.url` templates, chat message text). Adding a new upload type means adding its folder name to that list, nothing else.
 
 Admin lesson media can be replaced with `PATCH /api/admin/courses/:courseId/units/:unitId/lessons/:lessonId/media` or removed without deleting the lesson through `DELETE` on the same path. Replacement, media deletion, and lesson deletion clean up locally managed `/lesson/*` files after the database write; cleanup is path-restricted and a filesystem failure is logged without reverting the database result.
 

@@ -32,4 +32,4 @@ export const taskContentTypeOf = (file: Express.Multer.File): TaskContentType =>
   file.mimetype.startsWith('image/') ? TaskContentType.PICTURE : TaskContentType.AUDIO;
 
 export const toTaskContentPath = (file: Express.Multer.File): string =>
-  file.mimetype.startsWith('image/') ? `/task-picture/${file.filename}` : `/task-audio/${file.filename}`;
+  file.mimetype.startsWith('image/') ? `task-picture/${file.filename}` : `task-audio/${file.filename}`;

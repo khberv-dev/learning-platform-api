@@ -1,11 +1,11 @@
 import { IsEmail, IsNotEmpty, IsString, Matches, ValidateIf } from 'class-validator';
 
-export class SignInRequest {
-  @ValidateIf((o: SignInRequest) => !o.phoneNumber)
+export class StudentSignInDto {
+  @ValidateIf((o: StudentSignInDto) => !o.phoneNumber)
   @IsEmail({}, { message: "Email noto'g'ri formatda" })
   email?: string;
 
-  @ValidateIf((o: SignInRequest) => !o.email)
+  @ValidateIf((o: StudentSignInDto) => !o.email)
   @Matches(/^998\d{9}$/, { message: "Telefon raqam 998XXXXXXXXX formatida bo'lishi kerak" })
   phoneNumber?: string;
 

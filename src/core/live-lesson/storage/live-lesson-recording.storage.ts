@@ -23,4 +23,4 @@ export function videoFileFilter(
   cb(null, true);
 }
 
-export const toVideoUrl = (filename: string) => `/live-lesson-recording/${filename}`;
+export const toVideoUrl = (filename: string) => `live-lesson-recording/${filename}`;
