@@ -18,7 +18,7 @@ const UPLOAD_FOLDERS = [
 ];
 
 const UPLOAD_PATH_RE = new RegExp(
-  `^(${UPLOAD_FOLDERS.join('|')})/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\\.[A-Za-z0-9]+$`,
+  `^/?(${UPLOAD_FOLDERS.join('|')})/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\\.[A-Za-z0-9]+$`,
 );
 
 const MAX_DEPTH = 6;
@@ -39,7 +39,7 @@ export class FileUrlInterceptor implements NestInterceptor {
     if (typeof value === 'string') {
       if (!UPLOAD_PATH_RE.test(value)) return value;
       const baseUrl = this.configService.getOrThrow<string>('FILES_BASE_URL');
-      return `${baseUrl}/public/${value}`;
+      return `${baseUrl}/public/${value.replace(/^\/+/, '')}`;
     }
     if (value instanceof Date) return value;
     if (Array.isArray(value)) return value.map((item) => this.resolve(item, depth + 1));
