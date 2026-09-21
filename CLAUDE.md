@@ -62,7 +62,7 @@ Coverage is thin and deliberate — the specs cover pure logic and branch-heavy 
 - **User-facing messages are written in Uzbek.** Exception messages (`throw new NotFoundException("To'lov topilmadi")`) and log lines follow this. Match it when adding code; identifiers and types stay in English.
 - `@/` maps to `src/` (`tsconfig.json` paths). Use it for all internal imports, including within the same module.
 - Module layout is `controllers/`, `services/`, `entity/`, `dto/`, `enum/`, `storage/`, `utils/` under `src/core/<feature>/`.
-- Controllers are split by audience, not by resource: `admin-payment.controller.ts` serves `/api/admin/payments`, `payment.controller.ts` serves `/api/student/payments`. Same pattern for course, enrollment, material, plan, assignment, live-lesson (admin/student/mentor), and user (admin-student, admin-mentor, student, mentor). A controller that mixed two audiences under one path via per-method `@Roles` overrides (the old `course.controller.ts`, `task-submission.controller.ts`, `mentor.controller.ts`, `live-lesson.controller.ts`, `live-lesson-recording.controller.ts`) has been split one file per audience instead, since a class can't live at two role-prefixed base paths for different methods.
+- Controllers are split by audience, not by resource: `admin-payment.controller.ts` serves `/api/admin/payments`, `payment.controller.ts` serves `/api/student/payments`. Same pattern for course, enrollment, material, plan, group, live-lesson (admin/student/mentor), and user (admin-student, admin-mentor, student, mentor). A controller that mixed two audiences under one path via per-method `@Roles` overrides (the old `course.controller.ts`, `task-submission.controller.ts`, `mentor.controller.ts`, `live-lesson.controller.ts`, `live-lesson-recording.controller.ts`) has been split one file per audience instead, since a class can't live at two role-prefixed base paths for different methods.
 - Prettier: single quotes, trailing commas, `printWidth: 120`.
 - `strictNullChecks` is on but `noImplicitAny` is off; `@typescript-eslint/no-explicit-any`, `no-floating-promises`, and `no-unused-vars` are disabled in `eslint.config.mjs`.
 
@@ -189,7 +189,6 @@ Device tokens were already there: `Session.fcmToken`, one row per device — lik
 | Event | Fires from | Audience |
 |---|---|---|
 | `course_enrolled` | `EnrollmentService.createEnrollment`, `PaymentService.markPaid`, `PendingEnrollmentService.acceptPending` | the one student |
-| `mentor_assigned` | `AssignmentService.accept` | the student whose offer was accepted |
 | `course_created` | `CourseService.createCourse` / `updateCourse` | every student |
 | `lesson_added` | `LessonService.createLesson` | students with a live, unexpired enrolment in that course |
 
@@ -198,7 +197,7 @@ Four things that are load-bearing:
 - **Push never breaks the business action.** `PushService` methods swallow their own errors, so call sites use `void` and never await. A missing key, a network fault, or a bad token cannot fail an enrolment, a payment webhook, or a lesson upload.
 - **`createEnrollment` skips the push when it runs inside a caller's transaction** (`manager` is set), because the rows may not be committed yet. `acceptPending` sends after its transaction commits instead — otherwise a rollback would still have notified the student.
 - **"New course" is announced when the course becomes *visible*, not when the row is inserted.** Courses default to `isActive: false`, so announcing on insert would advertise drafts. `Course.announcedAt` records the broadcast, so toggling a course off and on again does not re-spam every student.
-- Payloads carry `data.event` plus the relevant id (`courseId` / `assignmentId`) for deep-linking; FCM data values must be strings.
+- Payloads carry `data.event` plus the relevant `courseId` for deep-linking; FCM data values must be strings.
 
 Beyond those automatic events, admins send messages by hand through `POST /api/admin/notifications/push` (`AdminPushController`, admin-only). `audience` is **required** — `all`, `students`, `mentors`, or `phones` with a `phoneNumbers` list — so a blast to everyone can never be the result of a forgotten field. The same endpoint covers one recipient and a mass send; "individual" is just a one-element `phones` list. `phones` only searches `Student` and `Mentor` — admins are never a phone-targeted push audience.
 
@@ -212,12 +211,57 @@ Unlike Eskiz SMS, push is **not** gated on `ENVIRONMENT` — a dev box sends rea
 
 Two Socket.io namespaces, each authenticating from `handshake.auth.token` or an `Authorization: Bearer` header:
 
-- `/chat` — room-based messaging; the gateway persists via `ChatService`, then broadcasts.
+- `/chat` — room-based messaging; the gateway persists via `ChatService`, then broadcasts. Every room is a group's chat (see "Groups" below) — there is no other kind of room.
 - `/match` — in-memory peer matchmaking; paired users exchange WebRTC signals. Match state is never persisted — only the resulting `Call` record is.
 
 ### Live lessons
 
-`src/core/live-lesson/` covers scheduled 1:1 sessions between a mentor and their assigned student — a `LiveLesson` (name, `meetLink`, start/end) hangs off an `Assignment`, and every mutation re-checks that the assignment belongs to the calling mentor (`mentor/live-lessons`, CRUD; the student's read-only `GET student/live-lessons` is a separate controller in the same module). Recordings are a separate entity, split the same way (`mentor/live-lesson-recordings` to upload, `student/live-lesson-recordings` to read) with their own upload storage. This is unrelated to `Lesson` under `course/`, which is prerecorded course content.
+`src/core/live-lesson/` covers scheduled sessions for a group — a `LiveLesson` (name, `meetLink`, start/end) hangs off a `Group`, and every mutation re-checks that the calling mentor currently holds the `primary` `GroupMentor` role for that group (`mentor/live-lessons`, CRUD; the student's read-only `GET student/live-lessons` is a separate controller in the same module, scoped to the student's current group). `LiveLesson` also keeps its own `mentor` FK, set at creation time — so a lesson stays owned by whoever scheduled it even if the group's primary mentor changes later; only that ownership check gates read/update/delete, not current primary status. Recordings are a separate entity, split the same way (`mentor/live-lesson-recordings` to upload, `student/live-lesson-recordings` to read) with their own upload storage, keyed by `group` the same way. This is unrelated to `Lesson` under `course/`, which is prerecorded course content.
+
+There is no more student-initiated pairing — the `assignment` module (student picks a mentor and books a slot against the mentor's published schedule) has been removed entirely, along with `Mentor.schedule`. A student's mentor relationship now exists only through their current `Group` membership; `LiveLesson`/`LiveLessonRecording` moved from `Assignment` to `Group` accordingly.
+
+### Groups
+
+`src/core/group/` is now the **only** mentor↔student pairing mechanism — a named cohort (`Group`:
+`title`, `schedule` — a `Record<Weekday, string[]>` validated only for weekday keys and non-empty
+string values (`validateGroupScheduleShape`, `group/utils/group-schedule.util.ts`); the time
+values themselves are free text, not matched against any booking slots — `isActive`) with a small
+mentor team and a student roster, fully admin-managed at `admin/groups`. `LiveLesson` and
+`LiveLessonRecording` (see "Live lessons" below) hang off `Group`.
+
+A student is in **at most one group at a time** — `Student.group` is a direct nullable FK, the
+single source of truth for "current group." `GroupMembership` is an append-only history log
+(`group`, `student`, `joinedAt`, `leftAt`) mirroring `Enrollment` / `EnrollmentHistory`: the FK
+says where a student is *now*, the log says how they got there. `GroupMentor` is the mentor-side
+join table, one row per `(group, mentor)` with a `role` of `primary` or `support` — a partial
+unique index (`role = 'primary'`) keeps at most one primary per group at the DB level, on top of
+`GroupService.assignPrimaryMentor` replacing whichever row currently holds that role (promoting an
+existing support-mentor row rather than erroring on the `(group, mentor)` uniqueness if that
+mentor is already on the team).
+
+Three controllers, one per audience, all in this module (same split as `course`/`live-lesson`):
+`admin-group.controller.ts` (`admin/groups` — create, activate/deactivate, add/remove/swap
+students, assign primary mentor, add/remove mentors), `student-group.controller.ts`
+(`GET student/groups/me`, `null` if ungrouped), `mentor-group.controller.ts`
+(`GET mentor/groups/me`, every group that mentor is primary or support for, with their role in each).
+
+"Add" a student only works if they currently have no group (`400` otherwise, naming the student) —
+moving an already-placed student is "swap" (`PATCH admin/groups/:id/students/:studentId/swap`,
+body `{ toGroupId }`), which closes the old `GroupMembership` row and opens a new one in the same
+transaction as the FK update. "Remove" only works for a student currently in that specific group.
+
+**Chat is a property of the group, not a separately managed resource.** `GroupService.createGroup`
+calls `ChatService.createRoomForGroup` right after saving the row, so every group gets exactly one
+`ChatRoom` (`chat/entity/chat-room.entity.ts`, a `OneToOne` on `group`) the moment it's created —
+there's no admin action to open or close a room, and it outlives membership churn instead of being
+recreated per pairing. `ChatService` has no `ChatMember` table to keep in sync as the roster
+changes; access is derived on every call, the same "derived, not stored" approach
+`isEnrollmentExpired` uses for enrollments — a student may read/send iff `Student.group` currently
+points at that room's group, a mentor iff they hold the `primary` `GroupMentor` row for it (a
+`support` mentor has **no** access, read or write), and any admin always passes (no membership row
+needed, unlike the other two roles). `ChatService.hasAccess` is the single gate every read and
+write method calls, so promoting/demoting a mentor or moving a student immediately changes who can
+use the room, with nothing left to reconcile.
 
 ### Assessment (AI speaking partner)
 

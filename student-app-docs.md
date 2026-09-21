@@ -34,7 +34,7 @@ documented here.
 5. [Materials](#5-materials)
 6. [Task submissions](#6-task-submissions)
 7. [Mentors](#7-mentors)
-8. [Assignments](#8-assignments)
+8. [Groups](#8-groups)
 9. [Live lessons](#9-live-lessons)
 10. [Live lesson recordings](#10-live-lesson-recordings)
 11. [Payments](#11-payments)
@@ -552,7 +552,6 @@ GET student/mentors
     "status": "active",
     "profession": "IELTS trainer",
     "introVideo": "{HOST}/public/mentor-intro/xyz00000-1111-2222-3333-444455556666.mp4",
-    "schedule": { "Mon": ["09:00", "10:00"], "Wed": ["09:00"] },
     "summaryRating": 4.8,
     "createdAt": "2026-01-01T00:00:00.000Z",
     "updatedAt": "2026-01-01T00:00:00.000Z"
@@ -593,78 +592,79 @@ POST student/mentors/:id/feedbacks
 }
 ```
 
-### Mentor's schedule
-
-```http
-GET student/mentors/:id/schedule
-```
-
-**200 OK** — the mentor's weekly availability, empty object if never set:
-
-```json
-{ "Mon": ["09:00", "09:30"], "Wed": ["09:00"] }
-```
-
-Keys are `Mon`..`Sun`, values are `"HH:MM"` 30-minute slot starts.
-
 ---
 
-## 8. Assignments
+## 8. Groups
 
-Base path: `student/assignments`. An "assignment" is a request to be paired with a mentor for
-1:1 sessions.
+Base path: `student/groups`. A group is a named cohort with a mentor team and a student roster —
+the only way a student is paired with a mentor; there is no way to browse or pick a mentor
+directly. A student is in at most one group at a time; membership is fully admin-managed — this is
+the only student-facing route.
 
-### Request a mentor
+### My group
 
 ```http
-POST student/assignments
+GET student/groups/me
 ```
+
+**200 OK** — `null` if the student isn't currently in any group:
 
 ```json
 {
-  "mentorId": "mn000000-0000-0000-0000-000000000001",
-  "startDate": "2026-05-20T09:00:00.000Z",
-  "selectedSchedule": { "Mon": ["09:00"], "Wed": ["09:00"] }
+  "id": "gr000000-0000-0000-0000-000000000001",
+  "title": "IELTS Intensive — Evening",
+  "schedule": { "Mon": ["18:00-19:30"], "Wed": ["18:00-19:30", "20:00 - special session"] },
+  "isActive": true,
+  "mentors": [
+    {
+      "id": "gm000000-0000-0000-0000-000000000001",
+      "role": "primary",
+      "mentor": {
+        "id": "mn000000-0000-0000-0000-000000000001",
+        "firstName": "Aziz",
+        "lastName": "Yusupov",
+        "avatar": "{HOST}/public/avatar/mentor00-1111-2222-3333-444455556666.png",
+        "status": "active",
+        "profession": "IELTS trainer"
+      },
+      "createdAt": "2026-01-01T00:00:00.000Z"
+    }
+  ],
+  "students": [
+    {
+      "id": "st000000-0000-0000-0000-000000000001",
+      "firstName": "Malika",
+      "lastName": "Karimova",
+      "avatar": "{HOST}/public/avatar/student0-1111-2222-3333-444455556666.png",
+      "level": "B1"
+    }
+  ],
+  "createdAt": "2026-01-01T00:00:00.000Z",
+  "updatedAt": "2026-01-01T00:00:00.000Z"
 }
 ```
 
-- `selectedSchedule` optional — must be a subset of the mentor's own schedule (see above), max 3
-  slots/week total.
-- Fails if the student already has a `pending` offer outstanding.
+`schedule` is keyed by weekday (`Mon`..`Sun`) but the time values are free text set by the admin —
+not restricted to a fixed `HH:MM` format or slot length.
+`mentors` has exactly one `"primary"` entry and any number of `"support"` entries.
 
-**200/201 OK**
-
-```json
-{
-  "id": "as000000-0000-0000-0000-000000000001",
-  "mentor": { "id": "mn000000-0000-0000-0000-000000000001", "firstName": "Aziz", "...": "..." },
-  "student": { "id": "f2c8a0e0-1111-2222-3333-444455556666", "firstName": "Sevara", "...": "..." },
-  "startDate": "2026-05-20T09:00:00.000Z",
-  "status": "pending",
-  "selectedSchedule": { "Mon": ["09:00"], "Wed": ["09:00"] },
-  "createdAt": "2026-05-18T10:00:00.000Z",
-  "updatedAt": "2026-05-18T10:00:00.000Z"
-}
-```
-
-`status` is `pending` → `active` (mentor accepted — this also opens a [chat room](#14-chat) between
-student and mentor) or `rejected`.
-
-**Errors:** `400 You have a pending request` · `404 Mentor topilmadi` · `400 <day> <slot> mentorning
-jadvalida mavjud emas` (slot not in the mentor's schedule) · `400 Haftada maksimal 3 ta vaqt tanlash
-mumkin`.
+Every group has exactly one [chat room](#14-chat), created the moment the group is — a student in
+the group can read and send in it for as long as they're a member; leaving or being swapped out
+removes that access immediately.
 
 ---
 
 ## 9. Live lessons
 
-Base path: `student/live-lessons`. Read-only for students — a mentor schedules these.
+Base path: `student/live-lessons`. Read-only for students — the group's mentor schedules these.
+There is no more 1:1 pairing — a student's only mentor relationship is through their current
+[group](#8-groups), and every live lesson belongs to a group.
 
 ```http
 GET student/live-lessons?page=1&limit=10
 ```
 
-**200 OK** — paginated, only live lessons tied to the student's own (any-status) assignments:
+**200 OK** — paginated, live lessons for the student's current group (empty page if ungrouped):
 
 ```json
 {
@@ -676,7 +676,7 @@ GET student/live-lessons?page=1&limit=10
       "startTime": "2026-05-20T09:00:00.000Z",
       "endTime": "2026-05-20T09:30:00.000Z",
       "mentor": { "id": "mn000000-0000-0000-0000-000000000001", "firstName": "Aziz", "...": "..." },
-      "assignment": { "id": "as000000-0000-0000-0000-000000000001", "...": "..." },
+      "group": { "id": "gr000000-0000-0000-0000-000000000001", "...": "..." },
       "createdAt": "2026-05-18T10:00:00.000Z",
       "updatedAt": "2026-05-18T10:00:00.000Z"
     }
@@ -687,6 +687,9 @@ GET student/live-lessons?page=1&limit=10
   "totalPages": 1
 }
 ```
+
+`mentor` is whoever scheduled the lesson (the group's primary mentor at the time) — it doesn't
+change retroactively if the group's primary mentor is later reassigned.
 
 ---
 
@@ -700,7 +703,8 @@ Base path: `student/live-lesson-recordings`.
 GET student/live-lesson-recordings/my
 ```
 
-**200 OK** — array (not paginated):
+**200 OK** — array (not paginated), recordings for the student's current group (empty if
+ungrouped):
 
 ```json
 [
@@ -708,21 +712,21 @@ GET student/live-lesson-recordings/my
     "id": "rc000000-0000-0000-0000-000000000001",
     "title": "Speaking practice recording",
     "videoUrl": "{HOST}/public/live-lesson-recording/xyz00000-1111-2222-3333-444455556666.mp4",
-    "assignment": { "id": "as000000-0000-0000-0000-000000000001", "...": "..." },
+    "group": { "id": "gr000000-0000-0000-0000-000000000001", "...": "..." },
     "createdAt": "2026-05-20T10:00:00.000Z",
     "updatedAt": "2026-05-20T10:00:00.000Z"
   }
 ]
 ```
 
-### Recordings for one assignment
+### Recordings for one group
 
 ```http
-GET student/live-lesson-recordings/assignments/:assignmentId
+GET student/live-lesson-recordings/groups/:groupId
 ```
 
-**200 OK** — same array shape, filtered to that assignment. **403** if the assignment isn't the
-student's own.
+**200 OK** — same array shape, filtered to that group. **403** if it isn't the student's current
+group.
 
 ### One recording
 
@@ -730,7 +734,8 @@ student's own.
 GET student/live-lesson-recordings/:id
 ```
 
-**200 OK** — single object, same shape. **403** if it belongs to a different student.
+**200 OK** — single object, same shape. **403** if it doesn't belong to the student's current
+group.
 
 ---
 
@@ -972,8 +977,10 @@ conversation id).
 
 ## 14. Chat
 
-Base path: `student/chat`. Student ↔ mentor messaging — a room only exists once a mentor accepts
-an [assignment](#8-assignments); there is no way to create a room directly.
+Base path: `student/chat`. There is **only group chat** — every room is a
+[group](#8-groups)'s chat room, created automatically the moment an admin creates the group. There
+is no 1:1 mentor chat and no way to create a room directly; a student's access to a room exists
+only while they're currently a member of that group.
 
 ### List my rooms
 
@@ -981,9 +988,9 @@ an [assignment](#8-assignments); there is no way to create a room directly.
 GET student/chat/rooms?page=1&limit=10
 ```
 
-**200 OK** — paginated `ChatRoom` rows, newest-activity-first (raw entities with `members`/
-`assignment` relations attached — prefer `GET student/chat/rooms/:id` for the flattened shape below
-when displaying one room).
+**200 OK** — paginated `ChatRoom` rows (`group` relation attached), newest-activity-first. A
+student is in at most one group, so this is at most a single-item page — prefer
+`GET student/chat/rooms/:id` for the flattened shape below when displaying one room.
 
 ### One room
 
@@ -996,19 +1003,20 @@ GET student/chat/rooms/:id
 ```json
 {
   "id": "cr000000-0000-0000-0000-000000000001",
-  "assignment": { "id": "as000000-0000-0000-0000-000000000001" },
-  "student": { "id": "f2c8a0e0-...", "firstName": "Sevara", "lastName": "Karimova", "avatar": null },
+  "group": { "id": "gr000000-0000-0000-0000-000000000001", "title": "IELTS Intensive — Evening" },
   "mentor": { "id": "mn000000-...", "firstName": "Aziz", "lastName": "Yusupov", "avatar": "{HOST}/public/avatar/m0000000-1111-2222-3333-444455556666.png" },
-  "members": [
-    { "id": "mb1", "user": { "id": "f2c8a0e0-...", "firstName": "Sevara", "lastName": "Karimova", "avatar": null }, "joinedAt": "..." },
-    { "id": "mb2", "user": { "id": "mn000000-...", "firstName": "Aziz", "lastName": "Yusupov", "avatar": "{HOST}/public/avatar/m0000000-1111-2222-3333-444455556666.png" }, "joinedAt": "..." }
+  "students": [
+    { "id": "f2c8a0e0-...", "firstName": "Sevara", "lastName": "Karimova", "avatar": null }
   ],
   "createdAt": "2026-05-18T10:00:00.000Z",
   "updatedAt": "2026-05-18T10:05:00.000Z"
 }
 ```
 
-**Errors:** `403 Siz bu chatda emassiz` (not a member of that room).
+`mentor` is the group's primary mentor (`null` if none assigned yet) — a support mentor never
+appears here and has no access to the room. `students` is the group's current roster.
+
+**Errors:** `403 Siz bu chatda emassiz` (not currently in that group).
 
 ### Messages
 
@@ -1042,8 +1050,8 @@ GET student/chat/rooms/:id/messages?page=1&limit=20
 }
 ```
 
-Exactly one of `student` / `mentor` / `admin` is non-null — that's who sent it (in this room,
-always `student` or `mentor`).
+Exactly one of `student` / `mentor` / `admin` is non-null — that's who sent it. An admin can post
+into any group's chat; a support mentor never appears as a sender since they have no access.
 
 ### Send a text message
 
@@ -1052,7 +1060,7 @@ POST student/chat/rooms/:id/messages
 ```
 
 ```json
-{ "text": "See you at 9am!" }
+{ "text": "See you at 6pm!" }
 ```
 
 **200/201 OK** — the created message, same shape as one item above (`type: "text"`). Also

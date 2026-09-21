@@ -68,8 +68,10 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
   @SubscribeMessage('join')
   async onJoin(@ConnectedSocket() socket: AuthedSocket, @MessageBody() body: { roomId: string }) {
-    const roomIds = await this.chatService.listRoomIdsForUser({ id: socket.data.userId, role: socket.data.role });
-    if (!roomIds.includes(body?.roomId)) {
+    const allowed =
+      !!body?.roomId &&
+      (await this.chatService.canAccessRoom({ id: socket.data.userId, role: socket.data.role }, body.roomId));
+    if (!allowed) {
       socket.emit('error', { message: 'Siz bu chatda emassiz' });
       return;
     }

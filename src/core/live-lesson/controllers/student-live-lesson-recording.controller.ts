@@ -15,9 +15,9 @@ export class StudentLiveLessonRecordingController {
     return this.liveLessonRecordingService.listMyRecordings(user.id);
   }
 
-  @Get('assignments/:assignmentId')
-  listByAssignment(@CurrentUser() user: { id: string }, @Param('assignmentId') assignmentId: string) {
-    return this.liveLessonRecordingService.listByAssignment(user.id, assignmentId);
+  @Get('groups/:groupId')
+  listByGroup(@CurrentUser() user: { id: string }, @Param('groupId') groupId: string) {
+    return this.liveLessonRecordingService.listByGroup(user.id, groupId);
   }
 
   @Get(':id')

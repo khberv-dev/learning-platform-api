@@ -15,5 +15,5 @@ export class CreateLiveLessonDto {
   endTime: string;
 
   @IsUUID()
-  assignmentId: string;
+  groupId: string;
 }

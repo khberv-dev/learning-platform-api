@@ -8,7 +8,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { Mentor } from '@/core/user/entity/mentor.entity';
-import { Assignment } from '@/core/assignment/entity/assignment.entity';
+import { Group } from '@/core/group/entity/group.entity';
 
 @Entity('live_lessons')
 export class LiveLesson {
@@ -31,9 +31,9 @@ export class LiveLesson {
   @JoinColumn()
   mentor: Mentor;
 
-  @ManyToOne(() => Assignment, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Group, { onDelete: 'CASCADE' })
   @JoinColumn()
-  assignment: Assignment;
+  group: Group;
 
   @CreateDateColumn()
   createdAt: Date;

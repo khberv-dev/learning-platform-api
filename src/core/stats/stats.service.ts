@@ -12,9 +12,8 @@ export class StatsService {
 
   async getSummary() {
     const today = new Date().toISOString().slice(0, 10);
-    const [[users], [assignments], [enrollments], [mentors], [activeUsers]] = await Promise.all([
+    const [[users], [enrollments], [mentors], [activeUsers]] = await Promise.all([
       this.ds.query<[{ count: string }]>('SELECT COUNT(*) AS count FROM students'),
-      this.ds.query<[{ count: string }]>("SELECT COUNT(*) FROM assignments WHERE status = 'active'"),
       this.ds.query<[{ count: string }]>("SELECT COUNT(*) FROM enrollments WHERE status = 'active'"),
       this.ds.query<[{ count: string }]>('SELECT COUNT(*) FROM mentors'),
       this.ds.query<[Record<`${'dau' | 'wau' | 'mau'}_${keyof ActiveUserCounts}`, string>]>(
@@ -51,7 +50,6 @@ export class StatsService {
 
     return {
       users: Number(users.count),
-      assignments: Number(assignments.count),
       enrollments: Number(enrollments.count),
       mentors: Number(mentors.count),
       ...activeMetrics('total'),

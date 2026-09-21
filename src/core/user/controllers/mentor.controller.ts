@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  Body,
   Controller,
   Get,
   HttpCode,
@@ -17,7 +16,6 @@ import type { AuthUser } from '@/common/utils/role-owner.util';
 import { UserRole } from '@/core/user/enum/user-role.enum';
 import { MentorService } from '@/core/user/services/mentor.service';
 import { UserService } from '@/core/user/services/user.service';
-import { SetScheduleDto } from '@/core/user/dto/set-schedule.dto';
 import { avatarFileFilter, avatarStorage, toAvatarPath } from '@/core/user/storage/avatar.storage';
 import { introVideoFileFilter, mentorIntroStorage, toIntroVideoPath } from '@/core/user/storage/mentor-intro.storage';
 
@@ -56,16 +54,6 @@ export class MentorController {
   @Get('summary')
   summary(@CurrentUser() user: { id: string }) {
     return this.mentorService.getSummaryForMentor(user.id);
-  }
-
-  @Patch('schedule')
-  setSchedule(@CurrentUser() user: { id: string }, @Body() dto: SetScheduleDto) {
-    return this.mentorService.setSchedule(user.id, dto.schedule);
-  }
-
-  @Get('schedule')
-  getMySchedule(@CurrentUser() user: { id: string }) {
-    return this.mentorService.getMySchedule(user.id);
   }
 
   @Patch('intro-video')

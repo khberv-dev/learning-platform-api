@@ -7,21 +7,17 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { ChatMember } from '@/core/chat/entity/chat-member.entity';
 import { ChatMessage } from '@/core/chat/entity/chat-message.entity';
-import { Assignment } from '@/core/assignment/entity/assignment.entity';
+import { Group } from '@/core/group/entity/group.entity';
 
 @Entity('chat_rooms')
 export class ChatRoom {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @OneToOne(() => Assignment, { onDelete: 'CASCADE', eager: false })
+  @OneToOne(() => Group, { onDelete: 'CASCADE', eager: false })
   @JoinColumn()
-  assignment: Assignment;
-
-  @OneToMany(() => ChatMember, (member) => member.chatRoom, { cascade: true })
-  members: ChatMember[];
+  group: Group;
 
   @OneToMany(() => ChatMessage, (message) => message.chatRoom)
   messages: ChatMessage[];

@@ -17,14 +17,14 @@ import {
 export class LiveLessonRecordingController {
   constructor(private readonly liveLessonRecordingService: LiveLessonRecordingService) {}
 
-  @Post('assignments/:assignmentId')
+  @Post('groups/:groupId')
   @UseInterceptors(FileInterceptor('file', { storage: liveLessonRecordingStorage, fileFilter: videoFileFilter }))
   upload(
     @CurrentUser() user: { id: string },
-    @Param('assignmentId') assignmentId: string,
+    @Param('groupId') groupId: string,
     @Body() dto: UploadLiveLessonRecordingDto,
     @UploadedFile() file: Express.Multer.File,
   ) {
-    return this.liveLessonRecordingService.upload(user.id, assignmentId, dto.title, toVideoUrl(file.filename));
+    return this.liveLessonRecordingService.upload(user.id, groupId, dto.title, toVideoUrl(file.filename));
   }
 }

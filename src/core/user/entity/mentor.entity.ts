@@ -35,9 +35,6 @@ export class Mentor {
   @Column({ nullable: true })
   introVideo: string;
 
-  @Column({ type: 'jsonb', nullable: true })
-  schedule: Record<string, string[]> | null;
-
   @OneToMany(() => MentorStatusHistory, (history) => history.mentor)
   statusHistories: MentorStatusHistory[];
 

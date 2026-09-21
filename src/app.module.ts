@@ -10,7 +10,6 @@ import { AuthModule } from '@/core/auth/auth.module';
 import { UserModule } from '@/core/user/user.module';
 import { CourseModule } from '@/core/course/course.module';
 import { EnrollmentModule } from '@/core/enrollment/enrollment.module';
-import { AssignmentModule } from '@/core/assignment/assignment.module';
 import { ChatModule } from '@/core/chat/chat.module';
 import { LiveLessonModule } from '@/core/live-lesson/live-lesson.module';
 import { AssessmentModule } from '@/core/assessment/assessment.module';
@@ -22,6 +21,7 @@ import { PaymentModule } from '@/core/payment/payment.module';
 import { PlanModule } from '@/core/plan/plan.module';
 import { ExternalModule } from '@/core/external/external.module';
 import { SessionModule } from '@/core/session/session.module';
+import { GroupModule } from '@/core/group/group.module';
 import { JwtAccessGuard } from '@/common/guards/jwt-access.guard';
 import { RolesGuard } from '@/common/guards/roles.guard';
 import { LoggingInterceptor } from '@/common/interceptors/logging.interceptor';
@@ -39,7 +39,6 @@ import { FileUrlInterceptor } from '@/common/interceptors/file-url.interceptor';
     UserModule,
     EnrollmentModule,
     CourseModule,
-    AssignmentModule,
     ChatModule,
     LiveLessonModule,
     AssessmentModule,
@@ -51,6 +50,7 @@ import { FileUrlInterceptor } from '@/common/interceptors/file-url.interceptor';
     PlanModule,
     ExternalModule,
     SessionModule,
+    GroupModule,
   ],
   controllers: [AppController],
   providers: [

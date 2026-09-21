@@ -18,7 +18,6 @@ import {
   courseCreatedMessage,
   courseEnrolledMessage,
   lessonAddedMessage,
-  mentorAssignedMessage,
   PushEvent,
 } from '@/core/notification/utils/push-message.util';
 
@@ -55,11 +54,6 @@ export class PushService {
     const payload = courseEnrolledMessage(courseTitle, courseId);
     await this.savePermanent([student], payload);
     await this.send(await this.tokensOfUsers([student]), payload);
-  }
-
-  async notifyMentorAssigned(studentId: string, mentorName: string, assignmentId: string): Promise<void> {
-    const student: RoleId = { id: studentId, role: UserRole.STUDENT };
-    await this.send(await this.tokensOfUsers([student]), mentorAssignedMessage(mentorName, assignmentId));
   }
 
   async notifyCourseCreated(courseId: string, courseTitle: string): Promise<void> {

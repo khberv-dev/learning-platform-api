@@ -25,9 +25,4 @@ export class StudentMentorController {
   addFeedback(@Param('id') id: string, @Body() dto: CreateFeedbackDto, @CurrentUser() user: { id: string }) {
     return this.mentorService.addFeedback(id, user.id, dto);
   }
-
-  @Get(':id/schedule')
-  getSchedule(@Param('id') id: string) {
-    return this.mentorService.getSchedule(id);
-  }
 }

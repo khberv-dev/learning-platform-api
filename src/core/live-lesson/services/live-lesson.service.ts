@@ -3,7 +3,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { LiveLesson } from '@/core/live-lesson/entity/live-lesson.entity';
 import { Mentor } from '@/core/user/entity/mentor.entity';
-import { Assignment } from '@/core/assignment/entity/assignment.entity';
+import { Student } from '@/core/user/entity/student.entity';
+import { Group } from '@/core/group/entity/group.entity';
+import { GroupMentor } from '@/core/group/entity/group-mentor.entity';
+import { GroupMentorRole } from '@/core/group/enum/group-mentor-role.enum';
 import { CreateLiveLessonDto } from '@/core/live-lesson/dto/create-live-lesson.dto';
 import { UpdateLiveLessonDto } from '@/core/live-lesson/dto/update-live-lesson.dto';
 import { Paginated, PaginationQuery, paginate } from '@/common/dto/pagination-query.dto';
@@ -13,13 +16,22 @@ export class LiveLessonService {
   constructor(
     @InjectRepository(LiveLesson) private readonly lessonRepo: Repository<LiveLesson>,
     @InjectRepository(Mentor) private readonly mentorRepo: Repository<Mentor>,
-    @InjectRepository(Assignment) private readonly assignmentRepo: Repository<Assignment>,
+    @InjectRepository(Student) private readonly studentRepo: Repository<Student>,
+    @InjectRepository(Group) private readonly groupRepo: Repository<Group>,
+    @InjectRepository(GroupMentor) private readonly groupMentorRepo: Repository<GroupMentor>,
   ) {}
+
+  private async assertPrimaryMentor(mentorId: string, groupId: string): Promise<void> {
+    const primary = await this.groupMentorRepo.findOne({
+      where: { group: { id: groupId }, mentor: { id: mentorId }, role: GroupMentorRole.PRIMARY },
+    });
+    if (!primary) throw new ForbiddenException('Ruxsat berilmagan');
+  }
 
   private async loadOwned(mentorId: string, lessonId: string) {
     const lesson = await this.lessonRepo.findOne({
       where: { id: lessonId },
-      relations: { mentor: true, assignment: { student: true, mentor: true } },
+      relations: { mentor: true, group: true },
     });
     if (!lesson) throw new NotFoundException('Dars topilmadi');
     if (lesson.mentor.id !== mentorId) throw new ForbiddenException('Ruxsat berilmagan');
@@ -36,16 +48,13 @@ export class LiveLessonService {
       throw new BadRequestException("Tugash vaqti boshlanish vaqtidan keyin bo'lishi kerak");
     }
 
-    const assignment = await this.assignmentRepo.findOne({
-      where: { id: dto.assignmentId },
-      relations: { mentor: true },
-    });
-    if (!assignment) throw new NotFoundException('Topshiriq topilmadi');
-    if (assignment.mentor.id !== mentor.id) throw new ForbiddenException('Ruxsat berilmagan');
+    const group = await this.groupRepo.findOne({ where: { id: dto.groupId } });
+    if (!group) throw new NotFoundException('Guruh topilmadi');
+    await this.assertPrimaryMentor(mentor.id, group.id);
 
     return this.lessonRepo.save({
       mentor,
-      assignment,
+      group,
       name: dto.name,
       meetLink: dto.meetLink,
       startTime: start,
@@ -56,7 +65,7 @@ export class LiveLessonService {
   async findAll(mentorId: string, query: PaginationQuery): Promise<Paginated<LiveLesson>> {
     const [data, total] = await this.lessonRepo.findAndCount({
       where: { mentor: { id: mentorId } },
-      relations: { assignment: { student: true, mentor: true } },
+      relations: { group: true },
       order: { startTime: 'ASC' },
       skip: query.skip,
       take: query.take,
@@ -89,9 +98,12 @@ export class LiveLessonService {
   }
 
   async findForStudent(studentId: string, query: PaginationQuery): Promise<Paginated<LiveLesson>> {
+    const student = await this.studentRepo.findOne({ where: { id: studentId }, relations: { group: true } });
+    if (!student?.group) return paginate([], 0, query);
+
     const [data, total] = await this.lessonRepo.findAndCount({
-      where: { assignment: { student: { id: studentId } } },
-      relations: { assignment: { mentor: true }, mentor: true },
+      where: { group: { id: student.group.id } },
+      relations: { group: true, mentor: true },
       order: { startTime: 'ASC' },
       skip: query.skip,
       take: query.take,

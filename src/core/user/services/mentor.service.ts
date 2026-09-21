@@ -1,14 +1,14 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Brackets, Repository } from 'typeorm';
-import { validateScheduleShape, countScheduleSlots } from '@/core/user/dto/set-schedule.dto';
+import { Brackets, In, Repository } from 'typeorm';
 import { Mentor } from '@/core/user/entity/mentor.entity';
 import { MentorStatusHistory } from '@/core/user/entity/mentor-status-history.entity';
 import { MentorFeedback } from '@/core/user/entity/mentor-feedback.entity';
 import { Admin } from '@/core/user/entity/admin.entity';
 import { Student } from '@/core/user/entity/student.entity';
-import { Assignment } from '@/core/assignment/entity/assignment.entity';
-import { AssignmentStatus } from '@/core/assignment/enum/assignment-status.enum';
+import { GroupMentor } from '@/core/group/entity/group-mentor.entity';
+import { GroupMembership } from '@/core/group/entity/group-membership.entity';
+import { GroupMentorRole } from '@/core/group/enum/group-mentor-role.enum';
 import { MentorStatus } from '@/core/user/enum/mentor-status.enum';
 import { CreateMentorDto } from '@/core/user/dto/create-mentor.dto';
 import { UpdateMentorDto } from '@/core/user/dto/update-mentor.dto';
@@ -26,7 +26,8 @@ export class MentorService {
     @InjectRepository(MentorFeedback) private readonly feedbackRepo: Repository<MentorFeedback>,
     @InjectRepository(Admin) private readonly adminRepo: Repository<Admin>,
     @InjectRepository(Student) private readonly studentRepo: Repository<Student>,
-    @InjectRepository(Assignment) private readonly assignmentRepo: Repository<Assignment>,
+    @InjectRepository(GroupMentor) private readonly groupMentorRepo: Repository<GroupMentor>,
+    @InjectRepository(GroupMembership) private readonly groupMembershipRepo: Repository<GroupMembership>,
   ) {}
 
   async createMentor(dto: CreateMentorDto) {
@@ -146,27 +147,6 @@ export class MentorService {
     return this.updateIntroVideo(mentorId, videoPath);
   }
 
-  async setSchedule(mentorId: string, schedule: Record<string, string[]>) {
-    const error = validateScheduleShape(schedule);
-    if (error) throw new BadRequestException(error);
-
-    const mentor = await this.mentorRepo.findOne({ where: { id: mentorId } });
-    if (!mentor) throw new NotFoundException('Mentor topilmadi');
-
-    await this.mentorRepo.update(mentor.id, { schedule });
-    return { schedule };
-  }
-
-  async getSchedule(mentorId: string): Promise<Record<string, string[]>> {
-    const mentor = await this.mentorRepo.findOne({ where: { id: mentorId } });
-    if (!mentor) throw new NotFoundException('Mentor topilmadi');
-    return mentor.schedule ?? {};
-  }
-
-  async getMySchedule(mentorId: string): Promise<Record<string, string[]>> {
-    return this.getSchedule(mentorId);
-  }
-
   async getSummaryForMentor(mentorId: string) {
     const mentor = await this.mentorRepo.findOne({ where: { id: mentorId } });
     if (!mentor) throw new NotFoundException('Mentor topilmadi');
@@ -175,23 +155,23 @@ export class MentorService {
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
-    const [totalRaw, newRaw, pendingApprovals, feedbacks] = await Promise.all([
-      this.assignmentRepo
-        .createQueryBuilder('a')
-        .select('COUNT(DISTINCT a.student_id)', 'count')
-        .where('a.mentor_id = :mentorId', { mentorId: mentor.id })
-        .andWhere('a.status = :status', { status: AssignmentStatus.ACTIVE })
-        .getRawOne<{ count: string }>(),
-      this.assignmentRepo
-        .createQueryBuilder('a')
-        .select('COUNT(DISTINCT a.student_id)', 'count')
-        .where('a.mentor_id = :mentorId', { mentorId: mentor.id })
-        .andWhere('a.created_at >= :monthStart', { monthStart })
-        .andWhere('a.created_at < :monthEnd', { monthEnd })
-        .getRawOne<{ count: string }>(),
-      this.assignmentRepo.count({
-        where: { mentor: { id: mentor.id }, status: AssignmentStatus.PENDING },
-      }),
+    const primaryMemberships = await this.groupMentorRepo.find({
+      where: { mentor: { id: mentor.id }, role: GroupMentorRole.PRIMARY },
+      relations: { group: true },
+    });
+    const groupIds = primaryMemberships.map((m) => m.group.id);
+
+    const [totalStudents, newStudentsRaw, feedbacks] = await Promise.all([
+      groupIds.length > 0 ? this.studentRepo.count({ where: { group: { id: In(groupIds) } } }) : 0,
+      groupIds.length > 0
+        ? this.groupMembershipRepo
+            .createQueryBuilder('gm')
+            .select('COUNT(DISTINCT gm.student_id)', 'count')
+            .where('gm.group_id IN (:...groupIds)', { groupIds })
+            .andWhere('gm.joined_at >= :monthStart', { monthStart })
+            .andWhere('gm.joined_at < :monthEnd', { monthEnd })
+            .getRawOne<{ count: string }>()
+        : Promise.resolve(undefined),
       this.feedbackRepo.find({ where: { mentor: { id: mentor.id } } }),
     ]);
 
@@ -201,11 +181,10 @@ export class MentorService {
         : Math.round((feedbacks.reduce((sum, f) => sum + f.rate, 0) / feedbacks.length) * 10) / 10;
 
     return {
-      totalStudents: Number(totalRaw?.count ?? 0),
-      newStudentsThisMonth: Number(newRaw?.count ?? 0),
+      totalStudents,
+      newStudentsThisMonth: Number(newStudentsRaw?.count ?? 0),
       liveSessionsScheduled: 0,
       averageRating,
-      pendingApprovals,
     };
   }
 

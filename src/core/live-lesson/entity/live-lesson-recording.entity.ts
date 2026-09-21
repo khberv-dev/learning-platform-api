@@ -7,7 +7,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { Assignment } from '@/core/assignment/entity/assignment.entity';
+import { Group } from '@/core/group/entity/group.entity';
 
 @Entity('live_lesson_recordings')
 export class LiveLessonRecording {
@@ -20,9 +20,9 @@ export class LiveLessonRecording {
   @Column()
   videoUrl: string;
 
-  @ManyToOne(() => Assignment, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Group, { onDelete: 'CASCADE' })
   @JoinColumn()
-  assignment: Assignment;
+  group: Group;
 
   @CreateDateColumn()
   createdAt: Date;
