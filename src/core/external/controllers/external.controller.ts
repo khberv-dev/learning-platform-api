@@ -5,6 +5,7 @@ import { ExternalService } from '@/core/external/services/external.service';
 import { SearchStudentsQuery } from '@/core/external/dto/search-students.query';
 import { ExternalEnrollmentDto } from '@/core/external/dto/external-enrollment.dto';
 import { CreatePendingEnrollmentDto } from '@/core/enrollment/dto/create-pending-enrollment.dto';
+import { PaginationQuery } from '@/common/dto/pagination-query.dto';
 
 @ApiKeyAuth()
 @Controller('external')
@@ -17,8 +18,8 @@ export class ExternalController {
   }
 
   @Get('courses')
-  listCourses() {
-    return this.externalService.listCourses();
+  listCourses(@Query() query: PaginationQuery) {
+    return this.externalService.listCourses(query);
   }
 
   @Post('enrollments')

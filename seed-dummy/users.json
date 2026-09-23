@@ -1,0 +1,32 @@
+{
+  "password": "12340000",
+  "admin": {
+    "email": "admin@i-teach.uz",
+    "firstName": "iTeach",
+    "lastName": "Admin"
+  },
+  "mentors": [
+    {
+      "phoneNumber": "998000000201",
+      "firstName": "Azam",
+      "lastName": "Qahramonov",
+      "role": "primary",
+      "status": "active"
+    },
+    {
+      "phoneNumber": "998000000202",
+      "firstName": "Malika",
+      "lastName": "Tosheva",
+      "role": "support",
+      "status": "active"
+    }
+  ],
+  "students": [
+    {
+      "phoneNumber": "998000000301",
+      "firstName": "Asror",
+      "lastName": "Xudoyberdiyev",
+      "level": "A1"
+    }
+  ]
+}

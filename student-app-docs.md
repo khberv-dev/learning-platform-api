@@ -10,7 +10,7 @@ documented here.
 - **Auth header:** `Authorization: Bearer <accessToken>` on every route except `auth/*`.
 - **Content type:** `application/json` unless the route uploads a file, which uses
   `multipart/form-data` (called out per-route below).
-- **Uploaded files** (avatars, chat files, recordings, assessment audio, …) come back as full,
+- **Uploaded files** (avatars, chat files, recordings, …) come back as full,
   ready-to-use URLs already, e.g. `"avatar": "{HOST}/public/avatar/xxxx.png"` — the server stores
   just the relative path and expands it to `{FILES_BASE_URL}/public/<path>` (`{HOST}` above) on
   every response, so there's nothing for the client to resolve.
@@ -39,7 +39,7 @@ documented here.
 10. [Live lesson recordings](#10-live-lesson-recordings)
 11. [Payments](#11-payments)
 12. [Enrollments](#12-enrollments)
-13. [Assessment (AI speaking partner)](#13-assessment-ai-speaking-partner)
+13. [Assessment (speaking practice)](#13-assessment-speaking-practice)
 14. [Chat](#14-chat)
 15. [Notifications](#15-notifications)
 16. [Sessions (push/device tokens)](#16-sessions-pushdevice-tokens)
@@ -237,43 +237,49 @@ Base path: `student/courses`.
 ### Active courses
 
 ```http
-GET student/courses
+GET student/courses?page=1&limit=10
 ```
 
-**200 OK** — array of courses (not paginated):
+**200 OK** — paginated:
 
 ```json
-[
-  {
-    "id": "c0000000-0000-0000-0000-000000000001",
-    "title": "English A1",
-    "description": "Beginner course",
-    "image": "{HOST}/public/course/abcd0000-1111-2222-3333-444455556666.jpg",
-    "isActive": true,
-    "index": 0,
-    "units": [
-      {
-        "id": "u0000000-0000-0000-0000-000000000001",
-        "title": "Unit 1",
-        "index": 0,
-        "lessons": [
-          {
-            "id": "l0000000-0000-0000-0000-000000000001",
-            "title": "Greetings",
-            "description": "...",
-            "media": "{HOST}/public/lesson/xyz00000-1111-2222-3333-444455556666.mp4",
-            "index": 0,
-            "isLocked": false
-          }
-        ],
-        "lessonsCount": 1
-      }
-    ],
-    "lessonsCount": 1,
-    "createdAt": "2026-01-01T00:00:00.000Z",
-    "updatedAt": "2026-01-01T00:00:00.000Z"
-  }
-]
+{
+  "data": [
+    {
+      "id": "c0000000-0000-0000-0000-000000000001",
+      "title": "English A1",
+      "description": "Beginner course",
+      "image": "{HOST}/public/course/abcd0000-1111-2222-3333-444455556666.jpg",
+      "isActive": true,
+      "index": 0,
+      "units": [
+        {
+          "id": "u0000000-0000-0000-0000-000000000001",
+          "title": "Unit 1",
+          "index": 0,
+          "lessons": [
+            {
+              "id": "l0000000-0000-0000-0000-000000000001",
+              "title": "Greetings",
+              "description": "...",
+              "media": "{HOST}/public/lesson/xyz00000-1111-2222-3333-444455556666.mp4",
+              "index": 0,
+              "isLocked": false
+            }
+          ],
+          "lessonsCount": 1
+        }
+      ],
+      "lessonsCount": 1,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "limit": 10,
+  "totalPages": 1
+}
 ```
 
 `isLocked` is currently always `false` for every lesson (sequential unlocking is switched off
@@ -285,41 +291,47 @@ server-side) but the field is always present — don't remove UI that reads it.
 GET student/courses/:id
 ```
 
-**200 OK** — same shape as one element of the list above. **404** if the course doesn't exist or
+**200 OK** — same shape as one element of `data` above. **404** if the course doesn't exist or
 isn't active.
 
 ### Available (purchasable) courses
 
 ```http
-GET student/courses/available
+GET student/courses/available?page=1&limit=10
 ```
 
-**200 OK** — same course array shape as `GET student/courses`, filtered to courses the student
+**200 OK** — same paginated course shape as `GET student/courses`, filtered to courses the student
 doesn't already have a current (`active`, unexpired) enrollment for. A course with a pending
 (`created`) or expired enrollment still appears here.
 
 ### My courses (enrolled)
 
 ```http
-GET student/courses/me
+GET student/courses/me?page=1&limit=10
 ```
 
-**200 OK** — array of the student's `active`, unexpired enrollments:
+**200 OK** — paginated, the student's `active`, unexpired enrollments:
 
 ```json
-[
-  {
-    "id": "en000000-0000-0000-0000-000000000001",
-    "status": "active",
-    "start": "2026-01-15T10:00:00.000Z",
-    "end": "2026-04-15T10:00:00.000Z",
-    "course": { "id": "c0000000-0000-0000-0000-000000000001", "title": "English A1", "...": "..." },
-    "unitsCount": 4,
-    "lessonsCount": 20,
-    "totalProgress": 45,
-    "isExpired": false
-  }
-]
+{
+  "data": [
+    {
+      "id": "en000000-0000-0000-0000-000000000001",
+      "status": "active",
+      "start": "2026-01-15T10:00:00.000Z",
+      "end": "2026-04-15T10:00:00.000Z",
+      "course": { "id": "c0000000-0000-0000-0000-000000000001", "title": "English A1", "...": "..." },
+      "unitsCount": 4,
+      "lessonsCount": 20,
+      "totalProgress": 45,
+      "isExpired": false
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "limit": 10,
+  "totalPages": 1
+}
 ```
 
 `totalProgress` is 0–100, the share of the course's lessons passed. `isExpired` is always `false`
@@ -328,29 +340,35 @@ here (expired enrollments are excluded from this list entirely).
 ### Lesson tasks (without answers)
 
 ```http
-GET student/courses/:courseId/units/:unitId/lessons/:lessonId/tasks
+GET student/courses/:courseId/units/:unitId/lessons/:lessonId/tasks?page=1&limit=20
 ```
 
 Requires an active, unexpired enrollment in the course — `403 Siz bu kursga yozilmagansiz yoki
 muddati tugagan` otherwise.
 
-**200 OK**
+**200 OK** — paginated:
 
 ```json
-[
-  {
-    "id": "t0000000-0000-0000-0000-000000000001",
-    "name": "Vocabulary",
-    "questions": [
-      { "question": "Choose a letter", "options": ["A", "B"] },
-      { "question": "Write a word", "options": null }
-    ],
-    "file": null,
-    "contentType": null,
-    "createdAt": "2026-01-01T00:00:00.000Z",
-    "updatedAt": "2026-01-01T00:00:00.000Z"
-  }
-]
+{
+  "data": [
+    {
+      "id": "t0000000-0000-0000-0000-000000000001",
+      "name": "Vocabulary",
+      "questions": [
+        { "question": "Choose a letter", "options": ["A", "B"] },
+        { "question": "Write a word", "options": null }
+      ],
+      "file": null,
+      "contentType": null,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "limit": 20,
+  "totalPages": 1
+}
 ```
 
 Note `answer` is never present on `questions` here — see [Task submissions](#6-task-submissions)
@@ -363,32 +381,38 @@ for how a task is graded without ever exposing it.
 Base path: `student/courses/:courseId/plans`.
 
 ```http
-GET student/courses/:courseId/plans
+GET student/courses/:courseId/plans?page=1&limit=10
 ```
 
-**200 OK** — active plans only, cheapest/shortest first:
+**200 OK** — paginated, active plans only, cheapest/shortest first:
 
 ```json
-[
-  {
-    "id": "pl000000-0000-0000-0000-000000000001",
-    "title": "Standart",
-    "price": 250000,
-    "month": 3,
-    "hasMentor": false,
-    "isActive": true,
-    "createdAt": "2026-01-15T10:00:00.000Z",
-    "updatedAt": "2026-01-15T10:00:00.000Z"
-  },
-  {
-    "id": "pl000000-0000-0000-0000-000000000002",
-    "title": "Mentor bilan",
-    "price": 700000,
-    "month": 6,
-    "hasMentor": true,
-    "isActive": true
-  }
-]
+{
+  "data": [
+    {
+      "id": "pl000000-0000-0000-0000-000000000001",
+      "title": "Standart",
+      "price": 250000,
+      "month": 3,
+      "hasMentor": false,
+      "isActive": true,
+      "createdAt": "2026-01-15T10:00:00.000Z",
+      "updatedAt": "2026-01-15T10:00:00.000Z"
+    },
+    {
+      "id": "pl000000-0000-0000-0000-000000000002",
+      "title": "Mentor bilan",
+      "price": 700000,
+      "month": 6,
+      "hasMentor": true,
+      "isActive": true
+    }
+  ],
+  "total": 2,
+  "page": 1,
+  "limit": 10,
+  "totalPages": 1
+}
 ```
 
 `price` is in so'm. See [Payments](#11-payments) for buying one.
@@ -400,22 +424,28 @@ GET student/courses/:courseId/plans
 Base path: `student/lessons/:lessonId/materials`.
 
 ```http
-GET student/lessons/:lessonId/materials
+GET student/lessons/:lessonId/materials?page=1&limit=10
 ```
 
-**200 OK**
+**200 OK** — paginated:
 
 ```json
-[
-  {
-    "id": "m0000000-0000-0000-0000-000000000001",
-    "name": "Grammar sheet",
-    "url": "{HOST}/public/material/xyz00000-1111-2222-3333-444455556666.pdf",
-    "type": "pdf",
-    "createdAt": "2026-01-01T00:00:00.000Z",
-    "updatedAt": "2026-01-01T00:00:00.000Z"
-  }
-]
+{
+  "data": [
+    {
+      "id": "m0000000-0000-0000-0000-000000000001",
+      "name": "Grammar sheet",
+      "url": "{HOST}/public/material/xyz00000-1111-2222-3333-444455556666.pdf",
+      "type": "pdf",
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "limit": 10,
+  "totalPages": 1
+}
 ```
 
 `type` is `pdf`, `doc`, or `image`. `url` is already a full URL.
@@ -537,30 +567,38 @@ Base path: `student/mentors`.
 ### Browse active mentors
 
 ```http
-GET student/mentors
+GET student/mentors?page=1&limit=10
 ```
 
-**200 OK**
+**200 OK** — paginated:
 
 ```json
-[
-  {
-    "id": "mn000000-0000-0000-0000-000000000001",
-    "firstName": "Aziz",
-    "lastName": "Yusupov",
-    "avatar": "{HOST}/public/avatar/mentor00-1111-2222-3333-444455556666.png",
-    "status": "active",
-    "profession": "IELTS trainer",
-    "introVideo": "{HOST}/public/mentor-intro/xyz00000-1111-2222-3333-444455556666.mp4",
-    "summaryRating": 4.8,
-    "createdAt": "2026-01-01T00:00:00.000Z",
-    "updatedAt": "2026-01-01T00:00:00.000Z"
-  }
-]
+{
+  "data": [
+    {
+      "id": "mn000000-0000-0000-0000-000000000001",
+      "firstName": "Aziz",
+      "lastName": "Yusupov",
+      "avatar": "{HOST}/public/avatar/mentor00-1111-2222-3333-444455556666.png",
+      "status": "active",
+      "role": "primary",
+      "introVideo": "{HOST}/public/mentor-intro/xyz00000-1111-2222-3333-444455556666.mp4",
+      "summaryRating": 4.8,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "limit": 10,
+  "totalPages": 1
+}
 ```
 
 `summaryRating` is the average of that mentor's feedback ratings (0 if none yet), rounded to one
-decimal.
+decimal. `role` is `"primary"` or `"support"` — a mentor's fixed classification, set by an admin;
+it determines which [group](#8-groups) role they're eligible for (a `support` mentor can never be
+set as a group's primary mentor, and vice versa).
 
 ### One mentor
 
@@ -625,7 +663,7 @@ GET student/groups/me
         "lastName": "Yusupov",
         "avatar": "{HOST}/public/avatar/mentor00-1111-2222-3333-444455556666.png",
         "status": "active",
-        "profession": "IELTS trainer"
+        "role": "primary"
       },
       "createdAt": "2026-01-01T00:00:00.000Z"
     }
@@ -656,40 +694,35 @@ removes that access immediately.
 
 ## 9. Live lessons
 
-Base path: `student/live-lessons`. Read-only for students — the group's mentor schedules these.
-There is no more 1:1 pairing — a student's only mentor relationship is through their current
-[group](#8-groups), and every live lesson belongs to a group.
+Base path: `student/live-lessons`. This is a "go live now" broadcast, not a schedule — the
+group's primary mentor starts one (name + meet link) and it pushes a notification to the group
+immediately (see [Notifications](#15-notifications)); there's nothing to browse ahead of time, and
+no history. A student's only mentor relationship is through their current [group](#8-groups), and
+every live lesson belongs to a group.
+
+### Latest live lesson
 
 ```http
-GET student/live-lessons?page=1&limit=10
+GET student/live-lessons/latest
 ```
 
-**200 OK** — paginated, live lessons for the student's current group (empty page if ungrouped):
+**200 OK** — the single newest live lesson for the student's current group, or `null` if the
+student is ungrouped or the group has never gone live:
 
 ```json
 {
-  "data": [
-    {
-      "id": "ll000000-0000-0000-0000-000000000001",
-      "name": "Speaking practice",
-      "meetLink": "https://meet.google.com/xyz-abcd-efg",
-      "startTime": "2026-05-20T09:00:00.000Z",
-      "endTime": "2026-05-20T09:30:00.000Z",
-      "mentor": { "id": "mn000000-0000-0000-0000-000000000001", "firstName": "Aziz", "...": "..." },
-      "group": { "id": "gr000000-0000-0000-0000-000000000001", "...": "..." },
-      "createdAt": "2026-05-18T10:00:00.000Z",
-      "updatedAt": "2026-05-18T10:00:00.000Z"
-    }
-  ],
-  "total": 1,
-  "page": 1,
-  "limit": 10,
-  "totalPages": 1
+  "id": "ll000000-0000-0000-0000-000000000001",
+  "name": "Speaking practice",
+  "meetLink": "https://meet.google.com/xyz-abcd-efg",
+  "mentor": { "id": "mn000000-0000-0000-0000-000000000001", "firstName": "Aziz", "...": "..." },
+  "group": { "id": "gr000000-0000-0000-0000-000000000001", "...": "..." },
+  "createdAt": "2026-05-18T10:00:00.000Z"
 }
 ```
 
-`mentor` is whoever scheduled the lesson (the group's primary mentor at the time) — it doesn't
-change retroactively if the group's primary mentor is later reassigned.
+`mentor` is whoever started the lesson (the group's primary mentor at the time) — it doesn't
+change retroactively if the group's primary mentor is later reassigned. There's no `startTime`/
+`endTime`; the lesson exists because it's live right now (or was, most recently).
 
 ---
 
@@ -700,33 +733,38 @@ Base path: `student/live-lesson-recordings`.
 ### My recordings
 
 ```http
-GET student/live-lesson-recordings/my
+GET student/live-lesson-recordings/my?page=1&limit=10
 ```
 
-**200 OK** — array (not paginated), recordings for the student's current group (empty if
-ungrouped):
+**200 OK** — paginated, recordings for the student's current group (empty page if ungrouped):
 
 ```json
-[
-  {
-    "id": "rc000000-0000-0000-0000-000000000001",
-    "title": "Speaking practice recording",
-    "videoUrl": "{HOST}/public/live-lesson-recording/xyz00000-1111-2222-3333-444455556666.mp4",
-    "group": { "id": "gr000000-0000-0000-0000-000000000001", "...": "..." },
-    "createdAt": "2026-05-20T10:00:00.000Z",
-    "updatedAt": "2026-05-20T10:00:00.000Z"
-  }
-]
+{
+  "data": [
+    {
+      "id": "rc000000-0000-0000-0000-000000000001",
+      "title": "Speaking practice recording",
+      "videoUrl": "{HOST}/public/live-lesson-recording/xyz00000-1111-2222-3333-444455556666.mp4",
+      "group": { "id": "gr000000-0000-0000-0000-000000000001", "...": "..." },
+      "createdAt": "2026-05-20T10:00:00.000Z",
+      "updatedAt": "2026-05-20T10:00:00.000Z"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "limit": 10,
+  "totalPages": 1
+}
 ```
 
 ### Recordings for one group
 
 ```http
-GET student/live-lesson-recordings/groups/:groupId
+GET student/live-lesson-recordings/groups/:groupId?page=1&limit=10
 ```
 
-**200 OK** — same array shape, filtered to that group. **403** if it isn't the student's current
-group.
+**200 OK** — same paginated shape, filtered to that group. **403** if it isn't the student's
+current group.
 
 ### One recording
 
@@ -841,35 +879,42 @@ flip from `created` to `paid`. **404** if not found or belongs to another studen
 Base path: `student/enrollments`.
 
 ```http
-GET student/enrollments/history
+GET student/enrollments/history?page=1&limit=10
 ```
 
-**200 OK** — every purchase term this student has ever had, newest first (survives re-purchasing
-an expired course — see `CLAUDE.md`):
+**200 OK** — paginated, every purchase term this student has ever had, newest first (survives
+re-purchasing an expired course — see `CLAUDE.md`):
 
 ```json
-[
-  {
-    "id": "eh000000-0000-0000-0000-000000000001",
-    "purchaseAmount": "250000.00",
-    "start": "2026-01-15T10:00:00.000Z",
-    "end": "2026-04-15T10:00:00.000Z",
-    "enrollment": {
-      "id": "en000000-0000-0000-0000-000000000001",
-      "course": { "id": "c0000000-0000-0000-0000-000000000001", "title": "English A1" }
-    },
-    "createdAt": "2026-01-15T10:00:00.000Z"
-  }
-]
+{
+  "data": [
+    {
+      "id": "eh000000-0000-0000-0000-000000000001",
+      "purchaseAmount": "250000.00",
+      "start": "2026-01-15T10:00:00.000Z",
+      "end": "2026-04-15T10:00:00.000Z",
+      "enrollment": {
+        "id": "en000000-0000-0000-0000-000000000001",
+        "course": { "id": "c0000000-0000-0000-0000-000000000001", "title": "English A1" }
+      },
+      "createdAt": "2026-01-15T10:00:00.000Z"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "limit": 10,
+  "totalPages": 1
+}
 ```
 
 `purchaseAmount` is a decimal-as-string (Postgres `numeric`).
 
 ---
 
-## 13. Assessment (AI speaking partner)
+## 13. Assessment (speaking practice)
 
-Base path: `student/assessments`.
+Base path: `student/assessments`. There is no server-side AI conversation — speech-to-text runs
+entirely on-device via AssemblyAI; this API only hands out the key to talk to it directly.
 
 ### AssemblyAI key
 
@@ -879,99 +924,6 @@ GET student/assessments/assembly-ai-key
 
 **200 OK:** `{ "apiKey": "..." }` — hand this to the on-device AssemblyAI streaming SDK for live
 transcription. Not logged (redacted from request/response logging on the server).
-
-### Start a conversation
-
-```http
-POST student/assessments/conversations
-```
-
-No body. **200/201 OK**
-
-```json
-{
-  "id": "cv000000-0000-0000-0000-000000000001",
-  "createdAt": "2026-05-18T10:00:00.000Z",
-  "updatedAt": "2026-05-18T10:00:00.000Z"
-}
-```
-
-### List conversations
-
-```http
-GET student/assessments/conversations?page=1&limit=10
-```
-
-**200 OK** — paginated, newest-active-first, each item shaped like the create response above (no
-`messages` array in the list — fetch one conversation for its messages).
-
-### One conversation
-
-```http
-GET student/assessments/conversations/:id
-```
-
-**200 OK**
-
-```json
-{
-  "id": "cv000000-0000-0000-0000-000000000001",
-  "createdAt": "2026-05-18T10:00:00.000Z",
-  "updatedAt": "2026-05-18T10:05:00.000Z",
-  "messages": [
-    {
-      "id": "cm000000-0000-0000-0000-000000000001",
-      "role": "user",
-      "text": "Hi, how are you?",
-      "audioPath": "{HOST}/public/assessment-input/xyz00000-1111-2222-3333-444455556666.wav",
-      "createdAt": "2026-05-18T10:01:00.000Z"
-    },
-    {
-      "id": "cm000000-0000-0000-0000-000000000002",
-      "role": "assistant",
-      "text": "I'm doing great, thanks for asking! How about you?",
-      "audioPath": "{HOST}/public/assessment-output/xyz00000-1111-2222-3333-444455556666.wav",
-      "createdAt": "2026-05-18T10:01:05.000Z"
-    }
-  ]
-}
-```
-
-`messages` is ordered oldest → newest.
-
-### Send a turn (speak, get a reply)
-
-```http
-POST student/assessments/conversations/:id/messages
-Content-Type: multipart/form-data
-```
-
-Field name: `audio` (audio file, the student's recorded clip). **200/201 OK**
-
-```json
-{
-  "userMessage": {
-    "id": "cm000000-0000-0000-0000-000000000003",
-    "role": "user",
-    "text": "What's the weather like today?",
-    "audioPath": "{HOST}/public/assessment-input/abc00000-1111-2222-3333-444455556666.wav",
-    "createdAt": "2026-05-18T10:02:00.000Z"
-  },
-  "assistantMessage": {
-    "id": "cm000000-0000-0000-0000-000000000004",
-    "role": "assistant",
-    "text": "I don't have a window to look out of, but I hope it's nice where you are!",
-    "audioPath": "{HOST}/public/assessment-output/def00000-1111-2222-3333-444455556666.wav",
-    "createdAt": "2026-05-18T10:02:03.000Z"
-  }
-}
-```
-
-`userMessage.text` is the transcript of the uploaded audio; `assistantMessage.audioPath` is
-synthesized speech (WAV) of the reply text — play that back to the student.
-
-**Errors:** `400 Audio fayl yuborilmagan` (no file) · `404 Suhbat topilmadi` (bad/foreign
-conversation id).
 
 ---
 
@@ -1084,9 +1036,9 @@ other uploaded-file field.
 
 ## 15. Notifications
 
-Base path: `student/notifications`. Push history — a `user_notifications` row exists per manual
-admin push (when sent as "permanent") and per course-enrollment event; not every push necessarily
-appears here (see `CLAUDE.md`'s push notifications section).
+Base path: `student/notifications`. Push history — a `notifications` row exists per manual admin
+push (when sent as "permanent") and per course-enrollment/group-joined event; not every push
+necessarily appears here (see `CLAUDE.md`'s push notifications section).
 
 ```http
 GET student/notifications?page=1&limit=20
@@ -1114,8 +1066,9 @@ GET student/notifications/unread?page=1&limit=20
 }
 ```
 
-`data.event` is one of `course_enrolled`, `mentor_assigned`, `course_created`, `lesson_added`,
-`admin_message` — use it for deep-linking; the rest of `data` varies by event (see `CLAUDE.md`).
+`data.event` is one of `course_enrolled`, `course_created`, `lesson_added`, `group_joined`,
+`live_lesson_created`, `admin_message` — use it for deep-linking; the rest of `data` varies by
+event (see `CLAUDE.md`).
 
 ### Mark as read
 
@@ -1203,7 +1156,7 @@ Real-time delivery for the REST chat above; sending is still done via
 
 | Event (server → client) | Payload |
 |---|---|
-| `message` | the new `ChatMessage`, broadcast to everyone in the room |
+| `message` | the new `ChatMessage`, broadcast to everyone in the room (`filePath` is already a full URL, same as the REST responses above) |
 | `typing` / `stop-typing` | `{ userId, roomId }` |
 | `joined` / `left` | `{ roomId }` |
 | `error` | `{ message }` |
@@ -1225,7 +1178,7 @@ this is the only way to start a match.
 | Event (server → client) | Payload |
 |---|---|
 | `searching` | — (queued, waiting for a partner) |
-| `matched` | `{ sessionId, role: "caller" \| "callee", peer: { id, firstName, lastName, avatar } }` |
+| `matched` | `{ sessionId, role: "caller" \| "callee", peer: { id, firstName, lastName, avatar } }` — `avatar` is already a full URL |
 | `signal` | `{ data }` — relayed from the partner |
 | `partner-left` | `{ reason: "leave" \| "disconnect" }` |
 | `replaced` | — this socket was superseded by a newer connection for the same account |

@@ -5,6 +5,7 @@ import { Plan } from '@/core/plan/entity/plan.entity';
 import { Course } from '@/core/course/entity/course.entity';
 import { CreatePlanDto } from '@/core/plan/dto/create-plan.dto';
 import { UpdatePlanDto } from '@/core/plan/dto/update-plan.dto';
+import { paginate, Paginated, PaginationQuery } from '@/common/dto/pagination-query.dto';
 
 @Injectable()
 export class PlanService {
@@ -24,20 +25,26 @@ export class PlanService {
     return this.planRepo.save({ ...dto, course });
   }
 
-  async listPlans(courseId: string): Promise<Plan[]> {
+  async listPlans(courseId: string, query: PaginationQuery): Promise<Paginated<Plan>> {
     await this.loadCourse(courseId);
-    return this.planRepo.find({
+    const [data, total] = await this.planRepo.findAndCount({
       where: { course: { id: courseId } },
       order: { month: 'ASC', createdAt: 'ASC' },
+      skip: query.skip,
+      take: query.take,
     });
+    return paginate(data, total, query);
   }
 
-  async listActivePlans(courseId: string): Promise<Plan[]> {
+  async listActivePlans(courseId: string, query: PaginationQuery): Promise<Paginated<Plan>> {
     await this.loadCourse(courseId);
-    return this.planRepo.find({
+    const [data, total] = await this.planRepo.findAndCount({
       where: { course: { id: courseId }, isActive: true },
       order: { month: 'ASC', createdAt: 'ASC' },
+      skip: query.skip,
+      take: query.take,
     });
+    return paginate(data, total, query);
   }
 
   async findOnePlan(courseId: string, planId: string): Promise<Plan> {

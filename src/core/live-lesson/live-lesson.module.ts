@@ -12,9 +12,13 @@ import { LiveLessonController } from '@/core/live-lesson/controllers/live-lesson
 import { StudentLiveLessonController } from '@/core/live-lesson/controllers/student-live-lesson.controller';
 import { LiveLessonRecordingController } from '@/core/live-lesson/controllers/live-lesson-recording.controller';
 import { StudentLiveLessonRecordingController } from '@/core/live-lesson/controllers/student-live-lesson-recording.controller';
+import { NotificationModule } from '@/core/notification/notification.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([LiveLesson, LiveLessonRecording, Mentor, Student, Group, GroupMentor])],
+  imports: [
+    TypeOrmModule.forFeature([LiveLesson, LiveLessonRecording, Mentor, Student, Group, GroupMentor]),
+    NotificationModule,
+  ],
   controllers: [
     LiveLessonController,
     StudentLiveLessonController,

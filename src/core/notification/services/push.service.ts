@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, IsNull, Not, Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Session } from '@/core/session/entity/session.entity';
 import { Student } from '@/core/user/entity/student.entity';
 import { Mentor } from '@/core/user/entity/mentor.entity';
@@ -10,14 +10,16 @@ import { isEnrollmentExpired } from '@/core/enrollment/utils/enrollment.util';
 import { FirebaseService, PushPayload } from '@/core/notification/services/firebase.service';
 import { PushAudience } from '@/core/notification/enum/push-audience.enum';
 import { SendPushDto } from '@/core/notification/dto/send-push.dto';
-import { UserNotification } from '@/core/notification/entity/user-notification.entity';
+import { StudentNotification } from '@/core/notification/entity/student-notification.entity';
 import { paginate, Paginated, PaginationQuery } from '@/common/dto/pagination-query.dto';
-import { type AuthUser, ownerRef } from '@/common/utils/role-owner.util';
+import type { AuthUser } from '@/common/utils/role-owner.util';
 import { UserRole } from '@/core/user/enum/user-role.enum';
 import {
   courseCreatedMessage,
   courseEnrolledMessage,
+  groupJoinedMessage,
   lessonAddedMessage,
+  liveLessonCreatedMessage,
   PushEvent,
 } from '@/core/notification/utils/push-message.util';
 
@@ -45,7 +47,7 @@ export class PushService {
     @InjectRepository(Enrollment) private readonly enrollmentRepo: Repository<Enrollment>,
     @InjectRepository(Student) private readonly studentRepo: Repository<Student>,
     @InjectRepository(Mentor) private readonly mentorRepo: Repository<Mentor>,
-    @InjectRepository(UserNotification) private readonly userNotificationRepo: Repository<UserNotification>,
+    @InjectRepository(StudentNotification) private readonly studentNotificationRepo: Repository<StudentNotification>,
     private readonly firebaseService: FirebaseService,
   ) {}
 
@@ -56,8 +58,25 @@ export class PushService {
     await this.send(await this.tokensOfUsers([student]), payload);
   }
 
+  async notifyGroupJoined(studentId: string, groupTitle: string, groupId: string): Promise<void> {
+    const student: RoleId = { id: studentId, role: UserRole.STUDENT };
+    const payload = groupJoinedMessage(groupTitle, groupId);
+    await this.savePermanent([student], payload);
+    await this.send(await this.tokensOfUsers([student]), payload);
+  }
+
+  async notifyLiveLessonCreated(groupId: string, groupTitle: string, lessonName: string): Promise<void> {
+    const students = await this.studentRepo.find({ where: { group: { id: groupId } }, select: { id: true } });
+    if (students.length === 0) return;
+
+    const roleIds: RoleId[] = students.map((s) => ({ id: s.id, role: UserRole.STUDENT }));
+    const payload = liveLessonCreatedMessage(lessonName, groupTitle, groupId);
+    await this.savePermanent(roleIds, payload);
+    await this.send(await this.tokensOfUsers(roleIds), payload);
+  }
+
   async notifyCourseCreated(courseId: string, courseTitle: string): Promise<void> {
-    await this.send(await this.tokensOfRole('student'), courseCreatedMessage(courseTitle, courseId));
+    await this.send(await this.tokensOfAllStudents(), courseCreatedMessage(courseTitle, courseId));
   }
 
   async notifyLessonAdded(courseId: string, courseTitle: string, lessonTitle: string): Promise<void> {
@@ -80,9 +99,9 @@ export class PushService {
     return { audience: dto.audience, ...(await this.deliver(tokens, payload)), notFound, withoutDevice };
   }
 
-  async findUserNotifications(user: RoleId, query: PaginationQuery): Promise<Paginated<UserNotification>> {
-    const [data, total] = await this.userNotificationRepo.findAndCount({
-      where: ownerRef(user),
+  async findUserNotifications(studentId: string, query: PaginationQuery): Promise<Paginated<StudentNotification>> {
+    const [data, total] = await this.studentNotificationRepo.findAndCount({
+      where: { student: { id: studentId } },
       order: { createdAt: 'DESC' },
       skip: query.skip,
       take: query.take,
@@ -90,9 +109,12 @@ export class PushService {
     return paginate(data, total, query);
   }
 
-  async findUnreadUserNotifications(user: RoleId, query: PaginationQuery): Promise<Paginated<UserNotification>> {
-    const [data, total] = await this.userNotificationRepo.findAndCount({
-      where: { ...ownerRef(user), isRead: false },
+  async findUnreadUserNotifications(
+    studentId: string,
+    query: PaginationQuery,
+  ): Promise<Paginated<StudentNotification>> {
+    const [data, total] = await this.studentNotificationRepo.findAndCount({
+      where: { student: { id: studentId }, isRead: false },
       order: { createdAt: 'DESC' },
       skip: query.skip,
       take: query.take,
@@ -100,15 +122,15 @@ export class PushService {
     return paginate(data, total, query);
   }
 
-  async markUserNotificationAsRead(user: RoleId, notificationId: string): Promise<UserNotification> {
-    const notification = await this.userNotificationRepo.findOne({
-      where: { id: notificationId, ...ownerRef(user) },
+  async markUserNotificationAsRead(studentId: string, notificationId: string): Promise<StudentNotification> {
+    const notification = await this.studentNotificationRepo.findOne({
+      where: { id: notificationId, student: { id: studentId } },
     });
     if (!notification) throw new NotFoundException('Xabarnoma topilmadi');
 
     if (!notification.isRead) {
       notification.isRead = true;
-      await this.userNotificationRepo.save(notification);
+      await this.studentNotificationRepo.save(notification);
     }
     return notification;
   }
@@ -171,11 +193,11 @@ export class PushService {
 
     const tokens = await this.tokensOfUsers(users);
     const reachedRows = await this.sessionRepo.find({
-      where: [{ student: { phoneNumber: In(unique) } }, { mentor: { phoneNumber: In(unique) } }],
-      relations: { student: true, mentor: true },
-      select: { student: { phoneNumber: true }, mentor: { phoneNumber: true } },
+      where: { student: { phoneNumber: In(unique) } },
+      relations: { student: true },
+      select: { student: { phoneNumber: true } },
     });
-    const reached = new Set(reachedRows.map((row) => row.student?.phoneNumber ?? row.mentor?.phoneNumber));
+    const reached = new Set(reachedRows.map((row) => row.student.phoneNumber));
 
     return {
       users,
@@ -186,11 +208,12 @@ export class PushService {
   }
 
   private async savePermanent(users: RoleId[], payload: PushPayload): Promise<void> {
-    if (users.length === 0) return;
+    const studentIds = users.filter((u) => u.role === UserRole.STUDENT).map((u) => u.id);
+    if (studentIds.length === 0) return;
     try {
-      await this.userNotificationRepo.insert(
-        users.map((user) => ({
-          ...ownerRef(user),
+      await this.studentNotificationRepo.insert(
+        studentIds.map((studentId) => ({
+          student: { id: studentId },
           title: payload.title,
           body: payload.body,
           data: payload.data ?? null,
@@ -222,24 +245,17 @@ export class PushService {
 
   private async tokensOfUsers(users: RoleId[]): Promise<string[]> {
     const studentIds = users.filter((u) => u.role === UserRole.STUDENT).map((u) => u.id);
-    const mentorIds = users.filter((u) => u.role === UserRole.MENTOR).map((u) => u.id);
-    const adminIds = users.filter((u) => u.role === UserRole.ADMIN).map((u) => u.id);
-    if (studentIds.length === 0 && mentorIds.length === 0 && adminIds.length === 0) return [];
+    if (studentIds.length === 0) return [];
 
-    const where = [
-      ...(studentIds.length ? [{ student: { id: In(studentIds) } }] : []),
-      ...(mentorIds.length ? [{ mentor: { id: In(mentorIds) } }] : []),
-      ...(adminIds.length ? [{ admin: { id: In(adminIds) } }] : []),
-    ];
-    const sessions = await this.sessionRepo.find({ where, select: { fcmToken: true } });
+    const sessions = await this.sessionRepo.find({
+      where: { student: { id: In(studentIds) } },
+      select: { fcmToken: true },
+    });
     return sessions.map((session) => session.fcmToken);
   }
 
-  private async tokensOfRole(role: 'student' | 'mentor'): Promise<string[]> {
-    const sessions = await this.sessionRepo.find({
-      where: { [role]: Not(IsNull()) },
-      select: { fcmToken: true },
-    });
+  private async tokensOfAllStudents(): Promise<string[]> {
+    const sessions = await this.sessionRepo.find({ select: { fcmToken: true } });
     return sessions.map((session) => session.fcmToken);
   }
 

@@ -1,13 +1,4 @@
-import {
-  BadRequestException,
-  Controller,
-  Get,
-  HttpCode,
-  Patch,
-  Post,
-  UploadedFile,
-  UseInterceptors,
-} from '@nestjs/common';
+import { BadRequestException, Controller, Get, Patch, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 
 import { Roles } from '@/common/decorators/roles.decorator';
@@ -28,20 +19,8 @@ export class MentorController {
   ) {}
 
   @Get()
-  async me(@CurrentUser() user: AuthUser) {
-    await this.userService.recordDailyActivity(user);
+  me(@CurrentUser() user: AuthUser) {
     return user;
-  }
-
-  @Post('activity')
-  @HttpCode(200)
-  recordActivity(@CurrentUser() user: AuthUser) {
-    return this.userService.recordDailyActivity(user);
-  }
-
-  @Get('streak')
-  streak(@CurrentUser() user: AuthUser) {
-    return this.userService.getStreak(user);
   }
 
   @Patch('avatar')

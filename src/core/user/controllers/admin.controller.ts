@@ -1,13 +1,4 @@
-import {
-  BadRequestException,
-  Controller,
-  Get,
-  HttpCode,
-  Patch,
-  Post,
-  UploadedFile,
-  UseInterceptors,
-} from '@nestjs/common';
+import { BadRequestException, Controller, Get, Patch, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 
 import { Roles } from '@/common/decorators/roles.decorator';
@@ -23,20 +14,8 @@ export class AdminController {
   constructor(private readonly userService: UserService) {}
 
   @Get('me')
-  async me(@CurrentUser() user: AuthUser) {
-    await this.userService.recordDailyActivity(user);
+  me(@CurrentUser() user: AuthUser) {
     return user;
-  }
-
-  @Post('me/activity')
-  @HttpCode(200)
-  recordActivity(@CurrentUser() user: AuthUser) {
-    return this.userService.recordDailyActivity(user);
-  }
-
-  @Get('me/streak')
-  streak(@CurrentUser() user: AuthUser) {
-    return this.userService.getStreak(user);
   }
 
   @Patch('me/avatar')

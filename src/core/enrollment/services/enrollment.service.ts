@@ -11,7 +11,7 @@ import { CreateEnrollmentDto } from '@/core/enrollment/dto/create-enrollment.dto
 import { CourseService } from '@/core/course/services/course.service';
 import { Student } from '@/core/user/entity/student.entity';
 import { EnrollmentQuery } from '@/core/enrollment/dto/enrollment-query.dto';
-import { Paginated, paginate } from '@/common/dto/pagination-query.dto';
+import { Paginated, paginate, paginateInMemory, PaginationQuery } from '@/common/dto/pagination-query.dto';
 import { PushService } from '@/core/notification/services/push.service';
 
 @Injectable()
@@ -104,7 +104,7 @@ export class EnrollmentService {
     return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
   }
 
-  async getAvailableCourses(studentId: string) {
+  async getAvailableCourses(studentId: string, query: PaginationQuery) {
     const taken = await this.enrollmentRepo.find({
       where: { student: { id: studentId }, status: EnrollmentStatus.ACTIVE },
       relations: { course: true },
@@ -113,10 +113,11 @@ export class EnrollmentService {
     const now = new Date();
     const blockedCourseIds = new Set(taken.filter((e) => !isEnrollmentExpired(e, now)).map((e) => e.course.id));
     const activeCourses = await this.courseService.findActiveCourses(studentId);
-    return activeCourses.filter((c) => !blockedCourseIds.has(c.id));
+    const available = activeCourses.filter((c) => !blockedCourseIds.has(c.id));
+    return paginateInMemory(available, query);
   }
 
-  async getMyCourses(studentId: string) {
+  async getMyCourses(studentId: string, query: PaginationQuery) {
     const now = new Date();
     const enrollments = await this.enrollmentRepo.find({
       where: { student: { id: studentId }, status: EnrollmentStatus.ACTIVE },
@@ -127,7 +128,7 @@ export class EnrollmentService {
 
     const counts = await this.courseService.contentCountsByCourse(currentEnrollments.map((e) => e.course.id));
 
-    return currentEnrollments.map((e) => {
+    const data = currentEnrollments.map((e) => {
       const { unitsCount = 0, lessonsCount = 0 } = counts.get(e.course.id) ?? {};
       const totalProgress =
         lessonsCount === 0 ? 0 : Math.round(e.progresses.reduce((sum, p) => sum + p.progress, 0) / lessonsCount);
@@ -139,14 +140,18 @@ export class EnrollmentService {
         isExpired: false,
       };
     });
+    return paginateInMemory(data, query);
   }
 
-  async getHistory(studentId: string) {
-    return this.historyRepo.find({
+  async getHistory(studentId: string, query: PaginationQuery): Promise<Paginated<EnrollmentHistory>> {
+    const [data, total] = await this.historyRepo.findAndCount({
       where: { enrollment: { student: { id: studentId } } },
       relations: { enrollment: { course: true } },
       order: { createdAt: 'DESC' },
+      skip: query.skip,
+      take: query.take,
     });
+    return paginate(data, total, query);
   }
 
   async createEnrollment(dto: CreateEnrollmentDto, manager?: EntityManager) {

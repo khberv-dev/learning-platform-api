@@ -1,0 +1,472 @@
+[
+  {
+    "title": "General English",
+    "description": "A beginner-friendly English course covering everyday vocabulary, grammar, and conversation skills.",
+    "isActive": true,
+    "index": 0,
+    "units": [
+      {
+        "title": "Unit 1: Getting Started",
+        "index": 0,
+        "lessons": [
+          {
+            "title": "Greetings and Introductions",
+            "description": "Learn how to say hello, introduce yourself, and ask someone's name in English.",
+            "index": 0,
+            "video": "1.mp4",
+            "tasks": [
+              {
+                "name": "Vocabulary",
+                "questions": [
+                  {
+                    "question": "How do you say 'Salom' in English?",
+                    "options": ["Hello", "Goodbye", "Thanks", "Sorry"],
+                    "answer": "Hello"
+                  },
+                  {
+                    "question": "Which word means 'Xayr' (when leaving)?",
+                    "options": ["Hello", "Goodbye", "Please", "Nice"],
+                    "answer": "Goodbye"
+                  },
+                  {
+                    "question": "Complete: 'Nice to ___ you.'",
+                    "options": ["meet", "meeting", "meets", "met"],
+                    "answer": "meet"
+                  }
+                ]
+              },
+              {
+                "name": "Grammar",
+                "questions": [
+                  {
+                    "question": "Choose the correct form: 'I ___ a student.'",
+                    "options": ["am", "is", "are", "be"],
+                    "answer": "am"
+                  },
+                  {
+                    "question": "Choose the correct form: 'She ___ from Tashkent.'",
+                    "options": ["am", "is", "are", "be"],
+                    "answer": "is"
+                  },
+                  {
+                    "question": "Choose the correct form: 'They ___ my friends.'",
+                    "options": ["am", "is", "are", "be"],
+                    "answer": "are"
+                  }
+                ]
+              },
+              {
+                "name": "Listening Practice",
+                "questions": [
+                  {
+                    "question": "In the video, what does the speaker say first?",
+                    "options": [
+                      "Hello, my name is Aziz",
+                      "Goodbye everyone",
+                      "Thank you very much",
+                      "See you tomorrow"
+                    ],
+                    "answer": "Hello, my name is Aziz"
+                  },
+                  {
+                    "question": "What question does the speaker ask?",
+                    "options": [
+                      "What is your name?",
+                      "Where do you live?",
+                      "How old are you?",
+                      "What time is it?"
+                    ],
+                    "answer": "What is your name?"
+                  },
+                  {
+                    "question": "How does the speaker end the conversation?",
+                    "options": ["Nice to meet you", "I am busy", "I don't know", "Goodbye forever"],
+                    "answer": "Nice to meet you"
+                  }
+                ]
+              },
+              {
+                "name": "Speaking Practice",
+                "questions": [
+                  {
+                    "question": "Someone says 'How are you?' The best reply is:",
+                    "options": ["I'm fine, thank you", "My name is Ali", "It's a book", "Yes, please"],
+                    "answer": "I'm fine, thank you"
+                  },
+                  {
+                    "question": "You want to introduce yourself. You say:",
+                    "options": ["My name is...", "How old are you?", "Where is it?", "I like it"],
+                    "answer": "My name is..."
+                  },
+                  {
+                    "question": "To ask someone's name politely, you say:",
+                    "options": ["What is your name?", "What is that?", "Where are you?", "Who is she?"],
+                    "answer": "What is your name?"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "title": "The Alphabet and Numbers",
+            "description": "Practice the English alphabet and count from one to twenty.",
+            "index": 1,
+            "video": "2.mp4",
+            "tasks": [
+              {
+                "name": "Vocabulary",
+                "questions": [
+                  {
+                    "question": "How many letters are in the English alphabet?",
+                    "options": ["26", "24", "28", "30"],
+                    "answer": "26"
+                  },
+                  {
+                    "question": "What number comes after 'nine'?",
+                    "options": ["ten", "eight", "eleven", "one"],
+                    "answer": "ten"
+                  },
+                  {
+                    "question": "Which word is spelled correctly?",
+                    "options": ["seven", "sevven", "sevin", "sevan"],
+                    "answer": "seven"
+                  }
+                ]
+              },
+              {
+                "name": "Grammar",
+                "questions": [
+                  {
+                    "question": "Choose the correct spelling: 'My phone number is ___ (15).'",
+                    "options": ["fifteen", "fivteen", "fiveteen", "fifteenth"],
+                    "answer": "fifteen"
+                  },
+                  {
+                    "question": "Choose the correct order: 'a, b, c, ___'",
+                    "options": ["d", "e", "z", "a"],
+                    "answer": "d"
+                  },
+                  {
+                    "question": "Which is a number word, not a letter word?",
+                    "options": ["twenty", "apple", "quick", "blue"],
+                    "answer": "twenty"
+                  }
+                ]
+              },
+              {
+                "name": "Listening Practice",
+                "questions": [
+                  {
+                    "question": "In the video, which numbers does the speaker count?",
+                    "options": ["1 to 20", "1 to 10", "10 to 20", "1 to 100"],
+                    "answer": "1 to 20"
+                  },
+                  {
+                    "question": "What does the speaker spell out loud?",
+                    "options": ["Their name", "A phone number", "An address", "A color"],
+                    "answer": "Their name"
+                  },
+                  {
+                    "question": "What letter does the speaker say is the first letter of the alphabet?",
+                    "options": ["A", "B", "Z", "M"],
+                    "answer": "A"
+                  }
+                ]
+              },
+              {
+                "name": "Reading Practice",
+                "questions": [
+                  {
+                    "question": "Read: 'I have two brothers and one sister.' How many siblings in total?",
+                    "options": ["Three", "Two", "One", "Four"],
+                    "answer": "Three"
+                  },
+                  {
+                    "question": "Read: 'She is seventeen years old.' What is her age?",
+                    "options": ["17", "70", "7", "71"],
+                    "answer": "17"
+                  },
+                  {
+                    "question": "Read: 'Room number twelve is on the left.' Which room is on the left?",
+                    "options": ["12", "20", "21", "2"],
+                    "answer": "12"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "title": "Unit 2: Everyday Life",
+        "index": 1,
+        "lessons": [
+          {
+            "title": "Family and Friends",
+            "description": "Talk about your family members and describe your friends.",
+            "index": 0,
+            "video": "3.mp4",
+            "tasks": [
+              {
+                "name": "Vocabulary",
+                "questions": [
+                  {
+                    "question": "Your mother's sister is your:",
+                    "options": ["aunt", "uncle", "cousin", "niece"],
+                    "answer": "aunt"
+                  },
+                  {
+                    "question": "Your father's father is your:",
+                    "options": ["grandfather", "grandmother", "uncle", "father"],
+                    "answer": "grandfather"
+                  },
+                  {
+                    "question": "A boy in your family who is your parents' son is your:",
+                    "options": ["brother", "sister", "cousin", "friend"],
+                    "answer": "brother"
+                  }
+                ]
+              },
+              {
+                "name": "Grammar",
+                "questions": [
+                  {
+                    "question": "Choose the correct word: 'This is ___ sister.' (I)",
+                    "options": ["my", "me", "mine", "I"],
+                    "answer": "my"
+                  },
+                  {
+                    "question": "Choose the correct word: 'That is ___ brother.' (she)",
+                    "options": ["her", "she", "hers", "him"],
+                    "answer": "her"
+                  },
+                  {
+                    "question": "Choose the correct word: 'These are ___ parents.' (they)",
+                    "options": ["their", "they", "them", "theirs"],
+                    "answer": "their"
+                  }
+                ]
+              },
+              {
+                "name": "Listening Practice",
+                "questions": [
+                  {
+                    "question": "In the video, who does the speaker talk about first?",
+                    "options": ["Their mother", "Their friend", "Their teacher", "Their neighbor"],
+                    "answer": "Their mother"
+                  },
+                  {
+                    "question": "How many brothers does the speaker say they have?",
+                    "options": ["Two", "One", "Three", "None"],
+                    "answer": "Two"
+                  },
+                  {
+                    "question": "What does the speaker say about their best friend?",
+                    "options": ["He is very kind", "He is very tall", "He is very old", "He is very rich"],
+                    "answer": "He is very kind"
+                  }
+                ]
+              },
+              {
+                "name": "Reading Practice",
+                "questions": [
+                  {
+                    "question": "Read: 'My best friend's name is Diyor.' Who is Diyor?",
+                    "options": ["A best friend", "A brother", "A teacher", "A neighbor"],
+                    "answer": "A best friend"
+                  },
+                  {
+                    "question": "Read: 'I have a big family with five people.' How many people are in the family?",
+                    "options": ["Five", "Four", "Six", "Two"],
+                    "answer": "Five"
+                  },
+                  {
+                    "question": "Read: 'My grandmother lives with us.' Who lives with the writer?",
+                    "options": ["Grandmother", "Grandfather", "Aunt", "Cousin"],
+                    "answer": "Grandmother"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Daily Routines",
+            "description": "Describe your day using simple present tense and time expressions.",
+            "index": 1,
+            "video": "4.mp4",
+            "tasks": [
+              {
+                "name": "Vocabulary",
+                "questions": [
+                  {
+                    "question": "What do you do first in the morning?",
+                    "options": ["wake up", "go to bed", "have dinner", "watch TV"],
+                    "answer": "wake up"
+                  },
+                  {
+                    "question": "Which word means eating food in the morning?",
+                    "options": ["breakfast", "lunch", "dinner", "snack"],
+                    "answer": "breakfast"
+                  },
+                  {
+                    "question": "Which activity happens at night before sleeping?",
+                    "options": ["go to bed", "wake up", "get dressed", "brush teeth in the morning"],
+                    "answer": "go to bed"
+                  }
+                ]
+              },
+              {
+                "name": "Grammar",
+                "questions": [
+                  {
+                    "question": "Choose the correct form: 'He ___ up at seven o'clock.'",
+                    "options": ["wakes", "wake", "waking", "woke"],
+                    "answer": "wakes"
+                  },
+                  {
+                    "question": "Choose the correct form: 'I ___ breakfast every day.'",
+                    "options": ["eat", "eats", "eating", "ate"],
+                    "answer": "eat"
+                  },
+                  {
+                    "question": "Choose the correct form: 'They ___ to school on foot.'",
+                    "options": ["go", "goes", "going", "went"],
+                    "answer": "go"
+                  }
+                ]
+              },
+              {
+                "name": "Listening Practice",
+                "questions": [
+                  {
+                    "question": "In the video, what time does the speaker wake up?",
+                    "options": ["Seven o'clock", "Nine o'clock", "Six o'clock", "Noon"],
+                    "answer": "Seven o'clock"
+                  },
+                  {
+                    "question": "What does the speaker do after breakfast?",
+                    "options": ["Goes to school", "Goes to sleep", "Watches TV", "Cooks dinner"],
+                    "answer": "Goes to school"
+                  },
+                  {
+                    "question": "What does the speaker do in the evening?",
+                    "options": ["Does homework", "Wakes up", "Has breakfast", "Goes to work"],
+                    "answer": "Does homework"
+                  }
+                ]
+              },
+              {
+                "name": "Reading Practice",
+                "questions": [
+                  {
+                    "question": "Read: 'I brush my teeth twice a day.' How many times a day?",
+                    "options": ["Twice", "Once", "Three times", "Never"],
+                    "answer": "Twice"
+                  },
+                  {
+                    "question": "Read: 'We have lunch at one o'clock.' What time is lunch?",
+                    "options": ["One o'clock", "Twelve o'clock", "Two o'clock", "Three o'clock"],
+                    "answer": "One o'clock"
+                  },
+                  {
+                    "question": "Read: 'She goes to bed at ten every night.' What time does she sleep?",
+                    "options": ["Ten o'clock", "Nine o'clock", "Eleven o'clock", "Midnight"],
+                    "answer": "Ten o'clock"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Food and Drinks",
+            "description": "Order food, talk about your favorite meals, and use countable and uncountable nouns.",
+            "index": 2,
+            "video": "5.mp4",
+            "tasks": [
+              {
+                "name": "Vocabulary",
+                "questions": [
+                  {
+                    "question": "Which word is a fruit?",
+                    "options": ["apple", "bread", "rice", "milk"],
+                    "answer": "apple"
+                  },
+                  {
+                    "question": "Which word means a hot drink made from leaves?",
+                    "options": ["tea", "juice", "water", "bread"],
+                    "answer": "tea"
+                  },
+                  {
+                    "question": "Which word is a vegetable?",
+                    "options": ["carrot", "banana", "chicken", "cheese"],
+                    "answer": "carrot"
+                  }
+                ]
+              },
+              {
+                "name": "Grammar",
+                "questions": [
+                  {
+                    "question": "Choose the correct word: 'I would like ___ apple.'",
+                    "options": ["an", "a", "some", "any"],
+                    "answer": "an"
+                  },
+                  {
+                    "question": "Choose the correct word: 'There is ___ water in the glass.'",
+                    "options": ["some", "a", "an", "many"],
+                    "answer": "some"
+                  },
+                  {
+                    "question": "Choose the correct word: 'How ___ bread do you want?'",
+                    "options": ["much", "many", "some", "a"],
+                    "answer": "much"
+                  }
+                ]
+              },
+              {
+                "name": "Listening Practice",
+                "questions": [
+                  {
+                    "question": "In the video, what does the speaker order first?",
+                    "options": ["A cup of tea", "A glass of juice", "A plate of rice", "A piece of bread"],
+                    "answer": "A cup of tea"
+                  },
+                  {
+                    "question": "What does the speaker say about the food?",
+                    "options": ["It is delicious", "It is expensive", "It is cold", "It is spicy"],
+                    "answer": "It is delicious"
+                  },
+                  {
+                    "question": "What does the waiter bring at the end?",
+                    "options": ["The bill", "More bread", "A menu", "A napkin"],
+                    "answer": "The bill"
+                  }
+                ]
+              },
+              {
+                "name": "Reading Practice",
+                "questions": [
+                  {
+                    "question": "Read: 'My favorite food is plov.' What is the favorite food?",
+                    "options": ["Plov", "Bread", "Tea", "Salad"],
+                    "answer": "Plov"
+                  },
+                  {
+                    "question": "Read: 'I drink two glasses of water every morning.' How many glasses?",
+                    "options": ["Two", "One", "Three", "Four"],
+                    "answer": "Two"
+                  },
+                  {
+                    "question": "Read: 'We usually have soup for dinner.' What meal has soup?",
+                    "options": ["Dinner", "Breakfast", "Lunch", "Snack"],
+                    "answer": "Dinner"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+]

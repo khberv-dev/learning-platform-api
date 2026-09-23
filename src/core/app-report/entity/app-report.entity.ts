@@ -8,7 +8,7 @@ export class AppReport {
   @Column()
   device: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   userId: string | null;
 
   @Column({ type: 'text' })

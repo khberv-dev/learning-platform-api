@@ -1,7 +1,19 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UploadedFile, UseInterceptors } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 
 import { introVideoFileFilter, mentorIntroStorage, toIntroVideoPath } from '@/core/user/storage/mentor-intro.storage';
+import { avatarFileFilter, avatarStorage, toAvatarPath } from '@/core/user/storage/avatar.storage';
 import { Roles } from '@/common/decorators/roles.decorator';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { UserRole } from '@/core/user/enum/user-role.enum';
@@ -45,5 +57,12 @@ export class AdminMentorController {
   @UseInterceptors(FileInterceptor('video', { storage: mentorIntroStorage, fileFilter: introVideoFileFilter }))
   uploadIntroVideo(@Param('id') id: string, @UploadedFile() file: Express.Multer.File) {
     return this.mentorService.updateIntroVideoById(id, toIntroVideoPath(file.filename));
+  }
+
+  @Patch(':id/avatar')
+  @UseInterceptors(FileInterceptor('avatar', { storage: avatarStorage, fileFilter: avatarFileFilter }))
+  uploadAvatar(@Param('id') id: string, @UploadedFile() file: Express.Multer.File) {
+    if (!file) throw new BadRequestException('Rasm yuborilmagan');
+    return this.mentorService.updateAvatar(id, toAvatarPath(file.filename));
   }
 }

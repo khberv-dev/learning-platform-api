@@ -1,4 +1,5 @@
 import { Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import {
   ConnectedSocket,
@@ -15,6 +16,7 @@ import { UserService } from '@/core/user/services/user.service';
 import { ChatService } from '@/core/chat/services/chat.service';
 import { ChatMessage } from '@/core/chat/entity/chat-message.entity';
 import { UserRole } from '@/core/user/enum/user-role.enum';
+import { expandFileUrls } from '@/common/utils/file-url.util';
 
 interface AuthedSocket extends Socket {
   data: { userId: string; role: UserRole };
@@ -32,6 +34,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     private readonly jwtService: JwtService,
     private readonly userService: UserService,
     private readonly chatService: ChatService,
+    private readonly configService: ConfigService,
   ) {}
 
   afterInit(namespace: Namespace) {
@@ -118,7 +121,8 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
   broadcastMessage(roomId: string, message: ChatMessage | null) {
     if (!message) return;
-    this.server.to(roomKey(roomId)).emit('message', message);
+    const expanded = expandFileUrls(message, () => this.configService.getOrThrow<string>('FILES_BASE_URL'));
+    this.server.to(roomKey(roomId)).emit('message', expanded);
   }
 
   private extractToken(socket: Socket): string | null {

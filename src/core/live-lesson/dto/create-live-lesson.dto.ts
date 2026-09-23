@@ -1,4 +1,4 @@
-import { IsDateString, IsNotEmpty, IsString, IsUUID, IsUrl } from 'class-validator';
+import { IsNotEmpty, IsString, IsUUID, IsUrl } from 'class-validator';
 
 export class CreateLiveLessonDto {
   @IsString()
@@ -7,12 +7,6 @@ export class CreateLiveLessonDto {
 
   @IsUrl()
   meetLink: string;
-
-  @IsDateString()
-  startTime: string;
-
-  @IsDateString()
-  endTime: string;
 
   @IsUUID()
   groupId: string;

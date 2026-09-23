@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, IsNull, Repository } from 'typeorm';
 import { Group } from '@/core/group/entity/group.entity';
@@ -11,8 +11,9 @@ import { CreateGroupDto } from '@/core/group/dto/create-group.dto';
 import { UpdateGroupDto } from '@/core/group/dto/update-group.dto';
 import { GROUP_SORT_COLUMN, GroupQuery } from '@/core/group/dto/group-query.dto';
 import { validateGroupScheduleShape } from '@/core/group/utils/group-schedule.util';
-import { paginate, Paginated } from '@/common/dto/pagination-query.dto';
+import { paginate, Paginated, PaginationQuery } from '@/common/dto/pagination-query.dto';
 import { ChatService } from '@/core/chat/services/chat.service';
+import { PushService } from '@/core/notification/services/push.service';
 
 @Injectable()
 export class GroupService {
@@ -24,6 +25,7 @@ export class GroupService {
     @InjectRepository(Mentor) private readonly mentorRepo: Repository<Mentor>,
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly chatService: ChatService,
+    private readonly pushService: PushService,
   ) {}
 
   private assertScheduleShape(schedule?: Record<string, string[]>): void {
@@ -45,7 +47,7 @@ export class GroupService {
     return group;
   }
 
-  async findAllGroups(query: GroupQuery): Promise<Paginated<Group>> {
+  async findAllGroups(query: GroupQuery): Promise<Paginated<Group & { primaryMentor: Mentor | null }>> {
     const qb = this.groupRepo.createQueryBuilder('group');
 
     if (query.isActive !== undefined) {
@@ -61,7 +63,22 @@ export class GroupService {
       .take(query.take)
       .getManyAndCount();
 
-    return paginate(data, total, query);
+    const groupIds = data.map((group) => group.id);
+    const primaries =
+      groupIds.length > 0
+        ? await this.groupMentorRepo.find({
+            where: { group: { id: In(groupIds) }, role: GroupMentorRole.PRIMARY },
+            relations: { group: true, mentor: true },
+          })
+        : [];
+    const primaryMentorByGroupId = new Map(primaries.map((p) => [p.group.id, p.mentor]));
+
+    const withPrimaryMentor = data.map((group) => ({
+      ...group,
+      primaryMentor: primaryMentorByGroupId.get(group.id) ?? null,
+    }));
+
+    return paginate(withPrimaryMentor, total, query);
   }
 
   async findOneGroup(id: string) {
@@ -118,6 +135,10 @@ export class GroupService {
       );
     });
 
+    for (const studentId of studentIds) {
+      void this.pushService.notifyGroupJoined(studentId, group.title, group.id);
+    }
+
     return this.findOneGroup(groupId);
   }
 
@@ -170,6 +191,8 @@ export class GroupService {
       });
     });
 
+    void this.pushService.notifyGroupJoined(studentId, toGroup.title, toGroup.id);
+
     return this.findOneGroup(toGroupId);
   }
 
@@ -177,6 +200,9 @@ export class GroupService {
     await this.loadGroup(groupId);
     const mentor = await this.mentorRepo.findOne({ where: { id: mentorId } });
     if (!mentor) throw new NotFoundException('Mentor topilmadi');
+    if (mentor.role !== GroupMentorRole.PRIMARY) {
+      throw new BadRequestException("Faqat 'primary' turidagi mentor asosiy mentor bo'la oladi");
+    }
 
     const existingForMentor = await this.groupMentorRepo.findOne({
       where: { group: { id: groupId }, mentor: { id: mentorId } },
@@ -199,6 +225,9 @@ export class GroupService {
     const group = await this.loadGroup(groupId);
     const mentor = await this.mentorRepo.findOne({ where: { id: mentorId } });
     if (!mentor) throw new NotFoundException('Mentor topilmadi');
+    if (mentor.role !== GroupMentorRole.SUPPORT) {
+      throw new BadRequestException("Faqat 'support' turidagi mentor yordamchi mentor bo'la oladi");
+    }
 
     const existing = await this.groupMentorRepo.findOne({
       where: { group: { id: groupId }, mentor: { id: mentorId } },
@@ -225,11 +254,42 @@ export class GroupService {
     return this.findOneGroup(student.group.id);
   }
 
-  async findMyGroups(mentorId: string) {
-    const rows = await this.groupMentorRepo.find({
+  async findMyGroups(
+    mentorId: string,
+    query: PaginationQuery,
+  ): Promise<Paginated<Group & { primaryMentor: Mentor | null; role: GroupMentorRole }>> {
+    const [rows, total] = await this.groupMentorRepo.findAndCount({
       where: { mentor: { id: mentorId } },
       relations: { group: true },
+      order: { createdAt: 'DESC' },
+      skip: query.skip,
+      take: query.take,
     });
-    return Promise.all(rows.map(async (row) => ({ role: row.role, ...(await this.findOneGroup(row.group.id)) })));
+
+    const groupIds = rows.map((row) => row.group.id);
+    const primaries =
+      groupIds.length > 0
+        ? await this.groupMentorRepo.find({
+            where: { group: { id: In(groupIds) }, role: GroupMentorRole.PRIMARY },
+            relations: { group: true, mentor: true },
+          })
+        : [];
+    const primaryMentorByGroupId = new Map(primaries.map((p) => [p.group.id, p.mentor]));
+
+    const data = rows.map((row) => ({
+      ...row.group,
+      primaryMentor: primaryMentorByGroupId.get(row.group.id) ?? null,
+      role: row.role,
+    }));
+
+    return paginate(data, total, query);
+  }
+
+  async findOneGroupForMentor(mentorId: string, groupId: string) {
+    const membership = await this.groupMentorRepo.findOne({
+      where: { group: { id: groupId }, mentor: { id: mentorId } },
+    });
+    if (!membership) throw new ForbiddenException('Ruxsat berilmagan');
+    return this.findOneGroup(groupId);
   }
 }

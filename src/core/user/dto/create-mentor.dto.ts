@@ -1,4 +1,5 @@
-import { IsOptional, IsString, Matches, MinLength } from 'class-validator';
+import { IsEnum, IsOptional, IsString, Matches, MinLength } from 'class-validator';
+import { GroupMentorRole } from '@/core/group/enum/group-mentor-role.enum';
 
 export class CreateMentorDto {
   @IsString()
@@ -11,9 +12,8 @@ export class CreateMentorDto {
   @Matches(/^998\d{9}$/, { message: "Telefon raqam 998XXXXXXXXX formatida bo'lishi kerak" })
   phoneNumber: string;
 
-  @IsString()
-  @IsOptional()
-  profession: string;
+  @IsEnum(GroupMentorRole)
+  role: GroupMentorRole;
 
   @IsString()
   @MinLength(6)

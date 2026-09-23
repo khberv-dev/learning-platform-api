@@ -28,19 +28,19 @@ export class StudentController {
 
   @Get('me')
   async me(@CurrentUser() user: AuthUser) {
-    await this.userService.recordDailyActivity(user);
+    await this.userService.recordDailyActivity(user.id);
     return this.studentService.findMe(user.id);
   }
 
   @Post('me/activity')
   @HttpCode(200)
   recordActivity(@CurrentUser() user: AuthUser) {
-    return this.userService.recordDailyActivity(user);
+    return this.userService.recordDailyActivity(user.id);
   }
 
   @Get('me/streak')
   streak(@CurrentUser() user: AuthUser) {
-    return this.userService.getStreak(user);
+    return this.userService.getStreak(user.id);
   }
 
   @Patch('me/avatar')

@@ -10,6 +10,7 @@ import { UpdateTaskDto } from '@/core/course/dto/update-task.dto';
 import { UpdateTaskQuestionDto } from '@/core/course/dto/update-task-question.dto';
 import { TaskContentType } from '@/core/course/enum/task-content-type.enum';
 import { TaskQuestion } from '@/core/course/entity/task.entity';
+import { paginate, Paginated, PaginationQuery } from '@/common/dto/pagination-query.dto';
 
 function toQuestion(dto: TaskQuestionDto): TaskQuestion {
   return { question: dto.question, options: dto.options ?? null, answer: dto.answer };
@@ -42,27 +43,44 @@ export class TaskService {
     });
   }
 
-  async listTasks(courseId: string, unitId: string, lessonId: string): Promise<Task[]> {
+  async listTasks(
+    courseId: string,
+    unitId: string,
+    lessonId: string,
+    query: PaginationQuery,
+  ): Promise<Paginated<Task>> {
     await this.loadLesson(courseId, unitId, lessonId);
-    return this.taskRepo.find({
+    const [data, total] = await this.taskRepo.findAndCount({
       where: { lesson: { id: lessonId } },
       order: { createdAt: 'ASC' },
+      skip: query.skip,
+      take: query.take,
     });
+    return paginate(data, total, query);
   }
 
-  async listTasksForStudent(courseId: string, unitId: string, lessonId: string, studentUserId: string) {
+  async listTasksForStudent(
+    courseId: string,
+    unitId: string,
+    lessonId: string,
+    studentUserId: string,
+    query: PaginationQuery,
+  ) {
     await this.loadLesson(courseId, unitId, lessonId);
     await assertActiveEnrollmentForLesson(this.enrollmentRepo, studentUserId, lessonId);
 
-    const tasks = await this.taskRepo.find({
+    const [tasks, total] = await this.taskRepo.findAndCount({
       where: { lesson: { id: lessonId } },
       order: { createdAt: 'ASC' },
+      skip: query.skip,
+      take: query.take,
     });
 
-    return tasks.map((task) => ({
+    const data = tasks.map((task) => ({
       ...task,
       questions: task.questions.map((q) => ({ question: q.question, options: q.options })),
     }));
+    return paginate(data, total, query);
   }
 
   async updateTask(

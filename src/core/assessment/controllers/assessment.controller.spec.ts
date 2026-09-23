@@ -3,9 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { AssessmentController } from '@/core/assessment/controllers/assessment.controller';
 
 describe('AssessmentController.getAssemblyAiKey', () => {
-  const assessmentService = {};
   const configService = { getOrThrow: jest.fn() };
-  const controller = new AssessmentController(assessmentService as never, configService as unknown as ConfigService);
+  const controller = new AssessmentController(configService as unknown as ConfigService);
 
   beforeEach(() => jest.clearAllMocks());
 

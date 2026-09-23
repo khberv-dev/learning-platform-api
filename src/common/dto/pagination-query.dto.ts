@@ -41,3 +41,7 @@ export function paginate<T>(data: T[], total: number, query: PaginationQuery): P
     totalPages: Math.ceil(total / query.limit) || 0,
   };
 }
+
+export function paginateInMemory<T>(items: T[], query: PaginationQuery): Paginated<T> {
+  return paginate(items.slice(query.skip, query.skip + query.take), items.length, query);
+}

@@ -1,12 +1,4 @@
-import {
-  Column,
-  CreateDateColumn,
-  Entity,
-  JoinColumn,
-  ManyToOne,
-  PrimaryGeneratedColumn,
-  UpdateDateColumn,
-} from 'typeorm';
+import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
 import { Mentor } from '@/core/user/entity/mentor.entity';
 import { Group } from '@/core/group/entity/group.entity';
 
@@ -21,12 +13,6 @@ export class LiveLesson {
   @Column()
   meetLink: string;
 
-  @Column({ type: 'timestamp' })
-  startTime: Date;
-
-  @Column({ type: 'timestamp' })
-  endTime: Date;
-
   @ManyToOne(() => Mentor, { onDelete: 'CASCADE' })
   @JoinColumn()
   mentor: Mentor;
@@ -37,7 +23,4 @@ export class LiveLesson {
 
   @CreateDateColumn()
   createdAt: Date;
-
-  @UpdateDateColumn()
-  updatedAt: Date;
 }

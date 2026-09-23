@@ -8,6 +8,7 @@ import { UpdateLessonDto } from '@/core/course/dto/update-lesson.dto';
 import { LESSON_ORDER } from '@/core/course/services/course.service';
 import { PushService } from '@/core/notification/services/push.service';
 import { removeLessonMediaFile } from '@/core/course/storage/lesson-media.storage';
+import { paginate, Paginated, PaginationQuery } from '@/common/dto/pagination-query.dto';
 
 @Injectable()
 export class LessonService {
@@ -19,14 +20,17 @@ export class LessonService {
     private readonly pushService: PushService,
   ) {}
 
-  async listLessons(courseId: string, unitId: string) {
+  async listLessons(courseId: string, unitId: string, query: PaginationQuery): Promise<Paginated<Lesson>> {
     const unit = await this.unitRepo.findOne({ where: { id: unitId, course: { id: courseId } } });
     if (!unit) throw new NotFoundException("Bo'lim topilmadi");
 
-    return this.lessonRepo.find({
+    const [data, total] = await this.lessonRepo.findAndCount({
       where: { unit: { id: unitId } },
       order: LESSON_ORDER,
+      skip: query.skip,
+      take: query.take,
     });
+    return paginate(data, total, query);
   }
 
   async createLesson(courseId: string, unitId: string, dto: CreateLessonDto, media?: string) {

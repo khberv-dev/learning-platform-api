@@ -34,8 +34,8 @@ export class StatsService {
              BOOL_OR(activity_date >= $1::date - 6) AS w,
              BOOL_OR(has_course) FILTER (WHERE activity_date >= $1::date - 6) AS wc,
              BOOL_OR(has_course) AS mc
-           FROM user_activities
-           WHERE student_id IS NOT NULL AND activity_date BETWEEN $1::date - 29 AND $1::date
+           FROM activities
+           WHERE activity_date BETWEEN $1::date - 29 AND $1::date
            GROUP BY student_id
          ) AS u`,
         [today],
@@ -89,8 +89,8 @@ export class StatsService {
          FROM ${series} AS bucket
          LEFT JOIN LATERAL (
            SELECT student_id AS owner_id, BOOL_OR(has_course) AS has_course
-           FROM user_activities
-           WHERE student_id IS NOT NULL AND ${range}
+           FROM activities
+           WHERE ${range}
            GROUP BY student_id
          ) AS u ON TRUE
          GROUP BY bucket

@@ -15,7 +15,7 @@ import { UpdateMentorDto } from '@/core/user/dto/update-mentor.dto';
 import { ChangeMentorStatusDto } from '@/core/user/dto/change-mentor-status.dto';
 import { CreateFeedbackDto } from '@/core/user/dto/create-feedback.dto';
 import { hashPassword } from '@/shared/utils/hash.util';
-import { paginate, Paginated } from '@/common/dto/pagination-query.dto';
+import { paginate, Paginated, PaginationQuery } from '@/common/dto/pagination-query.dto';
 import { MENTOR_SORT_COLUMN, MentorQuery } from '@/core/user/dto/mentor-query.dto';
 
 @Injectable()
@@ -43,7 +43,7 @@ export class MentorService {
       password: passwordHash,
       isActive: true,
       status: MentorStatus.ACTIVE,
-      profession: dto.profession,
+      role: dto.role,
     });
   }
 
@@ -56,6 +56,9 @@ export class MentorService {
     if (query.isActive !== undefined) {
       qb.andWhere('mentor.isActive = :isActive', { isActive: query.isActive });
     }
+    if (query.role) {
+      qb.andWhere('mentor.role = :role', { role: query.role });
+    }
     if (query.search?.trim()) {
       const search = `%${query.search.trim()}%`;
       qb.andWhere(
@@ -63,8 +66,7 @@ export class MentorService {
           where
             .where('mentor.firstName ILIKE :search', { search })
             .orWhere('mentor.lastName ILIKE :search', { search })
-            .orWhere('mentor.phoneNumber ILIKE :search', { search })
-            .orWhere('mentor.profession ILIKE :search', { search });
+            .orWhere('mentor.phoneNumber ILIKE :search', { search });
         }),
       );
     }
@@ -95,7 +97,7 @@ export class MentorService {
     if (dto.lastName !== undefined) update.lastName = dto.lastName;
     if (dto.phoneNumber !== undefined) update.phoneNumber = dto.phoneNumber;
     if (dto.password !== undefined) update.password = await hashPassword(dto.password);
-    if (dto.profession !== undefined) update.profession = dto.profession;
+    if (dto.role !== undefined) update.role = dto.role;
 
     if (Object.keys(update).length > 0) {
       await this.mentorRepo.update(mentor.id, update);
@@ -112,12 +114,16 @@ export class MentorService {
     return { ...mentor, summaryRating };
   }
 
-  async findActiveMentors() {
-    const mentors = await this.mentorRepo.find({
+  async findActiveMentors(query: PaginationQuery) {
+    const [mentors, total] = await this.mentorRepo.findAndCount({
       where: { status: MentorStatus.ACTIVE },
       relations: { feedbacks: true },
+      order: { createdAt: 'DESC' },
+      skip: query.skip,
+      take: query.take,
     });
-    return mentors.map((m) => this.withSummaryRating(m));
+    const data = mentors.map((m) => this.withSummaryRating(m));
+    return paginate(data, total, query);
   }
 
   async findOneActiveMentor(id: string) {
@@ -145,6 +151,12 @@ export class MentorService {
 
   async updateIntroVideoById(mentorId: string, videoPath: string) {
     return this.updateIntroVideo(mentorId, videoPath);
+  }
+
+  async updateAvatar(mentorId: string, avatarPath: string) {
+    const mentor = await this.mentorRepo.findOne({ where: { id: mentorId } });
+    if (!mentor) throw new NotFoundException('Mentor topilmadi');
+    return this.mentorRepo.save({ ...mentor, avatar: avatarPath });
   }
 
   async getSummaryForMentor(mentorId: string) {

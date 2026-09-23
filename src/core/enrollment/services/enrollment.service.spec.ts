@@ -2,6 +2,7 @@ import { NotFoundException } from '@nestjs/common';
 
 import { EnrollmentService } from '@/core/enrollment/services/enrollment.service';
 import { EnrollmentStatus } from '@/core/enrollment/enum/enrollment-status.enum';
+import { PaginationQuery } from '@/common/dto/pagination-query.dto';
 
 describe('EnrollmentService.getStudentCourseProgress', () => {
   const studentRepo = { exists: jest.fn() };
@@ -141,11 +142,12 @@ describe('EnrollmentService student course lists', () => {
       new Map([['course-current', { unitsCount: 2, lessonsCount: 3 }]]),
     );
 
-    const result = await service.getMyCourses('user-1');
+    const result = await service.getMyCourses('user-1', new PaginationQuery());
 
     expect(courseService.contentCountsByCourse).toHaveBeenCalledWith(['course-current']);
-    expect(result).toHaveLength(1);
-    expect(result[0]).toMatchObject({ id: 'current-enrollment', isExpired: false });
+    expect(result.data).toHaveLength(1);
+    expect(result.total).toBe(1);
+    expect(result.data[0]).toMatchObject({ id: 'current-enrollment', isExpired: false });
   });
 
   it('includes a course in available courses when its enrollment expired', async () => {
@@ -167,8 +169,9 @@ describe('EnrollmentService student course lists', () => {
       { id: 'course-new' },
     ]);
 
-    const result = await service.getAvailableCourses('user-1');
+    const result = await service.getAvailableCourses('user-1', new PaginationQuery());
 
-    expect(result).toEqual([{ id: 'course-expired' }, { id: 'course-new' }]);
+    expect(result.data).toEqual([{ id: 'course-expired' }, { id: 'course-new' }]);
+    expect(result.total).toBe(2);
   });
 });

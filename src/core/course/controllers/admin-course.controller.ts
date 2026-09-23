@@ -8,12 +8,14 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Query,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 
 import { Roles } from '@/common/decorators/roles.decorator';
+import { PaginationQuery } from '@/common/dto/pagination-query.dto';
 import { UserRole } from '@/core/user/enum/user-role.enum';
 import { CourseService } from '@/core/course/services/course.service';
 import { UnitService } from '@/core/course/services/unit.service';
@@ -57,8 +59,8 @@ export class AdminCourseController {
   }
 
   @Get()
-  findAllCourses() {
-    return this.courseService.findAllCourses();
+  findAllCourses(@Query() query: PaginationQuery) {
+    return this.courseService.findAllCourses(query);
   }
 
   @Get(':id')
@@ -95,8 +97,8 @@ export class AdminCourseController {
   }
 
   @Get(':courseId/units/:unitId/lessons')
-  listLessons(@Param('courseId') courseId: string, @Param('unitId') unitId: string) {
-    return this.lessonService.listLessons(courseId, unitId);
+  listLessons(@Param('courseId') courseId: string, @Param('unitId') unitId: string, @Query() query: PaginationQuery) {
+    return this.lessonService.listLessons(courseId, unitId, query);
   }
 
   @Post(':courseId/units/:unitId/lessons')
@@ -162,8 +164,13 @@ export class AdminCourseController {
   }
 
   @Get(':courseId/units/:unitId/lessons/:lessonId/tasks')
-  listTasks(@Param('courseId') courseId: string, @Param('unitId') unitId: string, @Param('lessonId') lessonId: string) {
-    return this.taskService.listTasks(courseId, unitId, lessonId);
+  listTasks(
+    @Param('courseId') courseId: string,
+    @Param('unitId') unitId: string,
+    @Param('lessonId') lessonId: string,
+    @Query() query: PaginationQuery,
+  ) {
+    return this.taskService.listTasks(courseId, unitId, lessonId, query);
   }
 
   @Patch(':courseId/units/:unitId/lessons/:lessonId/tasks/:taskId')

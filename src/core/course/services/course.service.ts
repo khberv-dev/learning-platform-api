@@ -9,6 +9,7 @@ import { CreateCourseDto } from '@/core/course/dto/create-course.dto';
 import { UpdateCourseDto } from '@/core/course/dto/update-course.dto';
 import { PushService } from '@/core/notification/services/push.service';
 import { Progress } from '@/core/enrollment/entity/progress.entity';
+import { paginate, paginateInMemory, Paginated, PaginationQuery } from '@/common/dto/pagination-query.dto';
 
 export const COURSE_RELATIONS = { units: { lessons: true } } as const;
 
@@ -108,23 +109,37 @@ export class CourseService {
     void this.pushService.notifyCourseCreated(course.id, course.title);
   }
 
-  async findAllCourses() {
-    const { entities, raw } = await this.courseRepo
-      .createQueryBuilder('course')
-      .leftJoin('course.units', 'unit')
-      .leftJoin('unit.lessons', 'lesson')
-      .addSelect('COUNT(DISTINCT unit.id)', 'unitsCount')
-      .addSelect('COUNT(DISTINCT lesson.id)', 'lessonsCount')
-      .groupBy('course.id')
-      .orderBy('course.index', 'ASC')
-      .addOrderBy('course.createdAt', 'DESC')
-      .getRawAndEntities<{ unitsCount: string; lessonsCount: string }>();
+  async findAllCourses(
+    query: PaginationQuery,
+  ): Promise<Paginated<Course & { unitsCount: number; lessonsCount: number }>> {
+    const [total, { entities, raw }] = await Promise.all([
+      this.courseRepo.count(),
+      this.courseRepo
+        .createQueryBuilder('course')
+        .leftJoin('course.units', 'unit')
+        .leftJoin('unit.lessons', 'lesson')
+        .addSelect('COUNT(DISTINCT unit.id)', 'unitsCount')
+        .addSelect('COUNT(DISTINCT lesson.id)', 'lessonsCount')
+        .groupBy('course.id')
+        .orderBy('course.index', 'ASC')
+        .addOrderBy('course.createdAt', 'DESC')
+        .skip(query.skip)
+        .take(query.take)
+        .getRawAndEntities<{ unitsCount: string; lessonsCount: string }>(),
+    ]);
 
-    return entities.map((course, i) => ({
+    const data = entities.map((course, i) => ({
       ...course,
       unitsCount: Number(raw[i].unitsCount),
       lessonsCount: Number(raw[i].lessonsCount),
     }));
+
+    return paginate(data, total, query);
+  }
+
+  async findActiveCoursesPaginated(studentUserId: string, query: PaginationQuery) {
+    const courses = await this.findActiveCourses(studentUserId);
+    return paginateInMemory(courses, query);
   }
 
   async findActiveCourses(studentUserId: string) {

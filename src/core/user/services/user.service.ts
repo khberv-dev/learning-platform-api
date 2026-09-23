@@ -5,12 +5,12 @@ import { Student } from '@/core/user/entity/student.entity';
 import { StudentLevel } from '@/core/user/enum/student-level.enum';
 import { Mentor } from '@/core/user/entity/mentor.entity';
 import { Admin } from '@/core/user/entity/admin.entity';
-import { UserActivity } from '@/core/user/entity/user-activity.entity';
+import { StudentActivity } from '@/core/user/entity/student-activity.entity';
 import { Enrollment } from '@/core/enrollment/entity/enrollment.entity';
 import { EnrollmentStatus } from '@/core/enrollment/enum/enrollment-status.enum';
 import { isEnrollmentExpired } from '@/core/enrollment/utils/enrollment.util';
 import { UserRole } from '@/core/user/enum/user-role.enum';
-import { type AuthUser, ownerRef } from '@/common/utils/role-owner.util';
+import type { AuthUser } from '@/common/utils/role-owner.util';
 import { hashPassword } from '@/shared/utils/hash.util';
 
 type RoleId = Pick<AuthUser, 'id' | 'role'>;
@@ -21,7 +21,7 @@ export class UserService {
     @InjectRepository(Student) private readonly studentRepo: Repository<Student>,
     @InjectRepository(Mentor) private readonly mentorRepo: Repository<Mentor>,
     @InjectRepository(Admin) private readonly adminRepo: Repository<Admin>,
-    @InjectRepository(UserActivity) private readonly userActivityRepo: Repository<UserActivity>,
+    @InjectRepository(StudentActivity) private readonly studentActivityRepo: Repository<StudentActivity>,
     @InjectRepository(Enrollment) private readonly enrollmentRepo: Repository<Enrollment>,
   ) {}
 
@@ -59,33 +59,33 @@ export class UserService {
     return date.toISOString().slice(0, 10);
   }
 
-  private async hasActiveCourse(user: RoleId): Promise<boolean> {
-    if (user.role !== UserRole.STUDENT) return false;
+  private async hasActiveCourse(studentId: string): Promise<boolean> {
     const enrollments = await this.enrollmentRepo.find({
-      where: { student: { id: user.id }, status: EnrollmentStatus.ACTIVE },
+      where: { student: { id: studentId }, status: EnrollmentStatus.ACTIVE },
       select: { id: true, status: true, end: true },
     });
     return enrollments.some((enrollment) => !isEnrollmentExpired(enrollment));
   }
 
-  async recordDailyActivity(user: RoleId): Promise<{ activityDate: string; hasCourse: boolean; recorded: boolean }> {
+  async recordDailyActivity(
+    studentId: string,
+  ): Promise<{ activityDate: string; hasCourse: boolean; recorded: boolean }> {
     const activityDate = this.utcDate();
-    const hasCourse = await this.hasActiveCourse(user);
-    const column = `${user.role === UserRole.MENTOR ? 'mentor' : user.role}_id`;
-    const rows: Array<{ inserted: boolean }> = await this.userActivityRepo.query(
-      `INSERT INTO user_activities (${column}, activity_date, has_course)
+    const hasCourse = await this.hasActiveCourse(studentId);
+    const rows: Array<{ inserted: boolean }> = await this.studentActivityRepo.query(
+      `INSERT INTO activities (student_id, activity_date, has_course)
        VALUES ($1, $2, $3)
-       ON CONFLICT (${column}, activity_date) DO UPDATE SET has_course = TRUE
-         WHERE user_activities.has_course = FALSE AND EXCLUDED.has_course = TRUE
+       ON CONFLICT (student_id, activity_date) DO UPDATE SET has_course = TRUE
+         WHERE activities.has_course = FALSE AND EXCLUDED.has_course = TRUE
        RETURNING (xmax = 0) AS inserted`,
-      [user.id, activityDate, hasCourse],
+      [studentId, activityDate, hasCourse],
     );
     return { activityDate, hasCourse, recorded: rows.some((row) => row.inserted) };
   }
 
-  async getStreak(user: RoleId) {
-    const rows = await this.userActivityRepo.find({
-      where: ownerRef(user),
+  async getStreak(studentId: string) {
+    const rows = await this.studentActivityRepo.find({
+      where: { student: { id: studentId } },
       select: { activityDate: true },
       order: { activityDate: 'DESC' },
     });

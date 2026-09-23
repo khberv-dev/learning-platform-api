@@ -16,13 +16,13 @@ import { MentorController } from '@/core/user/controllers/mentor.controller';
 import { StudentMentorController } from '@/core/user/controllers/student-mentor.controller';
 import { AdminMentorController } from '@/core/user/controllers/admin-mentor.controller';
 import { AdminController } from '@/core/user/controllers/admin.controller';
-import { UserActivity } from '@/core/user/entity/user-activity.entity';
+import { StudentActivity } from '@/core/user/entity/student-activity.entity';
 import { Enrollment } from '@/core/enrollment/entity/enrollment.entity';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([
-      UserActivity,
+      StudentActivity,
       Mentor,
       MentorStatusHistory,
       MentorFeedback,

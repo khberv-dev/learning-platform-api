@@ -29,14 +29,11 @@ Coverage is thin and deliberate — the specs cover pure logic and branch-heavy 
 | Variable | Notes |
 |---|---|
 | `PORT` | HTTP port |
-| `FILES_BASE_URL` | required; public base URL uploaded files are served from, e.g. `http://localhost:8000` — read with `getOrThrow` by `FileUrlInterceptor`, but only once it finds an actual file path to expand, so an unset value only 500s responses that contain one, not the whole API |
+| `FILES_BASE_URL` | required; public base URL uploaded files are served from, e.g. `http://localhost:8000` — read with `getOrThrow` by `expandFileUrls` (`FileUrlInterceptor` for HTTP, `ChatGateway`/`MatchGateway` for their Socket.io emits), but only once a string is found that actually needs expanding, so an unset value only breaks the response/emit that contains one |
 | `ENVIRONMENT` | `DEVELOPMENT` or `DEPLOYMENT`; anything else (including unset) resolves to `DEPLOYMENT`. See "Environment switches" below |
 | `DB_HOST`, `DB_PORT`, `DB_USERNAME`, `DB_PASSWORD`, `DB_DATABASE` | PostgreSQL |
 | `JWT_ACCESS_SECRET`, `JWT_ACCESS_EXPIRE` | e.g. `1h` |
 | `JWT_REFRESH_SECRET`, `JWT_REFRESH_EXPIRE` | e.g. `7d` |
-| `GEMINI_API_KEY`, `GEMINI_MODEL`, `GEMINI_TTS_MODEL` | Google Gemini |
-| `GEMINI_TTS_VOICE` | optional, defaults to `Kore` |
-| `GEMINI_PROXY_URL` | optional outbound proxy, applied process-wide via `undici.setGlobalDispatcher` |
 | `ASSEMBLYAI_API_KEY` | handed to the student app by `GET /api/student/assessments/assembly-ai-key`; read with `getOrThrow`, so an unset key 500s that route only |
 | `CLICK_SERVICE_ID`, `CLICK_SECRET_KEY` | Click Merchant API; the secret signs `sign_string` on the prepare/complete webhooks |
 | `PAYME_MERCHANT_KEY` | Payme (Paycom) Merchant API; the password half of the `Basic` header Payme sends. Unset rejects every request with `-32504` |
@@ -65,6 +62,7 @@ Coverage is thin and deliberate — the specs cover pure logic and branch-heavy 
 - Controllers are split by audience, not by resource: `admin-payment.controller.ts` serves `/api/admin/payments`, `payment.controller.ts` serves `/api/student/payments`. Same pattern for course, enrollment, material, plan, group, live-lesson (admin/student/mentor), and user (admin-student, admin-mentor, student, mentor). A controller that mixed two audiences under one path via per-method `@Roles` overrides (the old `course.controller.ts`, `task-submission.controller.ts`, `mentor.controller.ts`, `live-lesson.controller.ts`, `live-lesson-recording.controller.ts`) has been split one file per audience instead, since a class can't live at two role-prefixed base paths for different methods.
 - Prettier: single quotes, trailing commas, `printWidth: 120`.
 - `strictNullChecks` is on but `noImplicitAny` is off; `@typescript-eslint/no-explicit-any`, `no-floating-promises`, and `no-unused-vars` are disabled in `eslint.config.mjs`.
+- **Every `GET` that returns a list of items must be paginated** — `@Query() query: PaginationQuery` (or a subclass adding filters/sort, e.g. `MentorQuery`, `GroupQuery`) on the controller, `Promise<Paginated<T>>` from the service, built with `paginate(data, total, query)` (`src/common/dto/pagination-query.dto.ts`), never a bare array. This applies to new endpoints too, no matter how small or admin-curated the list looks today — "it's always small" is exactly the assumption that stops holding once real data accumulates, and retrofitting pagination later is a breaking response-shape change for every existing client. The one common wrinkle: if a list gets filtered *after* the DB fetch (e.g. excluding courses a student already owns, or an application-layer expiry check that can't be pushed into `WHERE`), paginating the DB query directly can return a page with fewer than `limit` items even when more exist beyond it — filter first, *then* paginate the final in-memory array with `paginateInMemory(items, query)` (same file), as `EnrollmentService.getAvailableCourses`/`getMyCourses` and `CourseService.findActiveCoursesPaginated` do.
 
 ## Architecture
 
@@ -98,13 +96,13 @@ Because each role is its own table with its own primary key, the id in the JWT *
 
 ### User activity, analytics, and streaks
 
-`GET /api/{student,mentor,admin}/me` records one `user_activities` row per authenticated user per UTC calendar day; `POST /api/{role}/me/activity` records it explicitly and returns `{ activityDate, hasCourse, recorded }`, where `recorded` is `false` if today's row already existed. These four self-service routes (`me`, `me/activity`, `me/streak`, `me/avatar`) are duplicated verbatim across `student.controller.ts`, `mentor.controller.ts`, and `admin.controller.ts` — there is no shared generic controller, since `student.controller.ts`'s `me` already needed to return the richer `Student` profile rather than the generic `AuthUser` shape, so multi-mounting one controller wasn't an option; all four still call the same `UserService` methods, which take `{ id, role }` and don't care which controller called them. `UserActivity`, like every table that can belong to *any* role, carries nullable `student` / `mentor` / `admin` columns instead of a single owner column — exactly one is set per row (enforced by a `@Check` constraint), and `src/common/utils/role-owner.util.ts`'s `ownerRef`/`resolveOwnerId` build and read that trio so call sites don't branch on role by hand. A unique constraint per owner column (`(student, activityDate)`, `(mentor, activityDate)`, `(admin, activityDate)`) makes repeated calls—across any of these endpoints—idempotent. Each row carries `hasCourse`: whether the user had an active, unexpired enrolment when it was recorded (always `false` for non-students). The upsert only ever raises it `false → true` within a day (buying a course mid-day counts), never back down.
+`GET /api/student/me` records one `activities` row (`StudentActivity`, `user/entity/student-activity.entity.ts`) per authenticated student per UTC calendar day; `POST /api/student/me/activity` records it explicitly and returns `{ activityDate, hasCourse, recorded }`, where `recorded` is `false` if today's row already existed. `student.controller.ts`, `mentor.controller.ts`, and `admin.controller.ts` all still have a `me`/`me/avatar` pair, but activity tracking itself is **student-only**: `mentor.controller.ts`/`admin.controller.ts` have no `me/activity` or `me/streak` routes, and their `me` has no recording side effect — only `student.controller.ts`'s does. `StudentActivity` has a single required `student` FK, not the nullable student/mentor/admin trio other owner-pattern tables use — there's nothing to disambiguate since only a student can ever have a row. A unique constraint on `(student, activityDate)` makes repeated calls — across `me` and `me/activity` — idempotent. Each row carries `hasCourse`: whether the student had an active, unexpired enrolment when it was recorded. The upsert only ever raises it `false → true` within a day (buying a course mid-day counts), never back down.
 
-**"Users" in stats means students only** — `mentors` is already its own separate business metric, and admins were never counted here. `GET /api/admin/stats/summary`'s `users` is `COUNT(*) FROM students`, not all three role tables, and every DAU/WAU/MAU query (`StatsService`) filters `user_activities` to `student_id IS NOT NULL` before grouping — a mentor or admin recording daily activity via their own `me`/`me/activity` route (see above) never shows up in these numbers, even though the row is still written.
+**"Users" in stats means students only** — `mentors` is already its own separate business metric, and admins were never counted here. `GET /api/admin/stats/summary`'s `users` is `COUNT(*) FROM students`, and every DAU/WAU/MAU query (`StatsService`) reads straight from `activities`, which can only ever hold student rows now that mentors/admins have no activity tracking at all.
 
 `GET /api/admin/stats/summary` keeps its flat `dau`/`wau`/`mau` totals and adds `activeCourseUserMetrics` / `activeCourselessUserMetrics` objects with the same three keys. The stats series returns `activeUserMetrics` alongside `activeCourseUserMetrics` and `activeCourselessUserMetrics`, all with the same `dau`/`wau`/`mau` shape. Within a bucket a user is a course user if **any** of their activity days in it had `hasCourse`, otherwise courseless — so the two splits always sum to the total. Rows recorded before the column existed default to `false`. Admin `GET /api/admin/stats/summary` includes DAU (today), WAU (today plus the previous 6 days), and MAU (today plus the previous 29 days). `GET /api/admin/stats/series` and the backwards-compatible `/timeseries` separate `businessMetrics` (`{ date, users, enrollments }` per day — new students and new enrollments only, for the requested 7, 14, or 30 days) from `activeUserMetrics`: DAU has one point per elapsed day of the current UTC month, WAU uses consecutive seven-day buckets within the current month, and MAU has one point for each of the latest six calendar months.
 
-`GET /api/{role}/me/streak` derives streaks from these daily rows. It returns `currentStreak`, `longestStreak`, `totalActiveDays`, `activeToday`, and `lastActiveDate`; a latest activity of yesterday still keeps the current streak alive until the user records today's activity.
+`GET /api/student/me/streak` derives streaks from these daily rows. It returns `currentStreak`, `longestStreak`, `totalActiveDays`, `activeToday`, and `lastActiveDate`; a latest activity of yesterday still keeps the current streak alive until the user records today's activity.
 
 ### Sign-up / OTP
 
@@ -184,24 +182,26 @@ External services have two ways to enrol a student, and they differ in who decid
 
 Three layers under `src/core/notification/`: `FirebaseService` is the transport (lazy `initializeApp` from `GOOGLE_SERVICES_JSON`, chunks tokens at FCM's 500-per-call limit), `PushService` decides the audience and calls it, and `push-message.util.ts` holds every user-visible string — all four events' Uzbek text lives in that one file.
 
-Device tokens were already there: `Session.fcmToken`, one row per device — like `UserActivity`, `Session` carries nullable `student` / `mentor` / `admin` columns (exactly one set) instead of a single owner. `PushService` reads them directly and **deletes** sessions FCM reports as `registration-token-not-registered` / `invalid-registration-token` / `invalid-argument`, so dead devices don't accumulate.
+Device tokens were already there: `Session.fcmToken`, one row per device. `Session`, `StudentActivity`, and `StudentNotification` are all **student-only** now — a single required `student` FK each, not a nullable student/mentor/admin trio; `ChatMessage` is the one remaining table using that trio (its sender can be any of the three roles, per the Groups chat model above). `SessionController` is mounted only at `student/sessions`, and `PushService` looks up tokens by `session.student` alone. `PushService` reads sessions directly and **deletes** ones FCM reports as `registration-token-not-registered` / `invalid-registration-token` / `invalid-argument`, so dead devices don't accumulate.
 
 | Event | Fires from | Audience |
 |---|---|---|
 | `course_enrolled` | `EnrollmentService.createEnrollment`, `PaymentService.markPaid`, `PendingEnrollmentService.acceptPending` | the one student |
 | `course_created` | `CourseService.createCourse` / `updateCourse` | every student |
 | `lesson_added` | `LessonService.createLesson` | students with a live, unexpired enrolment in that course |
+| `group_joined` | `GroupService.addStudents`, `GroupService.swapStudent` | the student(s) newly placed in that group |
+| `live_lesson_created` | `LiveLessonService.create` | every student currently in that group |
 
 Four things that are load-bearing:
 
 - **Push never breaks the business action.** `PushService` methods swallow their own errors, so call sites use `void` and never await. A missing key, a network fault, or a bad token cannot fail an enrolment, a payment webhook, or a lesson upload.
-- **`createEnrollment` skips the push when it runs inside a caller's transaction** (`manager` is set), because the rows may not be committed yet. `acceptPending` sends after its transaction commits instead — otherwise a rollback would still have notified the student.
+- **`createEnrollment` skips the push when it runs inside a caller's transaction** (`manager` is set), because the rows may not be committed yet. `acceptPending` and `GroupService.addStudents`/`swapStudent` all send after their transaction commits instead — otherwise a rollback would still have notified the student.
 - **"New course" is announced when the course becomes *visible*, not when the row is inserted.** Courses default to `isActive: false`, so announcing on insert would advertise drafts. `Course.announcedAt` records the broadcast, so toggling a course off and on again does not re-spam every student.
-- Payloads carry `data.event` plus the relevant `courseId` for deep-linking; FCM data values must be strings.
+- Payloads carry `data.event` plus the relevant id (`courseId` or `groupId`) for deep-linking; FCM data values must be strings.
 
 Beyond those automatic events, admins send messages by hand through `POST /api/admin/notifications/push` (`AdminPushController`, admin-only). `audience` is **required** — `all`, `students`, `mentors`, or `phones` with a `phoneNumbers` list — so a blast to everyone can never be the result of a forgotten field. The same endpoint covers one recipient and a mass send; "individual" is just a one-element `phones` list. `phones` only searches `Student` and `Mentor` — admins are never a phone-targeted push audience.
 
-Manual pushes accept `isPermanent` (default `false`). When true, one `user_notifications` row is stored per resolved user even if that user has no active device session. Course-enrollment notifications are always permanent. New rows default to `isRead: false`. Students read their history through paginated `GET /api/student/notifications`, unread rows through `GET /api/student/notifications/unread`, and mark an owned row through `PATCH /api/student/notifications/:id/read`; rows are newest-first and contain the push title, body, and `data` payload used for deep-linking.
+Manual pushes accept `isPermanent` (default `false`). When true, one `notifications` row (`StudentNotification`) is stored per resolved user even if that user has no active device session — but only for students, since `StudentNotification` has no mentor/admin column: `savePermanent` filters the resolved audience down to students before inserting, so a manual push to `mentors` or `all` still reaches mentor devices live but leaves no history row for them. Course-enrollment, group-joined, and live-lesson-created notifications are always permanent (all student-only events). New rows default to `isRead: false`. Students read their history through paginated `GET /api/student/notifications`, unread rows through `GET /api/student/notifications/unread`, and mark an owned row through `PATCH /api/student/notifications/:id/read`; rows are newest-first and contain the push title, body, and `data` payload used for deep-linking.
 
 Two things distinguish the manual path from the event path. It **awaits** the send and returns a report (`devices`, `sent`, `failed`, `removedTokens`), and for `phones` it splits the misses into `notFound` (no such user) and `withoutDevice` (user exists, never opened the app) — an admin needs to tell a wrong number from an uninstalled app. And it answers **503** when `GOOGLE_SERVICES_JSON` is missing or unparseable, instead of the silent skip the event path uses: a human who pressed Send deserves an error, not a report of zero. Because delivery happens inside the request, a very large audience makes for a long request; chunks of 500 go sequentially.
 
@@ -216,7 +216,7 @@ Two Socket.io namespaces, each authenticating from `handshake.auth.token` or an 
 
 ### Live lessons
 
-`src/core/live-lesson/` covers scheduled sessions for a group — a `LiveLesson` (name, `meetLink`, start/end) hangs off a `Group`, and every mutation re-checks that the calling mentor currently holds the `primary` `GroupMentor` role for that group (`mentor/live-lessons`, CRUD; the student's read-only `GET student/live-lessons` is a separate controller in the same module, scoped to the student's current group). `LiveLesson` also keeps its own `mentor` FK, set at creation time — so a lesson stays owned by whoever scheduled it even if the group's primary mentor changes later; only that ownership check gates read/update/delete, not current primary status. Recordings are a separate entity, split the same way (`mentor/live-lesson-recordings` to upload, `student/live-lesson-recordings` to read) with their own upload storage, keyed by `group` the same way. This is unrelated to `Lesson` under `course/`, which is prerecorded course content.
+`src/core/live-lesson/` is a **create-only broadcast**, not a schedulable resource — a `LiveLesson` is just `name` + `meetLink` (plus its `group` and `mentor` FKs and `createdAt`; no `startTime`/`endTime`, no update or delete). `POST mentor/live-lessons` is the only mentor route, and `LiveLessonService.create` requires the calling mentor to currently hold the `primary` `GroupMentor` role for the target group — this is the "go live now" action, not a calendar booking. Right after saving, it fires `PushService.notifyLiveLessonCreated` (`void`, never awaited — same "push never breaks the business action" rule as everywhere else) to every student currently in that group. Students only ever want *right now*: `GET student/live-lessons/latest` returns the single newest `LiveLesson` for the student's current group (`null` if ungrouped or none yet) — there's no list/history endpoint. Recordings are a separate, unrelated entity keyed by `group` the same way (`mentor/live-lesson-recordings` to upload, `student/live-lesson-recordings` to read, with pagination/history intact there) with their own upload storage. This whole module is unrelated to `Lesson` under `course/`, which is prerecorded course content.
 
 There is no more student-initiated pairing — the `assignment` module (student picks a mentor and books a slot against the mentor's published schedule) has been removed entirely, along with `Mentor.schedule`. A student's mentor relationship now exists only through their current `Group` membership; `LiveLesson`/`LiveLessonRecording` moved from `Assignment` to `Group` accordingly.
 
@@ -239,11 +239,25 @@ unique index (`role = 'primary'`) keeps at most one primary per group at the DB 
 existing support-mentor row rather than erroring on the `(group, mentor)` uniqueness if that
 mentor is already on the team).
 
+`Mentor.role` (same `GroupMentorRole` enum, `group/enum/group-mentor-role.enum.ts` — reused
+directly rather than duplicated) is a fixed classification set on the mentor's own profile
+(replaces the old free-text `profession` field), independent of any one group. It gates group
+assignment: `assignPrimaryMentor` rejects a mentor whose `role` isn't `primary`, and
+`addSupportMentor` rejects one whose `role` isn't `support` — a mentor's global classification and
+their per-group `GroupMentor.role` always agree, so a `support`-classified mentor can never become
+a group's primary regardless of team composition.
+
 Three controllers, one per audience, all in this module (same split as `course`/`live-lesson`):
 `admin-group.controller.ts` (`admin/groups` — create, activate/deactivate, add/remove/swap
-students, assign primary mentor, add/remove mentors), `student-group.controller.ts`
-(`GET student/groups/me`, `null` if ungrouped), `mentor-group.controller.ts`
-(`GET mentor/groups/me`, every group that mentor is primary or support for, with their role in each).
+students, assign primary mentor, add/remove mentors; `GET admin/groups` fetches every page's
+`GroupMentor` primary rows in one extra query and attaches each group's `primaryMentor` — `null`
+if unassigned — rather than the fuller per-team `mentors` array `GET admin/groups/:id` returns),
+`student-group.controller.ts` (`GET student/groups/me`, `null` if ungrouped),
+`mentor-group.controller.ts` (paginated `GET mentor/groups/me`, every group that mentor is primary
+or support for — same `Group & primaryMentor` shape `GET admin/groups` returns, plus the calling
+mentor's own `role` in each group; `GET mentor/groups/:id` returns the same full detail
+`GET admin/groups/:id` does — mentors/students, not just `primaryMentor` — but 403s unless the
+caller is on that group's team, primary or support).
 
 "Add" a student only works if they currently have no group (`400` otherwise, naming the student) —
 moving an already-placed student is "swap" (`PATCH admin/groups/:id/students/:studentId/swap`,
@@ -263,11 +277,14 @@ needed, unlike the other two roles). `ChatService.hasAccess` is the single gate 
 write method calls, so promoting/demoting a mentor or moving a student immediately changes who can
 use the room, with nothing left to reconcile.
 
-### Assessment (AI speaking partner)
+`addStudents` and `swapStudent` each fire a `group_joined` push (see "Push notifications" above)
+for every student newly placed in a group, after their transaction commits.
 
-Students `POST /api/student/assessments/conversations/:id/messages` with an audio clip. `AssessmentService` sends it to `GeminiService.converse()` (returns transcript + reply), then `synthesizeSpeech()` renders the reply (raw PCM wrapped as WAV). Uploads go to `uploads/assessment-input/`, generated audio to `uploads/assessment-output/`. The persona prompt lives at the top of `gemini.service.ts`; the model is instructed to stay in character as a human, never a bot.
+### Assessment (speaking practice)
 
-`GET /api/student/assessments/assembly-ai-key` hands the student app the raw `ASSEMBLYAI_API_KEY` for on-device streaming transcription. It is student-authenticated, and `apiKey` is in the `LoggingInterceptor` redaction list so the response body never reaches the logs.
+There is no server-side AI conversation anymore — Gemini (`GeminiService`, the `converse`/`synthesizeSpeech` round-trip, and the `Conversation`/`ConversationMessage` entities that backed it) has been removed entirely. `src/core/assessment/` is now a single route: `GET /api/student/assessments/assembly-ai-key` hands the student app the raw `ASSEMBLYAI_API_KEY` for on-device streaming transcription — AssemblyAI does the speech-to-text work directly on the client, with nothing round-tripping through this API. It is student-authenticated, and `apiKey` is in the `LoggingInterceptor` redaction list so the response body never reaches the logs.
+
+`AssessmentController` has no service or entities behind it — just `ConfigService`. The `conversations` / `conversation_messages` tables from the old Gemini flow are orphaned in the database (`synchronize: true` adds/alters columns for known entities but never drops a table whose entity was deleted) — they're safe to drop by hand if wanted, nothing reads or writes them anymore.
 
 ### App reports
 
@@ -277,7 +294,9 @@ Students `POST /api/student/assessments/conversations/:id/messages` with an audi
 
 Each module that accepts files has a `storage/*.storage.ts` defining a `multer.diskStorage` destination (created with `mkdirSync` at import time), a UUID filename, an optional mime filter, and a path helper (`toMaterialPath`, `toAvatarPath`, …) that produces the *relative* path stored in the DB column — no leading slash, e.g. `avatar/<uuid>.png`. `uploads/` maps to `/public/`.
 
-That relative path never reaches a client as-is. `FileUrlInterceptor` (`src/common/interceptors/file-url.interceptor.ts`, global `APP_INTERCEPTOR`) walks every JSON response recursively and rewrites any string matching `<known-upload-folder>/<uuid>.<ext>` into `{FILES_BASE_URL}/public/<path>` — so `Student.avatar`, `Course.image`, `ChatMessage.filePath`, `PaymentType.icon`, and every other stored file path come back as full URLs, while the DB keeps only the portable relative form. `UPLOAD_FOLDERS` in that file is the exact, closed list of recognized prefixes (`avatar`, `course`, `lesson`, `chat`, `task-audio`, `task-picture`, `payment-type`, `live-lesson-recording`, `mentor-intro`, `assessment-input`, `assessment-output`, `material`) — the UUID-shaped match keeps it from ever touching unrelated strings (e.g. Click's `PaymentType.url` templates, chat message text). Adding a new upload type means adding its folder name to that list, nothing else. The match tolerates an optional leading slash (`/avatar/<uuid>.png` as well as `avatar/<uuid>.png`) — the storage helpers only ever write the slash-less form, but rows written before that convention existed still have one, and there's no migration to backfill them.
+That relative path never reaches a client as-is. `expandFileUrls` (`src/common/utils/file-url.util.ts`) walks any JSON-shaped value recursively and rewrites any string matching `<known-upload-folder>/<uuid>.<ext>` into `{FILES_BASE_URL}/public/<path>` — so `Student.avatar`, `Course.image`, `ChatMessage.filePath`, `PaymentType.icon`, and every other stored file path come back as full URLs, while the DB keeps only the portable relative form. `UPLOAD_FOLDERS` in that file is the exact, closed list of recognized prefixes (`avatar`, `course`, `lesson`, `chat`, `task-audio`, `task-picture`, `payment-type`, `live-lesson-recording`, `mentor-intro`, `material`) — the UUID-shaped match keeps it from ever touching unrelated strings (e.g. Click's `PaymentType.url` templates, chat message text). Adding a new upload type means adding its folder name to that list, nothing else. The match tolerates an optional leading slash (`/avatar/<uuid>.png` as well as `avatar/<uuid>.png`) — the storage helpers only ever write the slash-less form, but rows written before that convention existed still have one, and there's no migration to backfill them.
+
+Three call sites share that one function rather than duplicating the regex: `FileUrlInterceptor` (global `APP_INTERCEPTOR`, HTTP responses only — Nest's interceptor pipeline never runs for WebSocket gateway handlers), and the two Socket.io gateways, which call it directly on what they're about to emit — `ChatGateway.broadcastMessage` on the outgoing `ChatMessage`, `MatchGateway.onSearch` on each `peer` object (its `avatar`) before the `matched` event. All three take `getBaseUrl: () => string` rather than a resolved string, preserving the interceptor's original laziness: `FILES_BASE_URL` is only actually read (and can only throw via `getOrThrow`) once a string is found that matches the upload-path shape, so an unset value doesn't break a response/emit that carries no files.
 
 Admin lesson media can be replaced with `PATCH /api/admin/courses/:courseId/units/:unitId/lessons/:lessonId/media` or removed without deleting the lesson through `DELETE` on the same path. Replacement, media deletion, and lesson deletion clean up locally managed `/lesson/*` files after the database write; cleanup is path-restricted and a filesystem failure is logged without reverting the database result.
 

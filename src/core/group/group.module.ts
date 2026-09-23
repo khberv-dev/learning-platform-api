@@ -10,9 +10,14 @@ import { AdminGroupController } from '@/core/group/controllers/admin-group.contr
 import { StudentGroupController } from '@/core/group/controllers/student-group.controller';
 import { MentorGroupController } from '@/core/group/controllers/mentor-group.controller';
 import { ChatModule } from '@/core/chat/chat.module';
+import { NotificationModule } from '@/core/notification/notification.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Group, GroupMentor, GroupMembership, Student, Mentor]), ChatModule],
+  imports: [
+    TypeOrmModule.forFeature([Group, GroupMentor, GroupMembership, Student, Mentor]),
+    ChatModule,
+    NotificationModule,
+  ],
   controllers: [AdminGroupController, StudentGroupController, MentorGroupController],
   providers: [GroupService],
 })

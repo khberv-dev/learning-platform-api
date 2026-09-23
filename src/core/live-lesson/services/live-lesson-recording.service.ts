@@ -7,6 +7,7 @@ import { Student } from '@/core/user/entity/student.entity';
 import { Group } from '@/core/group/entity/group.entity';
 import { GroupMentor } from '@/core/group/entity/group-mentor.entity';
 import { GroupMentorRole } from '@/core/group/enum/group-mentor-role.enum';
+import { paginate, Paginated, PaginationQuery } from '@/common/dto/pagination-query.dto';
 
 @Injectable()
 export class LiveLessonRecordingService {
@@ -38,26 +39,36 @@ export class LiveLessonRecordingService {
     return this.recordingRepo.save({ title, videoUrl, group });
   }
 
-  async listMyRecordings(studentId: string): Promise<LiveLessonRecording[]> {
+  async listMyRecordings(studentId: string, query: PaginationQuery): Promise<Paginated<LiveLessonRecording>> {
     const groupId = await this.loadStudentGroupId(studentId);
-    if (!groupId) return [];
+    if (!groupId) return paginate([], 0, query);
 
-    return this.recordingRepo.find({
+    const [data, total] = await this.recordingRepo.findAndCount({
       where: { group: { id: groupId } },
       relations: { group: true },
       order: { createdAt: 'DESC' },
+      skip: query.skip,
+      take: query.take,
     });
+    return paginate(data, total, query);
   }
 
-  async listByGroup(studentId: string, groupId: string): Promise<LiveLessonRecording[]> {
+  async listByGroup(
+    studentId: string,
+    groupId: string,
+    query: PaginationQuery,
+  ): Promise<Paginated<LiveLessonRecording>> {
     const studentGroupId = await this.loadStudentGroupId(studentId);
     if (!studentGroupId || studentGroupId !== groupId) throw new ForbiddenException('Ruxsat berilmagan');
 
-    return this.recordingRepo.find({
+    const [data, total] = await this.recordingRepo.findAndCount({
       where: { group: { id: groupId } },
       relations: { group: true },
       order: { createdAt: 'ASC' },
+      skip: query.skip,
+      take: query.take,
     });
+    return paginate(data, total, query);
   }
 
   async findOne(studentId: string, recordingId: string): Promise<LiveLessonRecording> {

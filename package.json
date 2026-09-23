@@ -18,10 +18,10 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "db:clear": "typeorm schema:drop -d ./src/shared/config/database.config.ts"
+    "db:clear": "nest build && typeorm schema:drop -d ./dist/shared/config/database.config.js",
+    "db:seed": "ts-node seed-dummy/seed.ts"
   },
   "dependencies": {
-    "@google/genai": "^1.51.0",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.0.1",
@@ -46,8 +46,7 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "socket.io": "^4.8.3",
-    "typeorm": "^0.3.28",
-    "undici": "^8.2.0"
+    "typeorm": "^0.3.28"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",

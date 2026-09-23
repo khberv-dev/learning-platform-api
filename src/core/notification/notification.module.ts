@@ -9,12 +9,12 @@ import { NotificationService } from '@/core/notification/services/notification.s
 import { FirebaseService } from '@/core/notification/services/firebase.service';
 import { PushService } from '@/core/notification/services/push.service';
 import { AdminPushController } from '@/core/notification/controllers/admin-push.controller';
-import { UserNotification } from '@/core/notification/entity/user-notification.entity';
+import { StudentNotification } from '@/core/notification/entity/student-notification.entity';
 import { NotificationController } from '@/core/notification/controllers/notification.controller';
 import { ResendEmailService } from '@/core/notification/services/resend-email.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Session, Enrollment, Student, Mentor, UserNotification])],
+  imports: [TypeOrmModule.forFeature([Session, Enrollment, Student, Mentor, StudentNotification])],
   controllers: [AdminPushController, NotificationController],
   providers: [EskizService, ResendEmailService, NotificationService, FirebaseService, PushService],
   exports: [NotificationService, PushService],

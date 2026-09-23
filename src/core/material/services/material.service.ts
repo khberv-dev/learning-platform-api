@@ -5,6 +5,7 @@ import { Material } from '@/core/material/entity/material.entity';
 import { Lesson } from '@/core/course/entity/lesson.entity';
 import { CreateMaterialDto } from '@/core/material/dto/create-material.dto';
 import { MaterialType } from '@/core/material/enum/material-type.enum';
+import { paginate, Paginated, PaginationQuery } from '@/common/dto/pagination-query.dto';
 
 @Injectable()
 export class MaterialService {
@@ -24,12 +25,15 @@ export class MaterialService {
     return this.materialRepo.save({ name: dto.name, url, type, lesson });
   }
 
-  async listMaterials(lessonId: string): Promise<Material[]> {
+  async listMaterials(lessonId: string, query: PaginationQuery): Promise<Paginated<Material>> {
     await this.loadLesson(lessonId);
-    return this.materialRepo.find({
+    const [data, total] = await this.materialRepo.findAndCount({
       where: { lesson: { id: lessonId } },
       order: { createdAt: 'ASC' },
+      skip: query.skip,
+      take: query.take,
     });
+    return paginate(data, total, query);
   }
 
   async deleteMaterial(lessonId: string, materialId: string): Promise<void> {

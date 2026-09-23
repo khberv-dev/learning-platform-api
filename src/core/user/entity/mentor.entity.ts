@@ -2,6 +2,7 @@ import { Column, CreateDateColumn, Entity, OneToMany, PrimaryGeneratedColumn, Up
 import { MentorStatus } from '@/core/user/enum/mentor-status.enum';
 import { MentorStatusHistory } from '@/core/user/entity/mentor-status-history.entity';
 import { MentorFeedback } from '@/core/user/entity/mentor-feedback.entity';
+import { GroupMentorRole } from '@/core/group/enum/group-mentor-role.enum';
 
 @Entity('mentors')
 export class Mentor {
@@ -29,8 +30,8 @@ export class Mentor {
   @Column({ type: 'enum', enum: MentorStatus, default: MentorStatus.ACTIVE })
   status: MentorStatus;
 
-  @Column({ nullable: true })
-  profession: string;
+  @Column({ type: 'enum', enum: GroupMentorRole, default: GroupMentorRole.SUPPORT })
+  role: GroupMentorRole;
 
   @Column({ nullable: true })
   introVideo: string;

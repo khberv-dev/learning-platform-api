@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { ILike, Repository } from 'typeorm';
 import { Student } from '@/core/user/entity/student.entity';
 import { Course } from '@/core/course/entity/course.entity';
-import { paginate, Paginated } from '@/common/dto/pagination-query.dto';
+import { paginate, Paginated, PaginationQuery } from '@/common/dto/pagination-query.dto';
 import { SearchStudentsQuery } from '@/core/external/dto/search-students.query';
 import { ExternalEnrollmentDto } from '@/core/external/dto/external-enrollment.dto';
 import { EnrollmentService } from '@/core/enrollment/services/enrollment.service';
@@ -63,14 +63,16 @@ export class ExternalService {
     return paginate(data, total, query);
   }
 
-  async listCourses(): Promise<ExternalCourse[]> {
-    const courses = await this.courseRepo.find({
+  async listCourses(query: PaginationQuery): Promise<Paginated<ExternalCourse>> {
+    const [courses, total] = await this.courseRepo.findAndCount({
       where: { isActive: true },
       relations: { plans: true },
       order: { title: 'ASC' },
+      skip: query.skip,
+      take: query.take,
     });
 
-    return courses.map((course) => ({
+    const data = courses.map((course) => ({
       id: course.id,
       title: course.title,
       description: course.description ?? null,
@@ -85,6 +87,7 @@ export class ExternalService {
           hasMentor: plan.hasMentor,
         })),
     }));
+    return paginate(data, total, query);
   }
 
   createEnrollment(dto: ExternalEnrollmentDto) {

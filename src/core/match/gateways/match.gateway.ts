@@ -1,4 +1,5 @@
 import { Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import {
   ConnectedSocket,
@@ -14,6 +15,7 @@ import { Namespace, Server, Socket } from 'socket.io';
 import { UserService } from '@/core/user/services/user.service';
 import { MatchService } from '@/core/match/services/match.service';
 import { UserRole } from '@/core/user/enum/user-role.enum';
+import { expandFileUrls } from '@/common/utils/file-url.util';
 
 interface AuthedSocket extends Socket {
   data: { userId: string; role: UserRole; firstName: string; lastName: string | null; avatar: string | null };
@@ -29,6 +31,7 @@ export class MatchGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
     private readonly jwtService: JwtService,
     private readonly userService: UserService,
     private readonly matchService: MatchService,
+    private readonly configService: ConfigService,
   ) {}
 
   afterInit(namespace: Namespace) {
@@ -106,8 +109,17 @@ export class MatchGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
           lastName: socket.data.lastName,
           avatar: socket.data.avatar,
         };
-        socket.emit('matched', { sessionId: outcome.result.sessionId, role: 'caller', peer: peerOfCaller });
-        partnerSocket.emit('matched', { sessionId: outcome.result.sessionId, role: 'callee', peer: peerOfCallee });
+        const getBaseUrl = () => this.configService.getOrThrow<string>('FILES_BASE_URL');
+        socket.emit('matched', {
+          sessionId: outcome.result.sessionId,
+          role: 'caller',
+          peer: expandFileUrls(peerOfCaller, getBaseUrl),
+        });
+        partnerSocket.emit('matched', {
+          sessionId: outcome.result.sessionId,
+          role: 'callee',
+          peer: expandFileUrls(peerOfCallee, getBaseUrl),
+        });
         return;
       }
     }

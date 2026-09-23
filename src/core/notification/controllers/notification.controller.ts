@@ -1,7 +1,6 @@
 import { Controller, Get, Param, Patch, Query } from '@nestjs/common';
 
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
-import type { AuthUser } from '@/common/utils/role-owner.util';
 import { PaginationQuery } from '@/common/dto/pagination-query.dto';
 import { Roles } from '@/common/decorators/roles.decorator';
 import { UserRole } from '@/core/user/enum/user-role.enum';
@@ -13,17 +12,17 @@ export class NotificationController {
   constructor(private readonly pushService: PushService) {}
 
   @Get()
-  findMine(@CurrentUser() user: AuthUser, @Query() query: PaginationQuery) {
-    return this.pushService.findUserNotifications(user, query);
+  findMine(@CurrentUser() user: { id: string }, @Query() query: PaginationQuery) {
+    return this.pushService.findUserNotifications(user.id, query);
   }
 
   @Get('unread')
-  findMyUnread(@CurrentUser() user: AuthUser, @Query() query: PaginationQuery) {
-    return this.pushService.findUnreadUserNotifications(user, query);
+  findMyUnread(@CurrentUser() user: { id: string }, @Query() query: PaginationQuery) {
+    return this.pushService.findUnreadUserNotifications(user.id, query);
   }
 
   @Patch(':id/read')
-  markAsRead(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return this.pushService.markUserNotificationAsRead(user, id);
+  markAsRead(@CurrentUser() user: { id: string }, @Param('id') id: string) {
+    return this.pushService.markUserNotificationAsRead(user.id, id);
   }
 }

@@ -1,10 +1,11 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
 
 import { Roles } from '@/common/decorators/roles.decorator';
 import { UserRole } from '@/core/user/enum/user-role.enum';
 import { PlanService } from '@/core/plan/services/plan.service';
 import { CreatePlanDto } from '@/core/plan/dto/create-plan.dto';
 import { UpdatePlanDto } from '@/core/plan/dto/update-plan.dto';
+import { PaginationQuery } from '@/common/dto/pagination-query.dto';
 
 @Roles(UserRole.ADMIN)
 @Controller('admin/courses/:courseId/plans')
@@ -17,8 +18,8 @@ export class AdminPlanController {
   }
 
   @Get()
-  listPlans(@Param('courseId') courseId: string) {
-    return this.planService.listPlans(courseId);
+  listPlans(@Param('courseId') courseId: string, @Query() query: PaginationQuery) {
+    return this.planService.listPlans(courseId, query);
   }
 
   @Get(':planId')

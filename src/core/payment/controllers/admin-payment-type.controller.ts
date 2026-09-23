@@ -7,6 +7,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
@@ -18,6 +19,7 @@ import { PaymentTypeService } from '@/core/payment/services/payment-type.service
 import { CreatePaymentTypeDto } from '@/core/payment/dto/create-payment-type.dto';
 import { UpdatePaymentTypeDto } from '@/core/payment/dto/update-payment-type.dto';
 import { iconFileFilter, paymentTypeIconStorage, toIconPath } from '@/core/payment/storage/payment-type-icon.storage';
+import { PaginationQuery } from '@/common/dto/pagination-query.dto';
 
 const iconUpload = () =>
   UseInterceptors(FileInterceptor('icon', { storage: paymentTypeIconStorage, fileFilter: iconFileFilter }));
@@ -34,8 +36,8 @@ export class AdminPaymentTypeController {
   }
 
   @Get()
-  findAllPaymentTypes() {
-    return this.paymentTypeService.findAllPaymentTypes();
+  findAllPaymentTypes(@Query() query: PaginationQuery) {
+    return this.paymentTypeService.findAllPaymentTypes(query);
   }
 
   @Get(':id')
