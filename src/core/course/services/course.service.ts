@@ -1,93 +1,58 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Course } from '@/core/course/entity/course.entity';
 import { Lesson } from '@/core/course/entity/lesson.entity';
-import { Task } from '@/core/course/entity/task.entity';
 import { Unit } from '@/core/course/entity/unit.entity';
 import { CreateCourseDto } from '@/core/course/dto/create-course.dto';
 import { UpdateCourseDto } from '@/core/course/dto/update-course.dto';
 import { PushService } from '@/core/notification/services/push.service';
-import { Progress } from '@/core/enrollment/entity/progress.entity';
+import { Enrollment } from '@/core/enrollment/entity/enrollment.entity';
+import { EnrollmentStatus } from '@/core/enrollment/enum/enrollment-status.enum';
+import { isEnrollmentExpired } from '@/core/enrollment/utils/enrollment.util';
 import { paginate, paginateInMemory, Paginated, PaginationQuery } from '@/common/dto/pagination-query.dto';
-
-export const COURSE_RELATIONS = { units: { lessons: true } } as const;
 
 export const UNIT_ORDER = { index: 'ASC', createdAt: 'ASC' } as const;
 export const LESSON_ORDER = { index: 'ASC', createdAt: 'ASC' } as const;
-export const COURSE_ORDER = { units: { ...UNIT_ORDER, lessons: LESSON_ORDER } } as const;
 
 export const COURSE_LIST_ORDER = { index: 'ASC', createdAt: 'DESC' } as const;
 
-const LESSON_UNLOCK_PERCENT = 80;
+export interface StudentCourseListItem {
+  id: string;
+  title: string;
+  image: string | null;
+  totalProgress: number;
+}
 
 @Injectable()
 export class CourseService {
   constructor(
     @InjectRepository(Course) private readonly courseRepo: Repository<Course>,
-    @InjectRepository(Progress) private readonly progressRepo: Repository<Progress>,
+    @InjectRepository(Enrollment) private readonly enrollmentRepo: Repository<Enrollment>,
     private readonly pushService: PushService,
   ) {}
 
-  private withLessonsCount(
-    course: Course,
-    progressByLesson = new Map<string, number>(),
-    taskCountByLesson = new Map<string, number>(),
-  ) {
-    const units = course.units.map((unit) => {
-      let previousLessonId: string | undefined;
-      const lessons = unit.lessons.map((lesson) => {
-        const previousLessonHasTasks =
-          previousLessonId !== undefined && (taskCountByLesson.get(previousLessonId) ?? 0) > 0;
-        const isLocked =
-          previousLessonHasTasks && (progressByLesson.get(previousLessonId!) ?? 0) < LESSON_UNLOCK_PERCENT;
-        previousLessonId = lesson.id;
-        return { ...lesson, isLocked };
-      });
+  private async totalProgressByCourse(studentUserId: string, courseIds: string[]): Promise<Map<string, number>> {
+    if (courseIds.length === 0) return new Map();
 
-      return { ...unit, lessons, lessonsCount: lessons.length };
+    const enrollments = await this.enrollmentRepo.find({
+      where: { student: { id: studentUserId }, course: { id: In(courseIds) }, status: EnrollmentStatus.ACTIVE },
+      relations: { course: true, progresses: true },
     });
-    return { ...course, units, lessonsCount: units.reduce((sum, u) => sum + u.lessonsCount, 0) };
-  }
 
-  private async lockContext(
-    studentUserId: string,
-    lessonIds: string[],
-  ): Promise<[Map<string, number>, Map<string, number>]> {
-    return Promise.all([this.progressByLesson(studentUserId, lessonIds), this.taskCountByLesson(lessonIds)]);
-  }
+    const activeEnrollments = enrollments.filter((enrollment) => !isEnrollmentExpired(enrollment));
+    const contentCounts = await this.contentCountsByCourse(activeEnrollments.map((e) => e.course.id));
 
-  private async progressByLesson(studentUserId: string, lessonIds: string[]): Promise<Map<string, number>> {
-    if (lessonIds.length === 0) return new Map();
-
-    const rows = await this.progressRepo
-      .createQueryBuilder('progress')
-      .innerJoin('progress.enrollment', 'enrollment')
-      .innerJoin('enrollment.student', 'student')
-      .innerJoin('progress.lesson', 'lesson')
-      .select('lesson.id', 'lessonId')
-      .addSelect('MAX(progress.progress)', 'progress')
-      .where('student.id = :studentUserId', { studentUserId })
-      .andWhere('lesson.id IN (:...lessonIds)', { lessonIds })
-      .groupBy('lesson.id')
-      .getRawMany<{ lessonId: string; progress: string }>();
-
-    return new Map(rows.map((row) => [row.lessonId, Number(row.progress)]));
-  }
-
-  private async taskCountByLesson(lessonIds: string[]): Promise<Map<string, number>> {
-    if (lessonIds.length === 0) return new Map();
-
-    const rows = await this.courseRepo.manager
-      .createQueryBuilder(Task, 'task')
-      .innerJoin('task.lesson', 'lesson')
-      .select('lesson.id', 'lessonId')
-      .addSelect('COUNT(task.id)', 'taskCount')
-      .where('lesson.id IN (:...lessonIds)', { lessonIds })
-      .groupBy('lesson.id')
-      .getRawMany<{ lessonId: string; taskCount: string }>();
-
-    return new Map(rows.map((row) => [row.lessonId, Number(row.taskCount)]));
+    const result = new Map<string, number>();
+    for (const enrollment of activeEnrollments) {
+      const lessonsCount = contentCounts.get(enrollment.course.id)?.lessonsCount ?? 0;
+      const progress =
+        lessonsCount === 0
+          ? 0
+          : Math.round(enrollment.progresses.reduce((sum, p) => sum + p.progress, 0) / lessonsCount);
+      result.set(enrollment.course.id, progress);
+    }
+    return result;
   }
 
   async createCourse(dto: CreateCourseDto, image?: string) {
@@ -131,22 +96,29 @@ export class CourseService {
     return paginate(data, total, query);
   }
 
-  async findActiveCoursesPaginated(studentUserId: string, query: PaginationQuery) {
+  async findActiveCoursesPaginated(
+    studentUserId: string,
+    query: PaginationQuery,
+  ): Promise<Paginated<StudentCourseListItem>> {
     const courses = await this.findActiveCourses(studentUserId);
     return paginateInMemory(courses, query);
   }
 
-  async findActiveCourses(studentUserId: string) {
+  async findActiveCourses(studentUserId: string): Promise<StudentCourseListItem[]> {
     const courses = await this.courseRepo.find({
       where: { isActive: true },
-      relations: COURSE_RELATIONS,
-      order: { ...COURSE_LIST_ORDER, ...COURSE_ORDER },
+      order: COURSE_LIST_ORDER,
     });
-    const lessonIds = courses.flatMap((course) =>
-      course.units.flatMap((unit) => unit.lessons.map((lesson) => lesson.id)),
+    const totalProgressByCourseId = await this.totalProgressByCourse(
+      studentUserId,
+      courses.map((c) => c.id),
     );
-    const [progressByLesson, taskCountByLesson] = await this.lockContext(studentUserId, lessonIds);
-    return courses.map((course) => this.withLessonsCount(course, progressByLesson, taskCountByLesson));
+    return courses.map((course) => ({
+      id: course.id,
+      title: course.title,
+      image: course.image,
+      totalProgress: totalProgressByCourseId.get(course.id) ?? 0,
+    }));
   }
 
   async findOneCourse(id: string) {
@@ -186,7 +158,7 @@ export class CourseService {
     );
   }
 
-  private async lessonCountsByUnit(unitIds: string[]): Promise<Map<string, number>> {
+  async lessonCountsByUnit(unitIds: string[]): Promise<Map<string, number>> {
     if (unitIds.length === 0) return new Map();
 
     const rows = await this.courseRepo.manager
@@ -200,16 +172,21 @@ export class CourseService {
     return new Map(rows.map((r) => [r.unitId, Number(r.count)]));
   }
 
-  async findOneActiveCourse(id: string, studentUserId: string) {
-    const course = await this.courseRepo.findOne({
-      where: { id, isActive: true },
-      relations: COURSE_RELATIONS,
-      order: COURSE_ORDER,
-    });
+  async findOneActiveCourse(
+    id: string,
+    studentUserId: string,
+  ): Promise<StudentCourseListItem & { description: string | null }> {
+    const course = await this.courseRepo.findOne({ where: { id, isActive: true } });
     if (!course) throw new NotFoundException('Kurs topilmadi');
-    const lessonIds = course.units.flatMap((unit) => unit.lessons.map((lesson) => lesson.id));
-    const [progressByLesson, taskCountByLesson] = await this.lockContext(studentUserId, lessonIds);
-    return this.withLessonsCount(course, progressByLesson, taskCountByLesson);
+
+    const totalProgressByCourseId = await this.totalProgressByCourse(studentUserId, [course.id]);
+    return {
+      id: course.id,
+      title: course.title,
+      description: course.description,
+      image: course.image,
+      totalProgress: totalProgressByCourseId.get(course.id) ?? 0,
+    };
   }
 
   async updateCourse(id: string, dto: UpdateCourseDto, image?: string) {

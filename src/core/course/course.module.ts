@@ -18,11 +18,13 @@ import { AdminCourseController } from '@/core/course/controllers/admin-course.co
 import { TaskSubmissionController } from '@/core/course/controllers/task-submission.controller';
 import { AdminTaskSubmissionController } from '@/core/course/controllers/admin-task-submission.controller';
 import { NotificationModule } from '@/core/notification/notification.module';
+import { MaterialModule } from '@/core/material/material.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Course, Unit, Lesson, Task, TaskSubmission, Student, Progress, Enrollment]),
     NotificationModule,
+    MaterialModule,
   ],
   controllers: [CourseController, AdminCourseController, TaskSubmissionController, AdminTaskSubmissionController],
   providers: [CourseService, UnitService, LessonService, TaskService, TaskSubmissionService],

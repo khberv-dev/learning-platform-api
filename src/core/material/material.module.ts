@@ -10,5 +10,6 @@ import { MaterialController } from '@/core/material/controllers/material.control
   imports: [TypeOrmModule.forFeature([Material, Lesson])],
   controllers: [AdminMaterialController, MaterialController],
   providers: [MaterialService],
+  exports: [MaterialService],
 })
 export class MaterialModule {}

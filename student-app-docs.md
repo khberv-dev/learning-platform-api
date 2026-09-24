@@ -232,7 +232,9 @@ phoneNumber, isActive }`.
 
 ## 3. Courses
 
-Base path: `student/courses`.
+Base path: `student/courses`. The tree is read as a drill-down — list, then units, then lessons,
+then one lesson's detail, then that lesson's tasks — never as one nested payload. Each level sends
+only what that screen needs.
 
 ### Active courses
 
@@ -240,7 +242,7 @@ Base path: `student/courses`.
 GET student/courses?page=1&limit=10
 ```
 
-**200 OK** — paginated:
+**200 OK** — paginated, lean:
 
 ```json
 {
@@ -248,31 +250,8 @@ GET student/courses?page=1&limit=10
     {
       "id": "c0000000-0000-0000-0000-000000000001",
       "title": "English A1",
-      "description": "Beginner course",
       "image": "{HOST}/public/course/abcd0000-1111-2222-3333-444455556666.jpg",
-      "isActive": true,
-      "index": 0,
-      "units": [
-        {
-          "id": "u0000000-0000-0000-0000-000000000001",
-          "title": "Unit 1",
-          "index": 0,
-          "lessons": [
-            {
-              "id": "l0000000-0000-0000-0000-000000000001",
-              "title": "Greetings",
-              "description": "...",
-              "media": "{HOST}/public/lesson/xyz00000-1111-2222-3333-444455556666.mp4",
-              "index": 0,
-              "isLocked": false
-            }
-          ],
-          "lessonsCount": 1
-        }
-      ],
-      "lessonsCount": 1,
-      "createdAt": "2026-01-01T00:00:00.000Z",
-      "updatedAt": "2026-01-01T00:00:00.000Z"
+      "totalProgress": 45
     }
   ],
   "total": 1,
@@ -282,11 +261,8 @@ GET student/courses?page=1&limit=10
 }
 ```
 
-`isLocked` reflects sequential unlocking: a lesson is locked only if the **previous lesson in the
-same unit** has tasks and this student's progress on it is below 80%. A unit's first lesson is
-always unlocked, and a previous lesson with no tasks never blocks the next one either — so a
-video-only lesson never becomes a wall. Progress that regresses on a retry (see
-[Task submissions](#6-task-submissions)) can re-lock a later lesson even after it was unlocked.
+`totalProgress` is 0–100: the average of `Progress.progress` across the student's active,
+unexpired enrollment in that course, `0` if there isn't one.
 
 ### One active course
 
@@ -294,8 +270,100 @@ video-only lesson never becomes a wall. Progress that regresses on a retry (see
 GET student/courses/:id
 ```
 
-**200 OK** — same shape as one element of `data` above. **404** if the course doesn't exist or
-isn't active.
+**200 OK** — same shape as one element of `data` above, plus `description`. **404** if the course
+doesn't exist or isn't active.
+
+### Units by course
+
+```http
+GET student/courses/:courseId/units?page=1&limit=10
+```
+
+**200 OK** — paginated:
+
+```json
+{
+  "data": [
+    { "id": "u0000000-0000-0000-0000-000000000001", "title": "Unit 1", "lessonsCount": 5 }
+  ],
+  "total": 1,
+  "page": 1,
+  "limit": 10,
+  "totalPages": 1
+}
+```
+
+**404** if the course doesn't exist or isn't active.
+
+### Lessons by unit
+
+```http
+GET student/courses/:courseId/units/:unitId/lessons?page=1&limit=10
+```
+
+**200 OK** — paginated:
+
+```json
+{
+  "data": [
+    {
+      "id": "l0000000-0000-0000-0000-000000000001",
+      "title": "Greetings",
+      "description": "...",
+      "isLocked": false
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "limit": 10,
+  "totalPages": 1
+}
+```
+
+**404** if the unit doesn't exist under that course.
+
+`isLocked` reflects sequential unlocking: a lesson is locked only if the **previous lesson in the
+same unit** has tasks and this student's progress on it is below 80%. A unit's first lesson is
+always unlocked, and a previous lesson with no tasks never blocks the next one either — so a
+video-only lesson never becomes a wall. Progress that regresses on a retry (see
+[Task submissions](#6-task-submissions)) can re-lock a later lesson even after it was unlocked.
+`isLocked` is advisory for the UI only — it isn't enforced against the tasks endpoint below.
+
+### One lesson
+
+```http
+GET student/courses/:courseId/units/:unitId/lessons/:lessonId
+```
+
+**200 OK**:
+
+```json
+{
+  "id": "l0000000-0000-0000-0000-000000000001",
+  "title": "Greetings",
+  "description": "...",
+  "media": "{HOST}/public/lesson/xyz00000-1111-2222-3333-444455556666.mp4",
+  "taskProgression": {
+    "totalTasks": 4,
+    "completedTasks": 3,
+    "progressPercent": 83
+  },
+  "materials": [
+    {
+      "id": "m0000000-0000-0000-0000-000000000001",
+      "name": "Vocabulary sheet",
+      "url": "{HOST}/public/material/aaaa0000-1111-2222-3333-444455556666.pdf",
+      "type": "pdf"
+    }
+  ]
+}
+```
+
+`taskProgression.totalTasks`/`completedTasks` count answerable tasks (non-empty `questions`) and
+this student's passed submissions against them; `progressPercent` is the same question-weighted
+number [Task submissions](#6-task-submissions) computes for lesson progress, not
+`completedTasks / totalTasks`. `materials` is every material attached to the lesson, unpaginated.
+**404** if the lesson doesn't exist under that course/unit.
 
 ### Available (purchasable) courses
 
@@ -303,7 +371,7 @@ isn't active.
 GET student/courses/available?page=1&limit=10
 ```
 
-**200 OK** — same paginated course shape as `GET student/courses`, filtered to courses the student
+**200 OK** — same paginated shape as `GET student/courses`, filtered to courses the student
 doesn't already have a current (`active`, unexpired) enrollment for. A course with a pending
 (`created`) or expired enrollment still appears here.
 

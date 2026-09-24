@@ -25,6 +25,13 @@ export class MaterialService {
     return this.materialRepo.save({ name: dto.name, url, type, lesson });
   }
 
+  async listAllForLesson(lessonId: string): Promise<Material[]> {
+    return this.materialRepo.find({
+      where: { lesson: { id: lessonId } },
+      order: { createdAt: 'ASC' },
+    });
+  }
+
   async listMaterials(lessonId: string, query: PaginationQuery): Promise<Paginated<Material>> {
     await this.loadLesson(lessonId);
     const [data, total] = await this.materialRepo.findAndCount({
