@@ -22,8 +22,11 @@ export class TaskSubmission {
   @Column()
   isCorrect: boolean;
 
+  @Column({ type: 'int', default: 0 })
+  coinsEarned: number;
+
   @Column({ default: false })
-  rewarded: boolean;
+  pointsRewarded: boolean;
 
   @CreateDateColumn()
   createdAt: Date;

@@ -11,8 +11,15 @@ import { assertActiveEnrollmentForLesson } from '@/core/enrollment/utils/enrollm
 import { SubmitTasksBody } from '@/core/course/dto/submit-tasks.dto';
 import { taskAnswersMatch } from '@/core/course/utils/task-answer.util';
 
-function stripAnswer(question: TaskQuestion) {
-  return { question: question.question, options: question.options };
+function questionResult(question: TaskQuestion, studentAnswer: string | null) {
+  const isCorrect = studentAnswer !== null && taskAnswersMatch(studentAnswer, question.answer);
+  return {
+    question: question.question,
+    options: question.options,
+    studentAnswer,
+    isCorrect,
+    answer: isCorrect ? question.answer : null,
+  };
 }
 
 const PASS_PERCENT = 80;
@@ -58,8 +65,12 @@ export class TaskSubmissionService {
     }
 
     return this.dataSource.transaction(async (manager) => {
-      const results: { taskId: string; answers: string[]; isCorrect: boolean; rewarded: boolean }[] = [];
-      let rewardedCount = 0;
+      const results: {
+        taskId: string;
+        questions: ReturnType<typeof questionResult>[];
+        isCorrect: boolean;
+        coinsEarned: number;
+      }[] = [];
 
       for (const taskId of taskIds) {
         const task = taskMap.get(taskId)!;
@@ -75,15 +86,27 @@ export class TaskSubmissionService {
           .orUpdate(['answer', 'is_correct'], ['student_id', 'task_id'])
           .execute();
 
-        const rewarded = isCorrect && (await this.claimReward(manager, student.id, taskId));
-        if (rewarded) rewardedCount++;
+        const submission = await manager.findOneOrFail(TaskSubmission, {
+          where: { student: { id: student.id }, task: { id: taskId } },
+        });
 
-        results.push({ taskId, answers: studentAnswers, isCorrect, rewarded });
-      }
+        const newCoins = isCorrect ? COINS_PER_PASSED_TASK : 0;
+        const coinsToAdd = Math.max(0, newCoins - submission.coinsEarned);
+        if (coinsToAdd > 0) {
+          await manager.increment(TaskSubmission, { id: submission.id }, 'coinsEarned', coinsToAdd);
+          await manager.increment(Student, { id: student.id }, 'coins', coinsToAdd);
+        }
 
-      if (rewardedCount > 0) {
-        await manager.increment(Student, { id: student.id }, 'coins', COINS_PER_PASSED_TASK * rewardedCount);
-        await manager.increment(Student, { id: student.id }, 'points', POINTS_PER_PASSED_TASK * rewardedCount);
+        if (isCorrect && (await this.claimPoints(manager, student.id, taskId))) {
+          await manager.increment(Student, { id: student.id }, 'points', POINTS_PER_PASSED_TASK);
+        }
+
+        results.push({
+          taskId,
+          questions: task.questions.map((q, i) => questionResult(q, studentAnswers[i] ?? null)),
+          isCorrect,
+          coinsEarned: submission.coinsEarned + coinsToAdd,
+        });
       }
 
       for (const lessonId of lessonIds) {
@@ -94,34 +117,40 @@ export class TaskSubmissionService {
     });
   }
 
-  private async claimReward(manager: EntityManager, studentId: string, taskId: string): Promise<boolean> {
+  private async claimPoints(manager: EntityManager, studentId: string, taskId: string): Promise<boolean> {
     const result = await manager
       .createQueryBuilder()
       .update(TaskSubmission)
-      .set({ rewarded: true })
+      .set({ pointsRewarded: true })
       .where('student_id = :studentId', { studentId })
       .andWhere('task_id = :taskId', { taskId })
       .andWhere('is_correct = true')
-      .andWhere('rewarded = false')
+      .andWhere('points_rewarded = false')
       .execute();
 
     return result.affected === 1;
   }
 
   private async upsertLessonProgress(manager: EntityManager, student: Student, lessonId: string): Promise<void> {
-    const totalTasks = await manager
-      .createQueryBuilder(Task, 'task')
-      .leftJoin('task.lesson', 'lesson')
-      .where('lesson.id = :lessonId', { lessonId })
-      .andWhere('jsonb_array_length(task.questions) > 0')
-      .getCount();
-    if (totalTasks === 0) return;
+    const tasks = await manager.getRepository(Task).find({ where: { lesson: { id: lessonId } } });
+    const answerableTasks = tasks.filter((task) => task.questions.length > 0);
+    const totalQuestions = answerableTasks.reduce((sum, task) => sum + task.questions.length, 0);
+    if (totalQuestions === 0) return;
 
-    const correctCount = await manager.getRepository(TaskSubmission).count({
-      where: { student: { id: student.id }, task: { lesson: { id: lessonId } }, isCorrect: true },
+    const submissions = await manager.getRepository(TaskSubmission).find({
+      where: { student: { id: student.id }, task: { id: In(answerableTasks.map((task) => task.id)) } },
+      relations: { task: true },
     });
 
-    const lessonProgress = Math.min(100, Math.round((correctCount / totalTasks) * 100));
+    const taskById = new Map(answerableTasks.map((task) => [task.id, task]));
+    const correctQuestions = submissions.reduce((sum, submission) => {
+      const task = taskById.get(submission.task.id);
+      if (!task) return sum;
+      const studentAnswers = JSON.parse(submission.answer) as string[];
+      return sum + countCorrect(task.questions, studentAnswers);
+    }, 0);
+
+    const lessonProgress = Math.min(100, Math.round((correctQuestions / totalQuestions) * 100));
 
     const enrollment = await manager.getRepository(Enrollment).findOne({
       where: { student: { id: student.id }, course: { units: { lessons: { id: lessonId } } } },
@@ -163,18 +192,16 @@ export class TaskSubmissionService {
 
     return tasks.map((task) => {
       const submission = submissionMap.get(task.id) ?? null;
+      const studentAnswers = submission ? (JSON.parse(submission.answer) as string[]) : null;
+
       return {
         taskId: task.id,
         name: task.name,
-        questions: task.questions.map(stripAnswer),
         file: task.file,
         contentType: task.contentType,
+        questions: task.questions.map((q, i) => questionResult(q, studentAnswers?.[i] ?? null)),
         submission: submission
-          ? {
-              answers: JSON.parse(submission.answer) as string[],
-              isCorrect: submission.isCorrect,
-              submittedAt: submission.createdAt,
-            }
+          ? { isCorrect: submission.isCorrect, coinsEarned: submission.coinsEarned, submittedAt: submission.createdAt }
           : null,
       };
     });
@@ -194,17 +221,15 @@ export class TaskSubmissionService {
     });
     if (!submission) throw new NotFoundException('Topshiriq javobi topilmadi');
 
-    const answers = JSON.parse(submission.answer) as string[];
+    const studentAnswers = JSON.parse(submission.answer) as string[];
     return {
       taskId: task.id,
       name: task.name,
       file: task.file,
       contentType: task.contentType,
-      questions: task.questions.map((question, index) => ({
-        ...stripAnswer(question),
-        answer: answers[index] ?? null,
-      })),
+      questions: task.questions.map((q, i) => questionResult(q, studentAnswers[i] ?? null)),
       isCorrect: submission.isCorrect,
+      coinsEarned: submission.coinsEarned,
       submittedAt: submission.createdAt,
     };
   }

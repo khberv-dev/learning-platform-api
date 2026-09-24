@@ -282,8 +282,11 @@ GET student/courses?page=1&limit=10
 }
 ```
 
-`isLocked` is currently always `false` for every lesson (sequential unlocking is switched off
-server-side) but the field is always present — don't remove UI that reads it.
+`isLocked` reflects sequential unlocking: a lesson is locked only if the **previous lesson in the
+same unit** has tasks and this student's progress on it is below 80%. A unit's first lesson is
+always unlocked, and a previous lesson with no tasks never blocks the next one either — so a
+video-only lesson never becomes a wall. Progress that regresses on a retry (see
+[Task submissions](#6-task-submissions)) can re-lock a later lesson even after it was unlocked.
 
 ### One active course
 
@@ -477,27 +480,34 @@ Grading is fuzzy (case/punctuation/spacing-insensitive) and a task passes at 80%
 correct, not 100%. All tasks in one request are graded in a single transaction — if any task id is
 unknown, nothing is saved.
 
-**200/201 OK**
+**200/201 OK** — per question, `answer` (the correct one) is only included when that question was
+answered correctly; get it wrong and you see `isCorrect: false` with `answer: null`, nothing more:
 
 ```json
 [
   {
     "taskId": "t0000000-0000-0000-0000-000000000001",
-    "answers": ["b", "hello"],
-    "isCorrect": true,
-    "rewarded": true
+    "questions": [
+      { "question": "Choose a letter", "options": ["A", "B"], "studentAnswer": "b", "isCorrect": true, "answer": "b" },
+      { "question": "...", "options": null, "studentAnswer": "helo", "isCorrect": false, "answer": null }
+    ],
+    "isCorrect": false,
+    "coinsEarned": 0
   },
   {
     "taskId": "t0000000-0000-0000-0000-000000000002",
-    "answers": ["true"],
-    "isCorrect": false,
-    "rewarded": false
+    "questions": [{ "question": "...", "options": null, "studentAnswer": "true", "isCorrect": true, "answer": "true" }],
+    "isCorrect": true,
+    "coinsEarned": 5
   }
 ]
 ```
 
-`rewarded` is `true` only the *first* time a task is passed (coins/points are granted once).
-Resubmitting an already-passed task returns `isCorrect: true, rewarded: false`.
+`coinsEarned` is what *this task's submission* currently contributes to your coin balance (`5` if
+passed, `0` if not) — resubmitting is always safe: coins only ever increase when a retry newly
+passes a task that hadn't paid out yet, and never decrease if a retry now fails a task you'd
+already passed (points, granted alongside coins the first time you pass, work the same way: never
+taken back, never paid twice).
 
 **Errors:** `404 Topshiriq topilmadi: <id>` (unknown task id) · `403 Siz bu kursga yozilmagansiz
 yoki muddati tugagan` (no active enrollment for that task's course).
@@ -508,32 +518,36 @@ yoki muddati tugagan` (no active enrollment for that task's course).
 GET student/task-submissions/lessons/:lessonId
 ```
 
-**200 OK** — every task in the lesson, with this student's submission if any:
+**200 OK** — every task in the lesson, each question showing your answer and whether it was
+correct (same "no answer key on a wrong answer" rule as above), plus a task-level `submission`
+summary if you've submitted at least once:
 
 ```json
 [
   {
     "taskId": "t0000000-0000-0000-0000-000000000001",
     "name": "Vocabulary",
-    "questions": [{ "question": "Choose a letter", "options": ["A", "B"] }],
     "file": null,
     "contentType": null,
-    "submission": {
-      "answers": ["b"],
-      "isCorrect": true,
-      "submittedAt": "2026-05-18T10:00:00.000Z"
-    }
+    "questions": [
+      { "question": "Choose a letter", "options": ["A", "B"], "studentAnswer": "b", "isCorrect": true, "answer": "b" }
+    ],
+    "submission": { "isCorrect": true, "coinsEarned": 5, "submittedAt": "2026-05-18T10:00:00.000Z" }
   },
   {
     "taskId": "t0000000-0000-0000-0000-000000000002",
     "name": "Listening",
-    "questions": [{ "question": "...", "options": null }],
     "file": "{HOST}/public/task-audio/xyz00000-1111-2222-3333-444455556666.mp3",
     "contentType": "audio",
+    "questions": [{ "question": "...", "options": null, "studentAnswer": null, "isCorrect": false, "answer": null }],
     "submission": null
   }
 ]
 ```
+
+A never-submitted task's questions come back with `studentAnswer: null`, `isCorrect: false`,
+`answer: null` — same shape as a wrong answer, since there's nothing to distinguish them on
+without a submission.
 
 ### One task result
 
@@ -541,8 +555,8 @@ GET student/task-submissions/lessons/:lessonId
 GET student/task-submissions/:taskId
 ```
 
-**200 OK** — same per-task shape, `questions[].answer` included as the correct answer for review
-after submitting (still no `answer` field until submitted at least once):
+**200 OK** — same per-question shape as above, plus the task-level summary. **404** if you've
+never submitted this task:
 
 ```json
 {
@@ -550,8 +564,11 @@ after submitting (still no `answer` field until submitted at least once):
   "name": "Vocabulary",
   "file": null,
   "contentType": null,
-  "questions": [{ "question": "Choose a letter", "options": ["A", "B"], "answer": "b" }],
+  "questions": [
+    { "question": "Choose a letter", "options": ["A", "B"], "studentAnswer": "b", "isCorrect": true, "answer": "b" }
+  ],
   "isCorrect": true,
+  "coinsEarned": 5,
   "submittedAt": "2026-05-18T10:00:00.000Z"
 }
 ```

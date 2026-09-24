@@ -19,8 +19,6 @@ export const COURSE_ORDER = { units: { ...UNIT_ORDER, lessons: LESSON_ORDER } } 
 
 export const COURSE_LIST_ORDER = { index: 'ASC', createdAt: 'DESC' } as const;
 
-const LESSON_LOCKING_ENABLED = false;
-
 const LESSON_UNLOCK_PERCENT = 80;
 
 @Injectable()
@@ -36,15 +34,13 @@ export class CourseService {
     progressByLesson = new Map<string, number>(),
     taskCountByLesson = new Map<string, number>(),
   ) {
-    let previousLessonId: string | undefined;
     const units = course.units.map((unit) => {
+      let previousLessonId: string | undefined;
       const lessons = unit.lessons.map((lesson) => {
         const previousLessonHasTasks =
           previousLessonId !== undefined && (taskCountByLesson.get(previousLessonId) ?? 0) > 0;
         const isLocked =
-          LESSON_LOCKING_ENABLED &&
-          previousLessonHasTasks &&
-          (progressByLesson.get(previousLessonId!) ?? 0) < LESSON_UNLOCK_PERCENT;
+          previousLessonHasTasks && (progressByLesson.get(previousLessonId!) ?? 0) < LESSON_UNLOCK_PERCENT;
         previousLessonId = lesson.id;
         return { ...lesson, isLocked };
       });
@@ -58,8 +54,6 @@ export class CourseService {
     studentUserId: string,
     lessonIds: string[],
   ): Promise<[Map<string, number>, Map<string, number>]> {
-    if (!LESSON_LOCKING_ENABLED) return [new Map(), new Map()];
-
     return Promise.all([this.progressByLesson(studentUserId, lessonIds), this.taskCountByLesson(lessonIds)]);
   }
 

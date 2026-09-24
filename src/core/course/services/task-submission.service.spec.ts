@@ -38,11 +38,12 @@ describe('TaskSubmissionService.getTaskResult', () => {
     });
   });
 
-  it("returns the student's answer beside each question without the answer key", async () => {
+  it('reveals the correct answer only for questions the student got right', async () => {
     const submittedAt = new Date('2026-09-04T12:00:00Z');
     submissionRepo.findOne.mockResolvedValue({
-      answer: JSON.stringify(['b', 'world']),
+      answer: JSON.stringify(['a', 'world']),
       isCorrect: false,
+      coinsEarned: 0,
       createdAt: submittedAt,
     });
 
@@ -54,11 +55,12 @@ describe('TaskSubmissionService.getTaskResult', () => {
       file: null,
       contentType: null,
       questions: [
-        { question: 'Choose a letter', options: ['A', 'B'], answer: 'b' },
-        { question: 'Write a word', options: null, answer: 'world' },
-        { question: 'Unanswered', options: null, answer: null },
+        { question: 'Choose a letter', options: ['A', 'B'], studentAnswer: 'a', isCorrect: true, answer: 'a' },
+        { question: 'Write a word', options: null, studentAnswer: 'world', isCorrect: false, answer: null },
+        { question: 'Unanswered', options: null, studentAnswer: null, isCorrect: false, answer: null },
       ],
       isCorrect: false,
+      coinsEarned: 0,
       submittedAt,
     });
     expect(submissionRepo.findOne).toHaveBeenCalledWith({
