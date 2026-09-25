@@ -1,27 +1,16 @@
-import { IsDateString, IsInt, IsOptional, IsUUID, Min } from 'class-validator';
+import { IsDateString, IsOptional, IsUUID } from 'class-validator';
 
 export class CreateEnrollmentDto {
   @IsUUID()
   studentId: string;
 
   @IsUUID()
-  @IsOptional()
-  planId?: string;
+  courseId: string;
 
   @IsUUID()
-  @IsOptional()
-  courseId?: string;
+  planId: string;
 
   @IsDateString()
   @IsOptional()
   start?: string;
-
-  @IsDateString()
-  @IsOptional()
-  end?: string;
-
-  @IsInt()
-  @Min(0)
-  @IsOptional()
-  purchaseAmount?: number;
 }

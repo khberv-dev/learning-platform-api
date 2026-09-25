@@ -1,5 +1,5 @@
 export enum MentorStatus {
-  ACTIVE = 'active',
+  WORKING = 'working',
+  VACATION = 'vacation',
   FIRED = 'fired',
-  SUSPENDED = 'suspended',
 }

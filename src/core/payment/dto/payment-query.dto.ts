@@ -13,10 +13,6 @@ export class PaymentQuery extends PaginationQuery {
 
   @IsUUID()
   @IsOptional()
-  enrollmentId?: string;
-
-  @IsUUID()
-  @IsOptional()
   planId?: string;
 
   @IsEnum(PaymentStatus)

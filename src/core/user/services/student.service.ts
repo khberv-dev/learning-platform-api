@@ -24,12 +24,10 @@ export class StudentService {
       .innerJoin('activeEnrollment.student', 'activeStudent')
       .where('activeStudent.id = student.id')
       .andWhere('activeEnrollment.status = :activeStatus')
-      .andWhere('(activeEnrollment.end IS NULL OR activeEnrollment.end >= :now)')
       .getQuery();
 
     qb.addSelect(`(${activeCoursesCount})`, 'activeCoursesCount').setParameters({
       activeStatus: EnrollmentStatus.ACTIVE,
-      now: new Date(),
     });
 
     if (query.level) {
@@ -88,7 +86,6 @@ export class StudentService {
         'enrollment.id',
         'enrollment.status',
         'enrollment.start',
-        'enrollment.end',
         'course.id',
         'course.title',
       ])

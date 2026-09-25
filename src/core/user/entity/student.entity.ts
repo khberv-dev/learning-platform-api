@@ -10,6 +10,7 @@ import {
 } from 'typeorm';
 import { Enrollment } from '@/core/enrollment/entity/enrollment.entity';
 import { StudentLevel } from '@/core/user/enum/student-level.enum';
+import { Gender } from '@/core/user/enum/gender.enum';
 import { Group } from '@/core/group/entity/group.entity';
 
 @Entity('students')
@@ -46,6 +47,9 @@ export class Student {
 
   @Column({ type: 'enum', enum: StudentLevel, default: StudentLevel.A1 })
   level: StudentLevel;
+
+  @Column({ type: 'enum', enum: Gender, default: Gender.MALE })
+  gender: Gender;
 
   @OneToMany(() => Enrollment, (enrollment) => enrollment.student)
   enrollments: Enrollment[];

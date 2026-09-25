@@ -34,7 +34,6 @@ describe('TaskSubmissionService.getTaskResult', () => {
     });
     enrollmentRepo.findOne.mockResolvedValue({
       status: EnrollmentStatus.ACTIVE,
-      end: new Date('2099-01-01T00:00:00Z'),
     });
   });
 

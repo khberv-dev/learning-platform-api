@@ -8,6 +8,8 @@ import { Student } from '@/core/user/entity/student.entity';
 import { Course } from '@/core/course/entity/course.entity';
 import { Plan } from '@/core/plan/entity/plan.entity';
 import { Payment } from '@/core/payment/entity/payment.entity';
+import { Subscription } from '@/core/payment/entity/subscription.entity';
+import { Purchase } from '@/core/payment/entity/purchase.entity';
 import { CourseModule } from '@/core/course/course.module';
 import { EnrollmentService } from '@/core/enrollment/services/enrollment.service';
 import { PendingEnrollmentService } from '@/core/enrollment/services/pending-enrollment.service';
@@ -28,6 +30,8 @@ import { NotificationModule } from '@/core/notification/notification.module';
       Course,
       Plan,
       Payment,
+      Subscription,
+      Purchase,
     ]),
     CourseModule,
     NotificationModule,

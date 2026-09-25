@@ -1,5 +1,6 @@
 import { Column, CreateDateColumn, Entity, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 import { MentorStatus } from '@/core/user/enum/mentor-status.enum';
+import { Gender } from '@/core/user/enum/gender.enum';
 import { MentorStatusHistory } from '@/core/user/entity/mentor-status-history.entity';
 import { MentorFeedback } from '@/core/user/entity/mentor-feedback.entity';
 import { GroupMentorRole } from '@/core/group/enum/group-mentor-role.enum';
@@ -27,11 +28,14 @@ export class Mentor {
   @Column({ default: true })
   isActive: boolean;
 
-  @Column({ type: 'enum', enum: MentorStatus, default: MentorStatus.ACTIVE })
+  @Column({ type: 'enum', enum: MentorStatus, default: MentorStatus.WORKING })
   status: MentorStatus;
 
   @Column({ type: 'enum', enum: GroupMentorRole, default: GroupMentorRole.SUPPORT })
   role: GroupMentorRole;
+
+  @Column({ type: 'enum', enum: Gender, default: Gender.MALE })
+  gender: Gender;
 
   @Column({ nullable: true })
   introVideo: string;

@@ -7,18 +7,52 @@
   },
   "mentors": [
     {
-      "phoneNumber": "998000000201",
-      "firstName": "Azam",
-      "lastName": "Qahramonov",
+      "phoneNumber": "998000000101",
+      "firstName": "Jamshid",
+      "lastName": "Botirov",
       "role": "primary",
-      "status": "active"
+      "status": "working",
+      "gender": "male"
+    },
+    {
+      "phoneNumber": "998000000102",
+      "firstName": "Zarina",
+      "lastName": "Alimova",
+      "role": "primary",
+      "status": "vacation",
+      "gender": "female"
+    },
+    {
+      "phoneNumber": "998000000103",
+      "firstName": "Otabek",
+      "lastName": "Karimov",
+      "role": "primary",
+      "status": "fired",
+      "gender": "male"
+    },
+    {
+      "phoneNumber": "998000000201",
+      "firstName": "Bekzod",
+      "lastName": "Yusupov",
+      "role": "support",
+      "status": "working",
+      "gender": "male"
     },
     {
       "phoneNumber": "998000000202",
-      "firstName": "Malika",
-      "lastName": "Tosheva",
+      "firstName": "Dilnoza",
+      "lastName": "Rashidova",
       "role": "support",
-      "status": "active"
+      "status": "vacation",
+      "gender": "female"
+    },
+    {
+      "phoneNumber": "998000000203",
+      "firstName": "Sardor",
+      "lastName": "Nematov",
+      "role": "support",
+      "status": "fired",
+      "gender": "male"
     }
   ],
   "students": [
@@ -26,7 +60,8 @@
       "phoneNumber": "998000000301",
       "firstName": "Asror",
       "lastName": "Xudoyberdiyev",
-      "level": "A1"
+      "level": "A1",
+      "gender": "male"
     }
   ]
 }

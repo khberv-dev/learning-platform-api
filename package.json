@@ -18,7 +18,8 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "db:clear": "nest build && typeorm schema:drop -d ./dist/shared/config/database.config.js",
+    "db:sync": "nest build && typeorm schema:sync -d ./dist/shared/config/database.config.js && mkdir uploads",
+    "db:clear": "nest build && typeorm schema:drop -d ./dist/shared/config/database.config.js && rm -rf uploads",
     "db:seed": "ts-node seed-dummy/seed.ts"
   },
   "dependencies": {

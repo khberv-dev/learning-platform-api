@@ -27,20 +27,8 @@ export class Plan {
   @Column({ type: 'int' })
   month: number;
 
-  @Column({ default: false })
-  hasMentor: boolean;
-
   @Column({ default: true })
   isActive: boolean;
-
-  @Column({ nullable: true })
-  ikpu: string;
-
-  @Column({ nullable: true })
-  packageCode: string;
-
-  @Column({ type: 'int', nullable: true })
-  vatPercent: number | null;
 
   @CreateDateColumn()
   createdAt: Date;

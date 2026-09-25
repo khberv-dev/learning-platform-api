@@ -24,7 +24,6 @@ export interface ExternalPlan {
   title: string;
   price: number;
   month: number;
-  hasMentor: boolean;
 }
 
 export interface ExternalCourse {
@@ -84,7 +83,6 @@ export class ExternalService {
           title: plan.title,
           price: plan.price,
           month: plan.month,
-          hasMentor: plan.hasMentor,
         })),
     }));
     return paginate(data, total, query);
@@ -96,7 +94,6 @@ export class ExternalService {
       planId: dto.planId,
       courseId: dto.courseId,
       start: dto.start,
-      end: dto.end,
       purchaseAmount: dto.amount,
     });
   }

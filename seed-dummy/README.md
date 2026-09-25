@@ -2,8 +2,11 @@
 
 Populates a local database with a demo account per role plus one full course, for manual
 testing and demos. Idempotent — safe to run more than once: a user that already exists (matched
-by email/phone) has its password re-synced to `users.json` instead of being duplicated, and a
-course that already exists (matched by title) is left alone entirely.
+by email/phone) has its password re-synced to `users.json` instead of being duplicated — mentors
+and students additionally have their other seeded fields (name, level/role/status, gender)
+re-synced every run, so editing an existing entry in `users.json` and re-seeding is enough to move
+a mentor between `working`/`vacation`/`fired` or change anyone's `gender` — and a course that
+already exists (matched by title) is left alone entirely.
 
 ## Run
 
@@ -16,12 +19,23 @@ Reads `.env` for DB connection info, same as the app itself.
 ## What it creates
 
 - **Users** (`users.json`), all sharing the password `12340000`:
-  | Role | Login | Name |
-  |---|---|---|
-  | Admin | `admin@i-teach.uz` | iTeach Admin |
-  | Mentor (primary) | `998000000201` | Azam Qahramonov |
-  | Mentor (support) | `998000000202` | Malika Tosheva |
-  | Student | `998000000301` | Asror Xudoyberdiyev |
+  | Role | Login | Name | Role | Status | Gender |
+  |---|---|---|---|---|---|
+  | Admin | `admin@i-teach.uz` | iTeach Admin | — | — | — |
+  | Mentor | `998000000101` | Jamshid Botirov | `primary` | `working` | `male` |
+  | Mentor | `998000000102` | Zarina Alimova | `primary` | `vacation` | `female` |
+  | Mentor | `998000000103` | Otabek Karimov | `primary` | `fired` | `male` |
+  | Mentor | `998000000201` | Bekzod Yusupov | `support` | `working` | `male` |
+  | Mentor | `998000000202` | Dilnoza Rashidova | `support` | `vacation` | `female` |
+  | Mentor | `998000000203` | Sardor Nematov | `support` | `fired` | `male` |
+  | Student | `998000000301` | Asror Xudoyberdiyev | — | — | `male` |
+
+  Every `(role, status)` combination (`GroupMentorRole` × `MentorStatus`, 2 × 3) has its own
+  mentor, so every case is available to test against without changing anything by hand. `is_active`
+  is derived from status at seed time too (`true` only for `working`), matching what
+  `PATCH admin/mentors/:id/status` does at runtime. `gender` (`Gender`: `male`/`female`, default
+  `male`) is seeded on both mentors and the student purely as sample data — the app never derives
+  behavior from it.
 
 - **Course** (`courses.json`): "General English" — 2 units, 5 lessons (2 + 3), each lesson with
   4 tasks of 3 questions each (60 questions total). Each lesson's video comes from

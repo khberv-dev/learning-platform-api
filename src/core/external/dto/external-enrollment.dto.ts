@@ -19,8 +19,4 @@ export class ExternalEnrollmentDto {
   @IsDateString()
   @IsOptional()
   start?: string;
-
-  @IsDateString()
-  @IsOptional()
-  end?: string;
 }

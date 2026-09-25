@@ -25,7 +25,6 @@ describe('EnrollmentService.getStudentCourseProgress', () => {
       id: 'enrollment-1',
       status: EnrollmentStatus.ACTIVE,
       start: new Date('2026-01-01'),
-      end: new Date('2026-12-31'),
       course: {
         id: 'course-1',
         title: 'Course',
@@ -115,25 +114,14 @@ describe('EnrollmentService student course lists', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    jest.useFakeTimers().setSystemTime(new Date('2026-09-04T12:00:00Z'));
     studentRepo.findOne.mockResolvedValue({ id: 'student-1' });
   });
 
-  afterEach(() => jest.useRealTimers());
-
-  it('excludes expired enrollments from my courses', async () => {
+  it('returns all active enrollments in my courses', async () => {
     enrollmentRepo.find.mockResolvedValue([
-      {
-        id: 'expired-enrollment',
-        status: EnrollmentStatus.ACTIVE,
-        end: new Date('2026-09-03T12:00:00Z'),
-        course: { id: 'course-expired' },
-        progresses: [],
-      },
       {
         id: 'current-enrollment',
         status: EnrollmentStatus.ACTIVE,
-        end: new Date('2026-09-05T12:00:00Z'),
         course: { id: 'course-current' },
         progresses: [],
       },
@@ -147,31 +135,16 @@ describe('EnrollmentService student course lists', () => {
     expect(courseService.contentCountsByCourse).toHaveBeenCalledWith(['course-current']);
     expect(result.data).toHaveLength(1);
     expect(result.total).toBe(1);
-    expect(result.data[0]).toMatchObject({ id: 'current-enrollment', isExpired: false });
+    expect(result.data[0]).toMatchObject({ id: 'current-enrollment' });
   });
 
-  it('includes a course in available courses when its enrollment expired', async () => {
-    enrollmentRepo.find.mockResolvedValue([
-      {
-        status: EnrollmentStatus.ACTIVE,
-        end: new Date('2026-09-03T12:00:00Z'),
-        course: { id: 'course-expired' },
-      },
-      {
-        status: EnrollmentStatus.ACTIVE,
-        end: new Date('2026-09-05T12:00:00Z'),
-        course: { id: 'course-current' },
-      },
-    ]);
-    courseService.findActiveCourses.mockResolvedValue([
-      { id: 'course-expired' },
-      { id: 'course-current' },
-      { id: 'course-new' },
-    ]);
+  it('excludes a course the student already has an active enrollment for from available courses', async () => {
+    enrollmentRepo.find.mockResolvedValue([{ status: EnrollmentStatus.ACTIVE, course: { id: 'course-current' } }]);
+    courseService.findActiveCourses.mockResolvedValue([{ id: 'course-current' }, { id: 'course-new' }]);
 
     const result = await service.getAvailableCourses('user-1', new PaginationQuery());
 
-    expect(result.data).toEqual([{ id: 'course-expired' }, { id: 'course-new' }]);
-    expect(result.total).toBe(2);
+    expect(result.data).toEqual([{ id: 'course-new' }]);
+    expect(result.total).toBe(1);
   });
 });

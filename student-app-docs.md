@@ -64,7 +64,8 @@ POST auth/sign-up
   "phoneNumber": "998901234567",
   "password": "secret123",
   "code": "123456",
-  "level": "A1"
+  "level": "A1",
+  "gender": "female"
 }
 ```
 
@@ -72,6 +73,8 @@ POST auth/sign-up
 - Exactly one of `phoneNumber` / `email` (send `email` instead of `phoneNumber` to register by email).
 - `code` — the 6-digit OTP from `POST auth/otp/send` (`purpose: "registration"`), required.
 - `level` — optional, one of `A1` `A2` `B1` `B2` `C1` `C2`; defaults to `A1` if omitted.
+- `gender` — optional, `male` or `female`; defaults to `male` if omitted. There is no route to
+  change it after sign-up.
 
 **201 Created**
 
@@ -180,6 +183,7 @@ Also records today's activity (streak) as a side effect.
   "points": 120,
   "coins": 45,
   "level": "A1",
+  "gender": "female",
   "createdAt": "2026-01-10T08:00:00.000Z",
   "updatedAt": "2026-05-18T10:00:00.000Z"
 }
@@ -381,7 +385,9 @@ doesn't already have a current (`active`, unexpired) enrollment for. A course wi
 GET student/courses/me?page=1&limit=10
 ```
 
-**200 OK** — paginated, the student's `active`, unexpired enrollments:
+**200 OK** — paginated, the student's `active` enrollments (access is permanent — there is no
+expiry, so this list is exactly "every course the student has ever paid for and never had
+refunded"):
 
 ```json
 {
@@ -390,12 +396,10 @@ GET student/courses/me?page=1&limit=10
       "id": "en000000-0000-0000-0000-000000000001",
       "status": "active",
       "start": "2026-01-15T10:00:00.000Z",
-      "end": "2026-04-15T10:00:00.000Z",
       "course": { "id": "c0000000-0000-0000-0000-000000000001", "title": "English A1", "...": "..." },
       "unitsCount": 4,
       "lessonsCount": 20,
-      "totalProgress": 45,
-      "isExpired": false
+      "totalProgress": 45
     }
   ],
   "total": 1,
@@ -405,8 +409,7 @@ GET student/courses/me?page=1&limit=10
 }
 ```
 
-`totalProgress` is 0–100, the share of the course's lessons passed. `isExpired` is always `false`
-here (expired enrollments are excluded from this list entirely).
+`totalProgress` is 0–100, the share of the course's lessons passed.
 
 ### Lesson tasks (without answers)
 
@@ -465,17 +468,15 @@ GET student/courses/:courseId/plans?page=1&limit=10
       "title": "Standart",
       "price": 250000,
       "month": 3,
-      "hasMentor": false,
       "isActive": true,
       "createdAt": "2026-01-15T10:00:00.000Z",
       "updatedAt": "2026-01-15T10:00:00.000Z"
     },
     {
       "id": "pl000000-0000-0000-0000-000000000002",
-      "title": "Mentor bilan",
+      "title": "Premium",
       "price": 700000,
       "month": 6,
-      "hasMentor": true,
       "isActive": true
     }
   ],
@@ -649,7 +650,7 @@ never submitted this task:
 
 Base path: `student/mentors`.
 
-### Browse active mentors
+### Browse working mentors
 
 ```http
 GET student/mentors?page=1&limit=10
@@ -665,8 +666,9 @@ GET student/mentors?page=1&limit=10
       "firstName": "Aziz",
       "lastName": "Yusupov",
       "avatar": "{HOST}/public/avatar/mentor00-1111-2222-3333-444455556666.png",
-      "status": "active",
+      "status": "working",
       "role": "primary",
+      "gender": "male",
       "introVideo": "{HOST}/public/mentor-intro/xyz00000-1111-2222-3333-444455556666.mp4",
       "summaryRating": 4.8,
       "createdAt": "2026-01-01T00:00:00.000Z",
@@ -685,13 +687,18 @@ decimal. `role` is `"primary"` or `"support"` — a mentor's fixed classificatio
 it determines which [group](#8-groups) role they're eligible for (a `support` mentor can never be
 set as a group's primary mentor, and vice versa).
 
+`status` is one of `working`, `vacation`, or `fired` (`MentorStatus`, admin-managed via
+`PATCH admin/mentors/:id/status`, see `CLAUDE.md`). Both this list and "One mentor" below only ever
+return `working` mentors — a mentor on `vacation` or `fired` simply stops appearing, and leaving
+feedback on one 404s the same as an unknown id.
+
 ### One mentor
 
 ```http
 GET student/mentors/:id
 ```
 
-**200 OK** — same shape as one list element. **404** if not found or not active.
+**200 OK** — same shape as one list element. **404** if not found or `status` isn't `working`.
 
 ### Leave feedback
 
@@ -714,6 +721,8 @@ POST student/mentors/:id/feedbacks
   "updatedAt": "2026-05-18T10:00:00.000Z"
 }
 ```
+
+**Errors:** `404 Mentor topilmadi` (not found, or `status` isn't `working`).
 
 ---
 
@@ -747,8 +756,9 @@ GET student/groups/me
         "firstName": "Aziz",
         "lastName": "Yusupov",
         "avatar": "{HOST}/public/avatar/mentor00-1111-2222-3333-444455556666.png",
-        "status": "active",
-        "role": "primary"
+        "status": "working",
+        "role": "primary",
+        "gender": "male"
       },
       "createdAt": "2026-01-01T00:00:00.000Z"
     }
@@ -890,21 +900,24 @@ payment's plan/amount instead of creating a new one.
     "status": "created",
     "providerPaymentId": null,
     "paymentType": null,
-    "plan": {
-      "id": "pl000000-0000-0000-0000-000000000001",
-      "title": "Standart",
-      "price": 250000,
-      "month": 3,
-      "hasMentor": false
-    },
     "student": { "id": "f2c8a0e0-1111-2222-3333-444455556666", "firstName": "Sevara", "lastName": "Karimova" },
-    "enrollment": {
-      "id": "en000000-0000-0000-0000-000000000001",
-      "status": "created",
-      "start": null,
-      "end": null,
-      "course": { "id": "c0000000-0000-0000-0000-000000000001", "title": "English A1" }
-    },
+    "purchases": [
+      {
+        "id": "pu000000-0000-0000-0000-000000000001",
+        "subscription": {
+          "id": "su000000-0000-0000-0000-000000000001",
+          "plan": {
+            "id": "pl000000-0000-0000-0000-000000000001",
+            "title": "Standart",
+            "price": 250000,
+            "month": 3,
+            "course": { "id": "c0000000-0000-0000-0000-000000000001", "title": "English A1" }
+          },
+          "start": null,
+          "end": null
+        }
+      }
+    ],
     "createdAt": "2026-05-18T10:00:00.000Z",
     "updatedAt": "2026-05-18T10:00:00.000Z"
   },
@@ -922,8 +935,14 @@ payment's plan/amount instead of creating a new one.
 
 `paymentTypes[].url` is fully resolved (placeholders filled in) and ready to open in a browser/webview.
 
-**Errors:** `400 Siz allaqachon ushbu kursga yozilgansiz` (already have a current active enrollment)
-· `404 Tarif topilmadi` · `404 Kurs topilmadi`.
+`purchases[0].subscription.start`/`end` are `null` until the payment is confirmed by the provider,
+then get set to the purchase date and `date + plan.month`. This is purely a record of the
+purchased term — it does **not** gate course content access, which is permanent once purchased
+(see `CLAUDE.md`'s payment/enrollment lifecycle notes).
+
+**Errors:** `400 Siz allaqachon ushbu kursga yozilgansiz` (already have an `active` enrollment for
+this course — access is permanent, so a course is bought once) · `404 Tarif topilmadi` ·
+`404 Kurs topilmadi`.
 
 ### Select a payment type
 
@@ -967,8 +986,8 @@ Base path: `student/enrollments`.
 GET student/enrollments/history?page=1&limit=10
 ```
 
-**200 OK** — paginated, every purchase term this student has ever had, newest first (survives
-re-purchasing an expired course — see `CLAUDE.md`):
+**200 OK** — paginated, every purchase this student has ever made, newest first (survives a
+refund-then-repurchase of the same course — see `CLAUDE.md`):
 
 ```json
 {
@@ -977,7 +996,6 @@ re-purchasing an expired course — see `CLAUDE.md`):
       "id": "eh000000-0000-0000-0000-000000000001",
       "purchaseAmount": "250000.00",
       "start": "2026-01-15T10:00:00.000Z",
-      "end": "2026-04-15T10:00:00.000Z",
       "enrollment": {
         "id": "en000000-0000-0000-0000-000000000001",
         "course": { "id": "c0000000-0000-0000-0000-000000000001", "title": "English A1" }

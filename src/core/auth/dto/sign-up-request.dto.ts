@@ -1,6 +1,7 @@
 import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, Length, Matches, ValidateIf } from 'class-validator';
 
 import { StudentLevel } from '@/core/user/enum/student-level.enum';
+import { Gender } from '@/core/user/enum/gender.enum';
 
 export class SignUpRequest {
   @IsString()
@@ -30,4 +31,8 @@ export class SignUpRequest {
   @IsEnum(StudentLevel)
   @IsOptional()
   level?: StudentLevel;
+
+  @IsEnum(Gender)
+  @IsOptional()
+  gender?: Gender;
 }

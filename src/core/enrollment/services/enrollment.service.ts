@@ -1,18 +1,24 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, FindOptionsWhere, In, LessThan, MoreThanOrEqual, Repository } from 'typeorm';
+import { EntityManager, FindOptionsWhere, Repository } from 'typeorm';
 import { Enrollment } from '@/core/enrollment/entity/enrollment.entity';
 import { EnrollmentHistory } from '@/core/enrollment/entity/enrollment-history.entity';
 import { EnrollmentStatus } from '@/core/enrollment/enum/enrollment-status.enum';
-import { addMonths, isEnrollmentExpired } from '@/core/enrollment/utils/enrollment.util';
 import { Course } from '@/core/course/entity/course.entity';
 import { Plan } from '@/core/plan/entity/plan.entity';
-import { CreateEnrollmentDto } from '@/core/enrollment/dto/create-enrollment.dto';
 import { CourseService } from '@/core/course/services/course.service';
 import { Student } from '@/core/user/entity/student.entity';
 import { EnrollmentQuery } from '@/core/enrollment/dto/enrollment-query.dto';
 import { Paginated, paginate, paginateInMemory, PaginationQuery } from '@/common/dto/pagination-query.dto';
 import { PushService } from '@/core/notification/services/push.service';
+
+export interface CreateEnrollmentInput {
+  studentId: string;
+  courseId?: string;
+  planId?: string;
+  start?: string;
+  purchaseAmount?: number;
+}
 
 @Injectable()
 export class EnrollmentService {
@@ -31,12 +37,6 @@ export class EnrollmentService {
     if (query.studentId) where.student = { id: query.studentId };
     if (query.courseId) where.course = { id: query.courseId };
     if (query.status) where.status = query.status;
-
-    const now = new Date();
-    if (query.isExpired !== undefined) {
-      where.status ??= EnrollmentStatus.ACTIVE;
-      where.end = query.isExpired ? LessThan(now) : MoreThanOrEqual(now);
-    }
 
     const [data, total] = await this.enrollmentRepo.findAndCount({
       where,
@@ -89,7 +89,6 @@ export class EnrollmentService {
       enrollmentId: enrollment.id,
       status: enrollment.status,
       start: enrollment.start,
-      end: enrollment.end,
       course: {
         id: enrollment.course.id,
         title: enrollment.course.title,
@@ -110,25 +109,22 @@ export class EnrollmentService {
       relations: { course: true },
     });
 
-    const now = new Date();
-    const blockedCourseIds = new Set(taken.filter((e) => !isEnrollmentExpired(e, now)).map((e) => e.course.id));
+    const blockedCourseIds = new Set(taken.map((e) => e.course.id));
     const activeCourses = await this.courseService.findActiveCourses(studentId);
     const available = activeCourses.filter((c) => !blockedCourseIds.has(c.id));
     return paginateInMemory(available, query);
   }
 
   async getMyCourses(studentId: string, query: PaginationQuery) {
-    const now = new Date();
     const enrollments = await this.enrollmentRepo.find({
       where: { student: { id: studentId }, status: EnrollmentStatus.ACTIVE },
       relations: { course: true, progresses: true },
       order: { createdAt: 'DESC' },
     });
-    const currentEnrollments = enrollments.filter((enrollment) => !isEnrollmentExpired(enrollment, now));
 
-    const counts = await this.courseService.contentCountsByCourse(currentEnrollments.map((e) => e.course.id));
+    const counts = await this.courseService.contentCountsByCourse(enrollments.map((e) => e.course.id));
 
-    const data = currentEnrollments.map((e) => {
+    const data = enrollments.map((e) => {
       const { unitsCount = 0, lessonsCount = 0 } = counts.get(e.course.id) ?? {};
       const totalProgress =
         lessonsCount === 0 ? 0 : Math.round(e.progresses.reduce((sum, p) => sum + p.progress, 0) / lessonsCount);
@@ -137,7 +133,6 @@ export class EnrollmentService {
         unitsCount,
         lessonsCount,
         totalProgress,
-        isExpired: false,
       };
     });
     return paginateInMemory(data, query);
@@ -154,7 +149,7 @@ export class EnrollmentService {
     return paginate(data, total, query);
   }
 
-  async createEnrollment(dto: CreateEnrollmentDto, manager?: EntityManager) {
+  async createEnrollment(dto: CreateEnrollmentInput, manager?: EntityManager) {
     const studentRepo = manager?.getRepository(Student) ?? this.studentRepo;
     const courseRepo = manager?.getRepository(Course) ?? this.courseRepo;
     const planRepo = manager?.getRepository(Plan) ?? this.planRepo;
@@ -171,6 +166,9 @@ export class EnrollmentService {
       plan = await planRepo.findOne({ where: { id: dto.planId }, relations: { course: true } });
       if (!plan) throw new NotFoundException('Tarif topilmadi');
       course = plan.course;
+      if (dto.courseId && dto.courseId !== course.id) {
+        throw new BadRequestException("Tarif ko'rsatilgan kursga tegishli emas");
+      }
     } else if (dto.courseId) {
       const found = await courseRepo.findOne({ where: { id: dto.courseId } });
       if (!found) throw new NotFoundException('Kurs topilmadi');
@@ -180,42 +178,24 @@ export class EnrollmentService {
     }
 
     const start = dto.start ? new Date(dto.start) : new Date();
-    let end: Date;
-    if (dto.end) {
-      end = new Date(dto.end);
-    } else if (plan) {
-      end = addMonths(start, plan.month);
-    } else {
-      throw new BadRequestException("Tugash sanasi (end) kerak yoki tarif (planId) ko'rsating");
-    }
-
-    if (end.getTime() <= start.getTime()) {
-      throw new BadRequestException("Tugash sanasi boshlanish sanasidan keyin bo'lishi kerak");
-    }
 
     const existing = await enrollmentRepo.findOne({
-      where: {
-        student: { id: student.id },
-        course: { id: course.id },
-        status: In([EnrollmentStatus.CREATED, EnrollmentStatus.ACTIVE]),
-      },
+      where: { student: { id: student.id }, course: { id: course.id } },
     });
 
-    if (existing && existing.status === EnrollmentStatus.ACTIVE && !isEnrollmentExpired(existing)) {
+    if (existing?.status === EnrollmentStatus.ACTIVE) {
       throw new BadRequestException('Talaba allaqachon ushbu kursga yozilgan');
     }
 
     const enrollment = existing ?? enrollmentRepo.create({ student, course });
     enrollment.status = EnrollmentStatus.ACTIVE;
     enrollment.start = start;
-    enrollment.end = end;
     await enrollmentRepo.save(enrollment);
 
     await historyRepo.save({
       enrollment,
       purchaseAmount: dto.purchaseAmount ?? plan?.price ?? 0,
       start,
-      end,
     });
 
     if (!manager) {

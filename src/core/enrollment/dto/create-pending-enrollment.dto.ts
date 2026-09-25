@@ -10,8 +10,4 @@ export class CreatePendingEnrollmentDto {
   @IsDateString()
   @IsOptional()
   start?: string;
-
-  @IsDateString()
-  @IsOptional()
-  end?: string;
 }

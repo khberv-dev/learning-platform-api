@@ -3,6 +3,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Payment } from '@/core/payment/entity/payment.entity';
 import { PaymentType } from '@/core/payment/entity/payment-type.entity';
 import { PaymeTransaction } from '@/core/payment/entity/payme-transaction.entity';
+import { Subscription } from '@/core/payment/entity/subscription.entity';
+import { Purchase } from '@/core/payment/entity/purchase.entity';
 import { Plan } from '@/core/plan/entity/plan.entity';
 import { Student } from '@/core/user/entity/student.entity';
 import { Enrollment } from '@/core/enrollment/entity/enrollment.entity';
@@ -20,7 +22,17 @@ import { NotificationModule } from '@/core/notification/notification.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Payment, PaymentType, PaymeTransaction, Plan, Student, Enrollment, EnrollmentHistory]),
+    TypeOrmModule.forFeature([
+      Payment,
+      PaymentType,
+      PaymeTransaction,
+      Subscription,
+      Purchase,
+      Plan,
+      Student,
+      Enrollment,
+      EnrollmentHistory,
+    ]),
     NotificationModule,
   ],
   controllers: [

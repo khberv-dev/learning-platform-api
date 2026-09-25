@@ -62,7 +62,7 @@ Coverage is thin and deliberate — the specs cover pure logic and branch-heavy 
 - Controllers are split by audience, not by resource: `admin-payment.controller.ts` serves `/api/admin/payments`, `payment.controller.ts` serves `/api/student/payments`. Same pattern for course, enrollment, material, plan, group, live-lesson (admin/student/mentor), and user (admin-student, admin-mentor, student, mentor). A controller that mixed two audiences under one path via per-method `@Roles` overrides (the old `course.controller.ts`, `task-submission.controller.ts`, `mentor.controller.ts`, `live-lesson.controller.ts`, `live-lesson-recording.controller.ts`) has been split one file per audience instead, since a class can't live at two role-prefixed base paths for different methods.
 - Prettier: single quotes, trailing commas, `printWidth: 120`.
 - `strictNullChecks` is on but `noImplicitAny` is off; `@typescript-eslint/no-explicit-any`, `no-floating-promises`, and `no-unused-vars` are disabled in `eslint.config.mjs`.
-- **Every `GET` that returns a list of items must be paginated** — `@Query() query: PaginationQuery` (or a subclass adding filters/sort, e.g. `MentorQuery`, `GroupQuery`) on the controller, `Promise<Paginated<T>>` from the service, built with `paginate(data, total, query)` (`src/common/dto/pagination-query.dto.ts`), never a bare array. This applies to new endpoints too, no matter how small or admin-curated the list looks today — "it's always small" is exactly the assumption that stops holding once real data accumulates, and retrofitting pagination later is a breaking response-shape change for every existing client. The one common wrinkle: if a list gets filtered *after* the DB fetch (e.g. excluding courses a student already owns, or an application-layer expiry check that can't be pushed into `WHERE`), paginating the DB query directly can return a page with fewer than `limit` items even when more exist beyond it — filter first, *then* paginate the final in-memory array with `paginateInMemory(items, query)` (same file), as `EnrollmentService.getAvailableCourses`/`getMyCourses` and `CourseService.findActiveCoursesPaginated` do.
+- **Every `GET` that returns a list of items must be paginated** — `@Query() query: PaginationQuery` (or a subclass adding filters/sort, e.g. `MentorQuery`, `GroupQuery`) on the controller, `Promise<Paginated<T>>` from the service, built with `paginate(data, total, query)` (`src/common/dto/pagination-query.dto.ts`), never a bare array. This applies to new endpoints too, no matter how small or admin-curated the list looks today — "it's always small" is exactly the assumption that stops holding once real data accumulates, and retrofitting pagination later is a breaking response-shape change for every existing client. The one common wrinkle: if a list gets filtered *after* the DB fetch (e.g. excluding courses a student already owns), paginating the DB query directly can return a page with fewer than `limit` items even when more exist beyond it — filter first, *then* paginate the final in-memory array with `paginateInMemory(items, query)` (same file), as `EnrollmentService.getAvailableCourses`/`getMyCourses` and `CourseService.findActiveCoursesPaginated` do.
 
 ## Architecture
 
@@ -80,7 +80,7 @@ The gate lives at the outermost sensible layer in each case: `EskizService.sendS
 
 ### Auth & authorization
 
-There is no `User` entity. `Student`, `Mentor`, and `Admin` (`src/core/user/entity/`) are three fully independent accounts, each owning its own login credentials — one account, one role, permanently. A person needing two roles gets two separate accounts; there is no mechanism to add a second role to an existing login. Only `Student` has both `email` and `phoneNumber`; `Mentor` has `phoneNumber` only (no email login), `Admin` has `email` only (no phone login) — all three otherwise share `firstName`, `lastName`, `avatar`, `password`, `isActive`.
+There is no `User` entity. `Student`, `Mentor`, and `Admin` (`src/core/user/entity/`) are three fully independent accounts, each owning its own login credentials — one account, one role, permanently. A person needing two roles gets two separate accounts; there is no mechanism to add a second role to an existing login. Only `Student` has both `email` and `phoneNumber`; `Mentor` has `phoneNumber` only (no email login), `Admin` has `email` only (no phone login) — all three otherwise share `firstName`, `lastName`, `avatar`, `password`, `isActive`. `Student` and `Mentor` additionally carry `gender` (`Gender`: `male` | `female`, default `male`) — `Admin` has no such column. A student sets it once at sign-up (`SignUpRequest.gender`, optional); there's no route to change it afterward. An admin sets/changes a mentor's via `CreateMentorDto`/`UpdateMentorDto`.
 
 `JwtAccessGuard` and `RolesGuard` are global `APP_GUARD` providers in `app.module.ts` — every route is authenticated by default.
 
@@ -96,7 +96,7 @@ Because each role is its own table with its own primary key, the id in the JWT *
 
 ### User activity, analytics, and streaks
 
-`GET /api/student/me` records one `activities` row (`StudentActivity`, `user/entity/student-activity.entity.ts`) per authenticated student per UTC calendar day; `POST /api/student/me/activity` records it explicitly and returns `{ activityDate, hasCourse, recorded }`, where `recorded` is `false` if today's row already existed. `student.controller.ts`, `mentor.controller.ts`, and `admin.controller.ts` all still have a `me`/`me/avatar` pair, but activity tracking itself is **student-only**: `mentor.controller.ts`/`admin.controller.ts` have no `me/activity` or `me/streak` routes, and their `me` has no recording side effect — only `student.controller.ts`'s does. `StudentActivity` has a single required `student` FK, not the nullable student/mentor/admin trio other owner-pattern tables use — there's nothing to disambiguate since only a student can ever have a row. A unique constraint on `(student, activityDate)` makes repeated calls — across `me` and `me/activity` — idempotent. Each row carries `hasCourse`: whether the student had an active, unexpired enrolment when it was recorded. The upsert only ever raises it `false → true` within a day (buying a course mid-day counts), never back down.
+`GET /api/student/me` records one `activities` row (`StudentActivity`, `user/entity/student-activity.entity.ts`) per authenticated student per UTC calendar day; `POST /api/student/me/activity` records it explicitly and returns `{ activityDate, hasCourse, recorded }`, where `recorded` is `false` if today's row already existed. `student.controller.ts`, `mentor.controller.ts`, and `admin.controller.ts` all still have a `me`/`me/avatar` pair, but activity tracking itself is **student-only**: `mentor.controller.ts`/`admin.controller.ts` have no `me/activity` or `me/streak` routes, and their `me` has no recording side effect — only `student.controller.ts`'s does. `StudentActivity` has a single required `student` FK, not the nullable student/mentor/admin trio other owner-pattern tables use — there's nothing to disambiguate since only a student can ever have a row. A unique constraint on `(student, activityDate)` makes repeated calls — across `me` and `me/activity` — idempotent. Each row carries `hasCourse`: whether the student had an active enrolment (access is permanent, so this is just "any `active` row") when it was recorded. The upsert only ever raises it `false → true` within a day (buying a course mid-day counts), never back down.
 
 **"Users" in stats means students only** — `mentors` is already its own separate business metric, and admins were never counted here. `GET /api/admin/stats/summary`'s `users` is `COUNT(*) FROM students`, and every DAU/WAU/MAU query (`StatsService`) reads straight from `activities`, which can only ever hold student rows now that mentors/admins have no activity tracking at all.
 
@@ -114,19 +114,21 @@ The taken-phone check runs **after** `assertOtpAllowed`, so probing numbers to d
 
 ### Payment & enrollment lifecycle
 
-This is the most interconnected part of the codebase — `plan`, `payment`, and `enrollment` are coupled.
+`Payment` knows nothing about what it bought — no `plan`, `course`, or `enrollment` column. What a payment is for is reached through a small bridge: `Payment → Purchase → Subscription → Plan → Course`. `Purchase` (`payment/entity/purchase.entity.ts`) is a generic line-item join — required `payment`, nullable `subscription` — deliberately shaped so a future purchasable item type is just another nullable FK on the same row, the same "exactly one owner column is set" pattern `UserActivity`/`Session` already use for student/mentor/admin. `Subscription` (`payment/entity/subscription.entity.ts`: `student`, `plan`, `start`, `end`) is the only item type today and is **not** a course-access mechanism — it's purely a record of "this term was purchased," start/end included. Course access is `Enrollment`, entirely separate, permanent, and untouched by any of this.
 
-1. A `Plan` belongs to a `Course` and carries `price`, `month` (duration), and `hasMentor`. Courses have no price of their own.
-2. `POST /api/student/payments/request { planId }` creates an `Enrollment` (`created`) and a `Payment` (`created`), and returns the active `PaymentType`s. Repeating the request reuses the pending payment, updating its plan/amount if the user picked a different plan.
+Access is **permanent and bought once**: `Enrollment` has no `end` column, no expiry, and no re-purchase of a course the student currently has active.
+
+1. A `Plan` belongs to a `Course` and carries `price` and `month` (duration of the `Subscription` term it produces). Courses have no price of their own.
+2. `POST /api/student/payments/request { planId }` rejects with `400 Siz allaqachon ushbu kursga yozilgansiz` if the student already has an `active` `Enrollment` for that plan's course. Otherwise it finds an existing pending `Payment` for that course via `purchases.subscription.plan.course` and updates its plan/amount, or creates a new `Payment` (`created`) + `Subscription` (`plan`, `start: null`, `end: null`) + `Purchase` linking them. Either way it returns the active `PaymentType`s.
 3. `Payment.amount` snapshots `plan.price` at creation time, so later price changes don't affect pending or historical payments. Click amount verification compares against this snapshot.
-4. Confirmation (`markPaid`) flips the enrollment to `active`, sets `start`/`end` (`end` defaults to `start + plan.month`), and appends an `EnrollmentHistory` row. Cancellation cascades to the enrollment.
-5. Admins have **read-only** access to payments (`GET /api/admin/payments`, `GET /api/admin/payments/:id`) — there is no approve, reject, or delete endpoint. Payment status changes only through the Click webhooks. For cash/transfer cases, admins bypass payments entirely via `POST /api/admin/enrollments`, which opens an enrollment directly.
+4. Confirmation (`PaymentService.markPaid`) reads the plan via `resolvePlan(payment)` (`payment/utils/payment-url.util.ts`, walks `payment.purchases[0].subscription.plan`) and does two independent things: activates/reuses the `Enrollment` for `(student, plan.course)` — whatever its current status, so a refunded-then-repurchased course keeps its `Progress` history instead of starting a disconnected new enrollment — and separately sets the linked `Subscription.start`/`end` (`start + plan.month`). `markCancelled` resolves the same `plan` and only touches `Enrollment` (`status: cancelled`); the `Subscription`'s dates are left as the historical record of the term that was cancelled.
+5. Admins have **read-only** access to payments (`GET /api/admin/payments`, `GET /api/admin/payments/:id`) — there is no approve, reject, or delete endpoint. Payment status changes only through the Click/Payme webhooks. For cash/transfer cases, admins bypass payments entirely via `POST /api/admin/enrollments`, which opens an enrollment directly. `PendingEnrollmentService.acceptPending` creates its own `Payment` (`paid`) + `Subscription` + `Purchase` alongside the `Enrollment` it opens, so an externally-accepted enrollment leaves the same trail a self-serve purchase would.
 
-Re-purchasing an expired enrollment reuses the existing row: it is reset to `created` with null dates, and the previous term survives in `enrollment_histories`.
+`POST /api/admin/enrollments`'s `CreateEnrollmentDto` is deliberately minimal — `studentId`, `courseId`, `planId` (both required and cross-checked: `400 Tarif ko'rsatilgan kursga tegishli emas` if `planId`'s plan doesn't belong to `courseId`), and an optional `start` (defaults to now). There's no `purchaseAmount` override here — `EnrollmentService.createEnrollment` always records `plan.price` in `enrollment_histories` for this path. The External/`PendingEnrollmentService` callers of the same service method use a looser internal shape (`CreateEnrollmentInput`, `courseId`/`planId` each optional, `purchaseAmount` overridable) that the admin DTO is a strict subtype of — that flexibility exists for those two callers only, not admin.
 
-**Expiry is derived, not stored.** `EnrollmentStatus.ACTIVE` with an `end` date in the past is expired (`isEnrollmentExpired` in `enrollment/utils/enrollment.util.ts`); no job flips the column. Every read path that means "currently entitled" must apply that check itself — student-facing enrollment lists filter it out, and course-content access goes through `assertActiveEnrollmentForLesson`.
+`EnrollmentService.createEnrollment` (admin/external/pending-enrollment paths) follows the same reuse-by-`(student, course)` rule as `markPaid`: it 400s if an `active` row already exists, otherwise reuses whatever row is there (typically `cancelled`) or creates a new one. This is unrelated to `Subscription`/`Purchase`, which only `PaymentService` and `PendingEnrollmentService.acceptPending` write to.
 
-`PaymentType.url` is a **template** containing `$placeholder` tokens (`$paymentId`, `$userFullName`, `$amount`, `$courseTitle`, …) resolved per payment by `buildPaymentUrl` (`payment/utils/payment-url.util.ts`). Values are URI-encoded; unknown `$tokens` are left verbatim so template typos are visible. The stored template is never mutated — resolution happens on read.
+`PaymentType.url` is a **template** containing `$placeholder` tokens (`$paymentId`, `$userFullName`, `$amount`, `$courseTitle`, …) resolved per payment by `buildPaymentUrl` (`payment/utils/payment-url.util.ts`); `$courseId`/`$courseTitle`/`$planId`/`$planTitle`/`$planMonth` all read from `resolvePlan(payment)`. Values are URI-encoded; unknown `$tokens` are left verbatim so template typos are visible. The stored template is never mutated — resolution happens on read.
 
 ### Click webhooks
 
@@ -142,7 +144,7 @@ Payme drives a transaction across several calls and expects the *same* answer on
 
 The body is typed as an `interface` (not a DTO class) and read with `import type`, so the global `ValidationPipe` skips it: Payme expects every failure as an in-band JSON-RPC `error`, never an HTTP 400. The handler always returns HTTP 200.
 
-Cancelling an **unpaid** transaction leaves the payment `created` so the student can retry and keep their enrollment progress; cancelling a **performed** one (refund) runs `markCancelled`, which also cancels the enrollment — unless the enrollment term has already elapsed (`isEnrollmentExpired`), which counts as the service being fully delivered and answers `-31007`.
+Cancelling an **unpaid** transaction leaves the payment `created` so the student can retry and keep their enrollment progress; cancelling a **performed** one (refund) runs `markCancelled`, which also cancels the enrollment. Since access is permanent (no expiry to treat as "already delivered"), a performed transaction can always be cancelled — there is no `-31007` (`UNABLE_TO_CANCEL`) path anymore.
 
 Three details that are easy to get wrong and are load-bearing:
 
@@ -150,13 +152,11 @@ Three details that are easy to get wrong and are load-bearing:
 - `PerformTransaction` skips `markPaid` when the payment is already `paid`, so a Payme retry after a half-completed write can't append a second `enrollment_histories` row or extend the term again.
 - Unexpected exceptions answer `-32400` (system error), never `-31008` — the latter tells Payme the business state permanently forbids the operation, which would be wrong for a transient DB fault.
 
-Fiscalization is opt-in per plan: `Plan.ikpu` / `packageCode` / `vatPercent` feed the optional `detail` receipt block on `CheckPerformTransaction`, and `detail` is omitted entirely when `ikpu` is empty. `receivers` and `additional` are deliberately not sent.
-
 ### Course content: tasks, submissions, progress, locks
 
 A course is `Course → Unit → Lesson → Task`, ordered by an admin-set `index` with `createdAt` as tiebreak (`UNIT_ORDER`/`LESSON_ORDER` in `course.service.ts`). A `Task` holds its questions as a jsonb array of `{ question, options, answer }`.
 
-**The student-facing read path is a four-endpoint drill-down, not one nested tree.** `GET student/courses` returns only `{ id, title, image, totalProgress }` per active course (`totalProgress` averaged across the student's `Progress` rows for their active, unexpired enrollment — `0` for a course they're not enrolled in); `GET student/courses/:id` is the same shape plus `description`. `GET student/courses/:courseId/units` returns `{ id, title, lessonsCount }`. `GET student/courses/:courseId/units/:unitId/lessons` returns `{ id, title, description, isLocked }`. `GET student/courses/:courseId/units/:unitId/lessons/:lessonId` returns `{ id, title, description, media, taskProgression: { totalTasks, completedTasks, progressPercent }, materials }` — `materials` reuses `MaterialService.listAllForLesson` (unpaginated, exported from `MaterialModule` for this cross-module call). None of these send tasks, questions, or answers — that's `GET student/courses/:courseId/units/:unitId/lessons/:lessonId/tasks` (`TaskService.listTasksForStudent`), a separate paginated call. The admin side is unchanged: `GET admin/courses/:id` still returns the full nested `units[].lessonsCount` tree in one call (`CourseService.findOneCourse`).
+**The student-facing read path is a four-endpoint drill-down, not one nested tree.** `GET student/courses` returns only `{ id, title, image, totalProgress }` per active course (`totalProgress` averaged across the student's `Progress` rows for their active enrollment — `0` for a course they're not enrolled in); `GET student/courses/:id` is the same shape plus `description`. `GET student/courses/:courseId/units` returns `{ id, title, lessonsCount }`. `GET student/courses/:courseId/units/:unitId/lessons` returns `{ id, title, description, isLocked }`. `GET student/courses/:courseId/units/:unitId/lessons/:lessonId` returns `{ id, title, description, media, taskProgression: { totalTasks, completedTasks, progressPercent }, materials }` — `materials` reuses `MaterialService.listAllForLesson` (unpaginated, exported from `MaterialModule` for this cross-module call). None of these send tasks, questions, or answers — that's `GET student/courses/:courseId/units/:unitId/lessons/:lessonId/tasks` (`TaskService.listTasksForStudent`), a separate paginated call. The admin side is unchanged: `GET admin/courses/:id` still returns the full nested `units[].lessonsCount` tree in one call (`CourseService.findOneCourse`).
 
 `POST /api/student/task-submissions` grades in one `dataSource.transaction`; if any task id is unknown the whole submission rolls back rather than half-saving.
 
@@ -167,7 +167,7 @@ A course is `Course → Unit → Lesson → Task`, ordered by an admin-set `inde
 
 **Sequential unlocking is on.** `LessonService.findLessonsForStudent` marks a lesson locked when the **previous lesson in the same unit** has tasks and its progress is under `LESSON_UNLOCK_PERCENT` (80); `previousLessonId` resets at the start of every unit's `.map()` (`findLessonsForStudent` is called once per unit, from `GET student/courses/:courseId/units/:unitId/lessons`), so a unit's first lesson is always unlocked regardless of how the previous unit ended, and a previous lesson with no tasks never blocks either — otherwise a video-only lesson would be an impassable wall. `isLocked` is not enforced server-side on any other route (task listing, submission) — it's advisory for the client to grey out a lesson; nothing currently stops a direct `GET`/`POST` against a locked lesson's tasks.
 
-Every student-facing submission response (`submit`, `getLessonResults`, `getTaskResult`) reveals the correct answer per question **only when the student's own answer was correct** — `questionResult()` in `task-submission.service.ts` sets `answer: isCorrect ? question.answer : null`, alongside `studentAnswer` and a per-question `isCorrect` boolean. Getting a question wrong tells the student that and nothing more, forcing an actual retry rather than reading the key off a failed attempt. The one exception is the admin read-through, `GET /api/admin/task-submissions/students/:studentId/lessons/:lessonId` (`admin-task-submission.controller.ts`, split out from the student-facing `task-submission.controller.ts` since it's the only admin-only method in that resource), which returns `answer` alongside `studentAnswer` unconditionally — an admin can't judge a result without the key. That route also **skips the enrollment check** on purpose, so an expired or cancelled enrollment's results stay readable; an unsubmitted task reports `isCorrect: null` rather than `false`.
+Every student-facing submission response (`submit`, `getLessonResults`, `getTaskResult`) reveals the correct answer per question **only when the student's own answer was correct** — `questionResult()` in `task-submission.service.ts` sets `answer: isCorrect ? question.answer : null`, alongside `studentAnswer` and a per-question `isCorrect` boolean. Getting a question wrong tells the student that and nothing more, forcing an actual retry rather than reading the key off a failed attempt. The one exception is the admin read-through, `GET /api/admin/task-submissions/students/:studentId/lessons/:lessonId` (`admin-task-submission.controller.ts`, split out from the student-facing `task-submission.controller.ts` since it's the only admin-only method in that resource), which returns `answer` alongside `studentAnswer` unconditionally — an admin can't judge a result without the key. That route also **skips the enrollment check** on purpose, so a cancelled enrollment's results stay readable; an unsubmitted task reports `isCorrect: null` rather than `false`.
 
 Admins track a student through `GET /api/admin/enrollments/:enrollmentId/students/:studentId/progress`, which verifies the enrollment belongs to that student.
 
@@ -190,7 +190,7 @@ Device tokens were already there: `Session.fcmToken`, one row per device. `Sessi
 |---|---|---|
 | `course_enrolled` | `EnrollmentService.createEnrollment`, `PaymentService.markPaid`, `PendingEnrollmentService.acceptPending` | the one student |
 | `course_created` | `CourseService.createCourse` / `updateCourse` | every student |
-| `lesson_added` | `LessonService.createLesson` | students with a live, unexpired enrolment in that course |
+| `lesson_added` | `LessonService.createLesson` | students with a live enrolment in that course |
 | `group_joined` | `GroupService.addStudents`, `GroupService.swapStudent` | the student(s) newly placed in that group |
 | `live_lesson_created` | `LiveLessonService.create` | every student currently in that group |
 
@@ -271,8 +271,7 @@ calls `ChatService.createRoomForGroup` right after saving the row, so every grou
 `ChatRoom` (`chat/entity/chat-room.entity.ts`, a `OneToOne` on `group`) the moment it's created —
 there's no admin action to open or close a room, and it outlives membership churn instead of being
 recreated per pairing. `ChatService` has no `ChatMember` table to keep in sync as the roster
-changes; access is derived on every call, the same "derived, not stored" approach
-`isEnrollmentExpired` uses for enrollments — a student may read/send iff `Student.group` currently
+changes; access is derived on every call — a student may read/send iff `Student.group` currently
 points at that room's group, a mentor iff they hold the `primary` `GroupMentor` row for it (a
 `support` mentor has **no** access, read or write), and any admin always passes (no membership row
 needed, unlike the other two roles). `ChatService.hasAccess` is the single gate every read and
@@ -281,6 +280,28 @@ use the room, with nothing left to reconcile.
 
 `addStudents` and `swapStudent` each fire a `group_joined` push (see "Push notifications" above)
 for every student newly placed in a group, after their transaction commits.
+
+### Mentor status
+
+`Mentor.status` (`MentorStatus`: `working` | `vacation` | `fired`, default `working`) is separate
+from `Mentor.role` (the `primary`/`support` group classification above) and from `isActive` (login
+gate). Admins change it through `PATCH admin/mentors/:id/status` (`MentorService.changeStatus`),
+which writes a `MentorStatusHistory` row (`mentor`, `oldStatus`, `newStatus`, `changedBy` — the
+admin who made the change, `SET NULL` if that admin is later deleted — `changedAt`) before saving
+the new status, so the row always captures the transition, not just the destination. `isActive` is
+kept in lockstep as a side effect — `true` only while `status` is `working`, `false` otherwise —
+rather than being settable independently through this route.
+
+**Only a `working` mentor is student-facing.** `GET student/mentors`, `GET student/mentors/:id`,
+and `POST student/mentors/:id/feedbacks` all filter/require `status: working`; a mentor on
+`vacation` or `fired` simply stops appearing to students and 404s if addressed directly, with no
+separate "unavailable" state to handle. This has no effect on `Group`/`GroupMentor` membership —
+a `vacation`/`fired` mentor stays on their group's team and keeps whatever `GroupMentorRole` they
+had until an admin changes that separately; `changeStatus` does not touch group assignment.
+
+`GET admin/mentors/:id` eager-loads `statusHistories` (with `changedBy`) as part of the normal
+mentor read, newest-first is not enforced at the query level since there's no dedicated
+history-listing endpoint — the full array comes back on every mentor fetch.
 
 ### Assessment (speaking practice)
 

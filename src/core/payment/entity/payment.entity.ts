@@ -4,14 +4,14 @@ import {
   Entity,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
 import { Student } from '@/core/user/entity/student.entity';
-import { Enrollment } from '@/core/enrollment/entity/enrollment.entity';
 import { PaymentType } from '@/core/payment/entity/payment-type.entity';
 import { PaymentStatus } from '@/core/payment/enum/payment-status.enum';
-import { Plan } from '@/core/plan/entity/plan.entity';
+import { Purchase } from '@/core/payment/entity/purchase.entity';
 
 @Entity('payments')
 export class Payment {
@@ -26,13 +26,8 @@ export class Payment {
   @JoinColumn()
   student: Student;
 
-  @ManyToOne(() => Enrollment, { onDelete: 'SET NULL', nullable: true })
-  @JoinColumn()
-  enrollment: Enrollment | null;
-
-  @ManyToOne(() => Plan, { onDelete: 'SET NULL', nullable: true })
-  @JoinColumn()
-  plan: Plan | null;
+  @OneToMany(() => Purchase, (purchase) => purchase.payment)
+  purchases: Purchase[];
 
   @Column({ type: 'int', default: 0 })
   amount: number;

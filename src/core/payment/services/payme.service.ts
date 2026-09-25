@@ -11,11 +11,11 @@ import { PAYME_ERROR_MESSAGE, PaymeError } from '@/core/payment/enum/payme-error
 import { PaymeCancelReason, PaymeTransactionState } from '@/core/payment/enum/payme-transaction-state.enum';
 import { PaymeParams, PaymeRequest, PaymeResponse, PaymeSuccessResponse } from '@/core/payment/dto/payme-request.dto';
 import { PaymentService } from '@/core/payment/services/payment.service';
-import { isEnrollmentExpired } from '@/core/enrollment/utils/enrollment.util';
+import { resolvePlan } from '@/core/payment/utils/payment-url.util';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const PAYME_RELATIONS = { plan: true, enrollment: { course: true }, student: true } as const;
+const PAYME_RELATIONS = { purchases: { subscription: { plan: { course: true } } }, student: true } as const;
 
 const TRANSACTION_TIMEOUT_MS = 12 * 60 * 60 * 1000;
 
@@ -24,8 +24,6 @@ const TIYIN_IN_SUM = 100;
 const DEFAULT_ACCOUNT_FIELD = 'payment_id';
 
 const UNIQUE_VIOLATION = '23505';
-
-const RECEIPT_TYPE_SALE = 0;
 
 class PaymeRpcError extends Error {
   constructor(
@@ -241,27 +239,7 @@ export class PaymeService {
     this.assertPayable(payment);
     await this.assertNoPendingTransaction(payment);
 
-    const detail = this.buildFiscalDetail(payment);
-    return detail ? { allow: true, detail } : { allow: true };
-  }
-
-  private buildFiscalDetail(payment: Payment) {
-    const plan = payment.plan;
-    if (!plan?.ikpu) return null;
-
-    return {
-      receipt_type: RECEIPT_TYPE_SALE,
-      items: [
-        {
-          title: [payment.enrollment?.course?.title, plan.title].filter(Boolean).join(' — ') || plan.title,
-          price: payment.amount * TIYIN_IN_SUM,
-          count: 1,
-          code: plan.ikpu,
-          ...(plan.packageCode ? { package_code: plan.packageCode } : {}),
-          vat_percent: plan.vatPercent ?? 0,
-        },
-      ],
-    };
+    return { allow: true };
   }
 
   private async setFiscalData(params: PaymeParams) {
@@ -367,7 +345,7 @@ export class PaymeService {
     await this.transactionRepo.save(transaction);
     this.logger.log(
       `[${transaction.transactionId}] to'lov ${transaction.payment.id} tasdiqlandi, ` +
-        `yozilish ${transaction.payment.enrollment?.id ?? '-'} faollashdi`,
+        `kurs ${resolvePlan(transaction.payment)?.course?.id ?? '-'} uchun yozilish faollashdi`,
     );
 
     return {
@@ -392,15 +370,11 @@ export class PaymeService {
     }
 
     if (transaction.state === PaymeTransactionState.PERFORMED) {
-      const enrollment = transaction.payment.enrollment;
-      if (enrollment && isEnrollmentExpired(enrollment)) {
-        throw new PaymeRpcError(PaymeError.UNABLE_TO_CANCEL);
-      }
       transaction.state = PaymeTransactionState.CANCELLED_AFTER_PERFORM;
       await this.paymentService.markCancelled(transaction.payment);
       this.logger.warn(
         `[${transaction.transactionId}] to'langan tranzaksiya bekor qilindi — ` +
-          `yozilish ${transaction.payment.enrollment?.id ?? '-'} to'xtatildi`,
+          `kurs ${resolvePlan(transaction.payment)?.course?.id ?? '-'} uchun yozilish to'xtatildi`,
       );
     } else {
       transaction.state = PaymeTransactionState.CANCELLED;

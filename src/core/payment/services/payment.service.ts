@@ -1,28 +1,34 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, In, Repository } from 'typeorm';
+import { FindOptionsWhere, Repository } from 'typeorm';
 import { Payment } from '@/core/payment/entity/payment.entity';
 import { PaymentType } from '@/core/payment/entity/payment-type.entity';
+import { Subscription } from '@/core/payment/entity/subscription.entity';
+import { Purchase } from '@/core/payment/entity/purchase.entity';
 import { PaymentStatus } from '@/core/payment/enum/payment-status.enum';
 import { Plan } from '@/core/plan/entity/plan.entity';
 import { Student } from '@/core/user/entity/student.entity';
 import { Enrollment } from '@/core/enrollment/entity/enrollment.entity';
 import { EnrollmentHistory } from '@/core/enrollment/entity/enrollment-history.entity';
 import { EnrollmentStatus } from '@/core/enrollment/enum/enrollment-status.enum';
-import { addMonths, isEnrollmentExpired } from '@/core/enrollment/utils/enrollment.util';
 import { RequestPaymentDto } from '@/core/payment/dto/request-payment.dto';
 import { SelectPaymentTypeDto } from '@/core/payment/dto/select-payment-type.dto';
 import { PaymentQuery } from '@/core/payment/dto/payment-query.dto';
 import { Paginated, PaginationQuery, paginate } from '@/common/dto/pagination-query.dto';
-import { buildPaymentUrl } from '@/core/payment/utils/payment-url.util';
+import { buildPaymentUrl, resolvePlan } from '@/core/payment/utils/payment-url.util';
 import { PushService } from '@/core/notification/services/push.service';
 
 const paymentRelations = {
   paymentType: true,
   student: true,
-  plan: true,
-  enrollment: { course: true },
+  purchases: { subscription: { plan: { course: true } } },
 } as const;
+
+function addMonths(date: Date, months: number): Date {
+  const result = new Date(date);
+  result.setMonth(result.getMonth() + months);
+  return result;
+}
 
 function withResolvedUrl(payment: Payment): Payment {
   if (!payment.paymentType) return payment;
@@ -37,6 +43,8 @@ export class PaymentService {
   constructor(
     @InjectRepository(Payment) private readonly paymentRepo: Repository<Payment>,
     @InjectRepository(PaymentType) private readonly paymentTypeRepo: Repository<PaymentType>,
+    @InjectRepository(Subscription) private readonly subscriptionRepo: Repository<Subscription>,
+    @InjectRepository(Purchase) private readonly purchaseRepo: Repository<Purchase>,
     @InjectRepository(Plan) private readonly planRepo: Repository<Plan>,
     @InjectRepository(Student) private readonly studentRepo: Repository<Student>,
     @InjectRepository(Enrollment) private readonly enrollmentRepo: Repository<Enrollment>,
@@ -55,49 +63,38 @@ export class PaymentService {
     if (!plan) throw new NotFoundException('Tarif topilmadi');
     if (!plan.course.isActive) throw new NotFoundException('Kurs topilmadi');
 
-    const existing = await this.enrollmentRepo.findOne({
-      where: {
-        student: { id: student.id },
-        course: { id: plan.course.id },
-        status: In([EnrollmentStatus.CREATED, EnrollmentStatus.ACTIVE]),
-      },
-      relations: { course: true },
+    const alreadyEnrolled = await this.enrollmentRepo.exists({
+      where: { student: { id: student.id }, course: { id: plan.course.id }, status: EnrollmentStatus.ACTIVE },
     });
-
-    if (existing && existing.status === EnrollmentStatus.ACTIVE && !isEnrollmentExpired(existing)) {
-      throw new BadRequestException('Siz allaqachon ushbu kursga yozilgansiz');
-    }
-
-    let enrollment: Enrollment;
-    if (!existing) {
-      enrollment = await this.enrollmentRepo.save({ student, course: plan.course });
-    } else if (existing.status === EnrollmentStatus.ACTIVE) {
-      existing.status = EnrollmentStatus.CREATED;
-      existing.start = null;
-      existing.end = null;
-      enrollment = await this.enrollmentRepo.save(existing);
-    } else {
-      enrollment = existing;
-    }
+    if (alreadyEnrolled) throw new BadRequestException('Siz allaqachon ushbu kursga yozilgansiz');
 
     let payment = await this.paymentRepo.findOne({
-      where: { enrollment: { id: enrollment.id }, status: PaymentStatus.CREATED },
+      where: {
+        student: { id: studentId },
+        status: PaymentStatus.CREATED,
+        purchases: { subscription: { plan: { course: { id: plan.course.id } } } },
+      },
       relations: paymentRelations,
     });
 
     if (payment) {
-      if (payment.plan?.id !== plan.id || payment.amount !== plan.price) {
-        payment.plan = plan;
+      const subscription = payment.purchases[0]?.subscription ?? null;
+      if (payment.amount !== plan.price) {
         payment.amount = plan.price;
         payment = await this.paymentRepo.save(payment);
       }
+      if (subscription && subscription.plan?.id !== plan.id) {
+        subscription.plan = plan;
+        await this.subscriptionRepo.save(subscription);
+      }
+      payment = await this.findOnePayment(payment.id);
     } else {
       const created = await this.paymentRepo.save({
         student: { id: studentId },
-        enrollment,
-        plan,
         amount: plan.price,
       });
+      const subscription = await this.subscriptionRepo.save({ student, plan, start: null, end: null });
+      await this.purchaseRepo.save({ payment: created, subscription });
       payment = await this.findOnePayment(created.id);
     }
 
@@ -129,29 +126,36 @@ export class PaymentService {
     return withResolvedUrl(await this.paymentRepo.save(payment));
   }
 
-  async markPaid(payment: Payment, start?: Date, end?: Date): Promise<Payment> {
-    const from = start ?? new Date();
-    const months = payment.plan?.month ?? 1;
-    const to = end ?? addMonths(from, months);
+  async markPaid(payment: Payment): Promise<Payment> {
+    const plan = resolvePlan(payment);
 
-    if (to.getTime() <= from.getTime()) {
-      throw new BadRequestException("Tugash sanasi boshlanish sanasidan keyin bo'lishi kerak");
-    }
-
-    if (payment.enrollment) {
-      payment.enrollment.status = EnrollmentStatus.ACTIVE;
-      payment.enrollment.start = from;
-      payment.enrollment.end = to;
-      await this.enrollmentRepo.save(payment.enrollment);
-      await this.historyRepo.save({
-        enrollment: payment.enrollment,
-        purchaseAmount: payment.amount,
-        start: from,
-        end: to,
+    if (plan) {
+      const course = plan.course;
+      const existing = await this.enrollmentRepo.findOne({
+        where: { student: { id: payment.student.id }, course: { id: course.id } },
       });
 
-      const course = payment.enrollment.course;
-      if (course) void this.pushService.notifyCourseEnrolled(payment.student.id, course.id, course.title);
+      const enrollment = existing ?? this.enrollmentRepo.create({ student: payment.student, course });
+      const start = enrollment.start ?? new Date();
+      enrollment.status = EnrollmentStatus.ACTIVE;
+      enrollment.start = start;
+      await this.enrollmentRepo.save(enrollment);
+
+      await this.historyRepo.save({
+        enrollment,
+        purchaseAmount: payment.amount,
+        start,
+      });
+
+      const subscription = payment.purchases[0]?.subscription;
+      if (subscription) {
+        const subscriptionStart = new Date();
+        subscription.start = subscriptionStart;
+        subscription.end = addMonths(subscriptionStart, plan.month);
+        await this.subscriptionRepo.save(subscription);
+      }
+
+      void this.pushService.notifyCourseEnrolled(payment.student.id, course.id, course.title);
     }
 
     payment.status = PaymentStatus.PAID;
@@ -159,9 +163,15 @@ export class PaymentService {
   }
 
   async markCancelled(payment: Payment): Promise<Payment> {
-    if (payment.enrollment) {
-      payment.enrollment.status = EnrollmentStatus.CANCELLED;
-      await this.enrollmentRepo.save(payment.enrollment);
+    const plan = resolvePlan(payment);
+    if (plan) {
+      const enrollment = await this.enrollmentRepo.findOne({
+        where: { student: { id: payment.student.id }, course: { id: plan.course.id } },
+      });
+      if (enrollment) {
+        enrollment.status = EnrollmentStatus.CANCELLED;
+        await this.enrollmentRepo.save(enrollment);
+      }
     }
     payment.status = PaymentStatus.CANCELLED;
     return this.paymentRepo.save(payment);
@@ -171,8 +181,7 @@ export class PaymentService {
     const where: FindOptionsWhere<Payment> = {};
     if (query.studentId) where.student = { id: query.studentId };
     if (query.paymentTypeId) where.paymentType = { id: query.paymentTypeId };
-    if (query.enrollmentId) where.enrollment = { id: query.enrollmentId };
-    if (query.planId) where.plan = { id: query.planId };
+    if (query.planId) where.purchases = { subscription: { plan: { id: query.planId } } };
     if (query.status) where.status = query.status;
 
     const [data, total] = await this.paymentRepo.findAndCount({

@@ -1,5 +1,6 @@
 import { IsEnum, IsOptional, IsString, Matches, MinLength } from 'class-validator';
 import { GroupMentorRole } from '@/core/group/enum/group-mentor-role.enum';
+import { Gender } from '@/core/user/enum/gender.enum';
 
 export class CreateMentorDto {
   @IsString()
@@ -14,6 +15,10 @@ export class CreateMentorDto {
 
   @IsEnum(GroupMentorRole)
   role: GroupMentorRole;
+
+  @IsEnum(Gender)
+  @IsOptional()
+  gender?: Gender;
 
   @IsString()
   @MinLength(6)

@@ -15,22 +15,5 @@ export class CreatePlanDto {
 
   @IsBoolean()
   @IsOptional()
-  hasMentor?: boolean;
-
-  @IsBoolean()
-  @IsOptional()
   isActive?: boolean;
-
-  @IsString()
-  @IsOptional()
-  ikpu?: string;
-
-  @IsString()
-  @IsOptional()
-  packageCode?: string;
-
-  @IsInt()
-  @Min(0)
-  @IsOptional()
-  vatPercent?: number;
 }

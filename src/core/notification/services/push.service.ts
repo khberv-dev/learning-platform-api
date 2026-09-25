@@ -6,7 +6,6 @@ import { Student } from '@/core/user/entity/student.entity';
 import { Mentor } from '@/core/user/entity/mentor.entity';
 import { Enrollment } from '@/core/enrollment/entity/enrollment.entity';
 import { EnrollmentStatus } from '@/core/enrollment/enum/enrollment-status.enum';
-import { isEnrollmentExpired } from '@/core/enrollment/utils/enrollment.util';
 import { FirebaseService, PushPayload } from '@/core/notification/services/firebase.service';
 import { PushAudience } from '@/core/notification/enum/push-audience.enum';
 import { SendPushDto } from '@/core/notification/dto/send-push.dto';
@@ -265,10 +264,7 @@ export class PushService {
       relations: { student: true },
     });
 
-    const now = new Date();
-    const studentIds = enrollments
-      .filter((enrollment) => !isEnrollmentExpired(enrollment, now))
-      .map((enrollment) => enrollment.student.id);
+    const studentIds = enrollments.map((enrollment) => enrollment.student.id);
 
     return this.tokensOfUsers([...new Set(studentIds)].map((id) => ({ id, role: UserRole.STUDENT })));
   }

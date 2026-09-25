@@ -42,8 +42,9 @@ export class MentorService {
       phoneNumber: dto.phoneNumber,
       password: passwordHash,
       isActive: true,
-      status: MentorStatus.ACTIVE,
+      status: MentorStatus.WORKING,
       role: dto.role,
+      ...(dto.gender ? { gender: dto.gender } : {}),
     });
   }
 
@@ -98,6 +99,7 @@ export class MentorService {
     if (dto.phoneNumber !== undefined) update.phoneNumber = dto.phoneNumber;
     if (dto.password !== undefined) update.password = await hashPassword(dto.password);
     if (dto.role !== undefined) update.role = dto.role;
+    if (dto.gender !== undefined) update.gender = dto.gender;
 
     if (Object.keys(update).length > 0) {
       await this.mentorRepo.update(mentor.id, update);
@@ -116,7 +118,7 @@ export class MentorService {
 
   async findActiveMentors(query: PaginationQuery) {
     const [mentors, total] = await this.mentorRepo.findAndCount({
-      where: { status: MentorStatus.ACTIVE },
+      where: { status: MentorStatus.WORKING },
       relations: { feedbacks: true },
       order: { createdAt: 'DESC' },
       skip: query.skip,
@@ -128,7 +130,7 @@ export class MentorService {
 
   async findOneActiveMentor(id: string) {
     const mentor = await this.mentorRepo.findOne({
-      where: { id, status: MentorStatus.ACTIVE },
+      where: { id, status: MentorStatus.WORKING },
       relations: { feedbacks: { student: true } },
     });
     if (!mentor) throw new NotFoundException('Mentor topilmadi');
@@ -136,7 +138,7 @@ export class MentorService {
   }
 
   async addFeedback(mentorId: string, studentId: string, dto: CreateFeedbackDto) {
-    const mentor = await this.mentorRepo.findOne({ where: { id: mentorId, status: MentorStatus.ACTIVE } });
+    const mentor = await this.mentorRepo.findOne({ where: { id: mentorId, status: MentorStatus.WORKING } });
     if (!mentor) throw new NotFoundException('Mentor topilmadi');
     const student = await this.studentRepo.findOne({ where: { id: studentId } });
     if (!student) throw new NotFoundException('Talaba topilmadi');
@@ -204,14 +206,13 @@ export class MentorService {
     const mentor = await this.findOneMentor(mentorId);
 
     await this.statusHistoryRepo.save({
-      mentor,
+      mentor: { id: mentor.id } as Mentor,
       oldStatus: mentor.status,
       newStatus: dto.status,
       changedBy: { id: adminId } as Admin,
     });
 
-    await this.mentorRepo.save({ ...mentor, status: dto.status });
-    await this.mentorRepo.update(mentor.id, { isActive: dto.status === MentorStatus.ACTIVE });
+    await this.mentorRepo.update(mentor.id, { status: dto.status, isActive: dto.status === MentorStatus.WORKING });
 
     return this.findOneMentor(mentorId);
   }

@@ -33,9 +33,6 @@ export class Enrollment {
   @Column({ name: 'start_date', type: 'timestamp', nullable: true })
   start: Date | null;
 
-  @Column({ name: 'end_date', type: 'timestamp', nullable: true })
-  end: Date | null;
-
   @OneToMany(() => Progress, (progress) => progress.enrollment)
   progresses: Progress[];
 

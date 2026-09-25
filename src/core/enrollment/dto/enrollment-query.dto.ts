@@ -1,9 +1,9 @@
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsEnum, IsIn, IsOptional, IsUUID } from 'class-validator';
+import { IsEnum, IsIn, IsOptional, IsUUID } from 'class-validator';
 import { PaginationQuery } from '@/common/dto/pagination-query.dto';
 import { EnrollmentStatus } from '@/core/enrollment/enum/enrollment-status.enum';
 
-export const ENROLLMENT_SORT_FIELDS = ['createdAt', 'updatedAt', 'start', 'end', 'status'] as const;
+export const ENROLLMENT_SORT_FIELDS = ['createdAt', 'updatedAt', 'start', 'status'] as const;
 export type EnrollmentSortField = (typeof ENROLLMENT_SORT_FIELDS)[number];
 
 export class EnrollmentQuery extends PaginationQuery {
@@ -18,11 +18,6 @@ export class EnrollmentQuery extends PaginationQuery {
   @IsEnum(EnrollmentStatus)
   @IsOptional()
   status?: EnrollmentStatus;
-
-  @Transform(({ value }: { value: unknown }) => (value === 'true' ? true : value === 'false' ? false : value))
-  @IsBoolean()
-  @IsOptional()
-  isExpired?: boolean;
 
   @IsIn(ENROLLMENT_SORT_FIELDS)
   @IsOptional()

@@ -16,9 +16,6 @@ export class EnrollmentHistory {
   @Column({ name: 'start_date', type: 'timestamp' })
   start: Date;
 
-  @Column({ name: 'end_date', type: 'timestamp' })
-  end: Date;
-
   @CreateDateColumn()
   createdAt: Date;
 }

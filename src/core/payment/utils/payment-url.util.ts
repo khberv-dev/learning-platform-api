@@ -1,7 +1,13 @@
 import { Payment } from '@/core/payment/entity/payment.entity';
+import { Plan } from '@/core/plan/entity/plan.entity';
+
+export function resolvePlan(payment: Payment): Plan | null {
+  return payment.purchases?.[0]?.subscription?.plan ?? null;
+}
 
 export function buildPaymentUrl(template: string, payment: Payment): string {
   const fullName = [payment.student?.firstName, payment.student?.lastName].filter(Boolean).join(' ');
+  const plan = resolvePlan(payment);
 
   const values: Record<string, string> = {
     paymentId: payment.id,
@@ -9,12 +15,11 @@ export function buildPaymentUrl(template: string, payment: Payment): string {
     userFullName: fullName,
     amount: String(payment.amount),
     amountTiyin: String(payment.amount * 100),
-    planId: payment.plan?.id ?? '',
-    planTitle: payment.plan?.title ?? '',
-    planMonth: payment.plan ? String(payment.plan.month) : '',
-    enrollmentId: payment.enrollment?.id ?? '',
-    courseId: payment.enrollment?.course?.id ?? '',
-    courseTitle: payment.enrollment?.course?.title ?? '',
+    planId: plan?.id ?? '',
+    planTitle: plan?.title ?? '',
+    planMonth: plan ? String(plan.month) : '',
+    courseId: plan?.course?.id ?? '',
+    courseTitle: plan?.course?.title ?? '',
   };
 
   return template.replace(/\$(\w+)/g, (token, key: string) =>

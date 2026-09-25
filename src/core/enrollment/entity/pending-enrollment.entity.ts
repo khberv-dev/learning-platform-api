@@ -31,9 +31,6 @@ export class PendingEnrollment {
   @Column({ name: 'start_date', type: 'timestamp', nullable: true })
   start: Date | null;
 
-  @Column({ name: 'end_date', type: 'timestamp', nullable: true })
-  end: Date | null;
-
   @ManyToOne(() => Enrollment, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn()
   enrollment: Enrollment | null;

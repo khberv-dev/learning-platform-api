@@ -9,7 +9,6 @@ import { UpdateCourseDto } from '@/core/course/dto/update-course.dto';
 import { PushService } from '@/core/notification/services/push.service';
 import { Enrollment } from '@/core/enrollment/entity/enrollment.entity';
 import { EnrollmentStatus } from '@/core/enrollment/enum/enrollment-status.enum';
-import { isEnrollmentExpired } from '@/core/enrollment/utils/enrollment.util';
 import { paginate, paginateInMemory, Paginated, PaginationQuery } from '@/common/dto/pagination-query.dto';
 
 export const UNIT_ORDER = { index: 'ASC', createdAt: 'ASC' } as const;
@@ -40,11 +39,10 @@ export class CourseService {
       relations: { course: true, progresses: true },
     });
 
-    const activeEnrollments = enrollments.filter((enrollment) => !isEnrollmentExpired(enrollment));
-    const contentCounts = await this.contentCountsByCourse(activeEnrollments.map((e) => e.course.id));
+    const contentCounts = await this.contentCountsByCourse(enrollments.map((e) => e.course.id));
 
     const result = new Map<string, number>();
-    for (const enrollment of activeEnrollments) {
+    for (const enrollment of enrollments) {
       const lessonsCount = contentCounts.get(enrollment.course.id)?.lessonsCount ?? 0;
       const progress =
         lessonsCount === 0

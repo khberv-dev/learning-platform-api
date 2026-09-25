@@ -8,8 +8,15 @@ import { extname, resolve } from 'path';
 interface UsersSeed {
   password: string;
   admin: { email: string; firstName: string; lastName: string };
-  mentors: Array<{ phoneNumber: string; firstName: string; lastName: string; role: string; status: string }>;
-  students: Array<{ phoneNumber: string; firstName: string; lastName: string; level: string }>;
+  mentors: Array<{
+    phoneNumber: string;
+    firstName: string;
+    lastName: string;
+    role: string;
+    status: string;
+    gender: string;
+  }>;
+  students: Array<{ phoneNumber: string; firstName: string; lastName: string; level: string; gender: string }>;
 }
 
 const usersData = JSON.parse(readFileSync(resolve(__dirname, 'users.json'), 'utf-8')) as UsersSeed;
@@ -77,17 +84,41 @@ async function seedMentors(client: Client, password: string): Promise<void> {
   const hashed = await hashPassword(password);
 
   for (const mentor of usersData.mentors) {
+    const isActive = mentor.status === 'working';
     const existing = await client.query('SELECT id FROM mentors WHERE phone_number = $1', [mentor.phoneNumber]);
     if (existing.rowCount) {
-      await client.query('UPDATE mentors SET password = $1 WHERE phone_number = $2', [hashed, mentor.phoneNumber]);
-      console.log(`~ mentor ${mentor.phoneNumber} already exists, password synced`);
+      await client.query(
+        `UPDATE mentors SET password = $1, first_name = $2, last_name = $3, role = $4, status = $5, is_active = $6, gender = $7
+         WHERE phone_number = $8`,
+        [
+          hashed,
+          mentor.firstName,
+          mentor.lastName,
+          mentor.role,
+          mentor.status,
+          isActive,
+          mentor.gender,
+          mentor.phoneNumber,
+        ],
+      );
+      console.log(`~ mentor ${mentor.phoneNumber} already exists, synced to seed data (${mentor.status})`);
       continue;
     }
 
     await client.query(
-      `INSERT INTO mentors (id, first_name, last_name, phone_number, password, is_active, status, role)
-       VALUES ($1, $2, $3, $4, $5, true, $6, $7)`,
-      [randomUUID(), mentor.firstName, mentor.lastName, mentor.phoneNumber, hashed, mentor.status, mentor.role],
+      `INSERT INTO mentors (id, first_name, last_name, phone_number, password, is_active, status, role, gender)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [
+        randomUUID(),
+        mentor.firstName,
+        mentor.lastName,
+        mentor.phoneNumber,
+        hashed,
+        isActive,
+        mentor.status,
+        mentor.role,
+        mentor.gender,
+      ],
     );
     console.log(`+ mentor created: ${mentor.phoneNumber} (${mentor.firstName} ${mentor.lastName}, ${mentor.role})`);
   }
@@ -99,15 +130,19 @@ async function seedStudents(client: Client, password: string): Promise<void> {
   for (const student of usersData.students) {
     const existing = await client.query('SELECT id FROM students WHERE phone_number = $1', [student.phoneNumber]);
     if (existing.rowCount) {
-      await client.query('UPDATE students SET password = $1 WHERE phone_number = $2', [hashed, student.phoneNumber]);
-      console.log(`~ student ${student.phoneNumber} already exists, password synced`);
+      await client.query(
+        `UPDATE students SET password = $1, first_name = $2, last_name = $3, level = $4, gender = $5
+         WHERE phone_number = $6`,
+        [hashed, student.firstName, student.lastName, student.level, student.gender, student.phoneNumber],
+      );
+      console.log(`~ student ${student.phoneNumber} already exists, synced to seed data`);
       continue;
     }
 
     await client.query(
-      `INSERT INTO students (id, first_name, last_name, phone_number, password, is_active, level)
-       VALUES ($1, $2, $3, $4, $5, true, $6)`,
-      [randomUUID(), student.firstName, student.lastName, student.phoneNumber, hashed, student.level],
+      `INSERT INTO students (id, first_name, last_name, phone_number, password, is_active, level, gender)
+       VALUES ($1, $2, $3, $4, $5, true, $6, $7)`,
+      [randomUUID(), student.firstName, student.lastName, student.phoneNumber, hashed, student.level, student.gender],
     );
     console.log(`+ student created: ${student.phoneNumber} (${student.firstName} ${student.lastName})`);
   }

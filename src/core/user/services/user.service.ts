@@ -3,12 +3,12 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Student } from '@/core/user/entity/student.entity';
 import { StudentLevel } from '@/core/user/enum/student-level.enum';
+import { Gender } from '@/core/user/enum/gender.enum';
 import { Mentor } from '@/core/user/entity/mentor.entity';
 import { Admin } from '@/core/user/entity/admin.entity';
 import { StudentActivity } from '@/core/user/entity/student-activity.entity';
 import { Enrollment } from '@/core/enrollment/entity/enrollment.entity';
 import { EnrollmentStatus } from '@/core/enrollment/enum/enrollment-status.enum';
-import { isEnrollmentExpired } from '@/core/enrollment/utils/enrollment.util';
 import { UserRole } from '@/core/user/enum/user-role.enum';
 import type { AuthUser } from '@/common/utils/role-owner.util';
 import { hashPassword } from '@/shared/utils/hash.util';
@@ -60,11 +60,9 @@ export class UserService {
   }
 
   private async hasActiveCourse(studentId: string): Promise<boolean> {
-    const enrollments = await this.enrollmentRepo.find({
+    return this.enrollmentRepo.exists({
       where: { student: { id: studentId }, status: EnrollmentStatus.ACTIVE },
-      select: { id: true, status: true, end: true },
     });
-    return enrollments.some((enrollment) => !isEnrollmentExpired(enrollment));
   }
 
   async recordDailyActivity(
@@ -219,6 +217,7 @@ export class UserService {
     phoneNumber?: string;
     password: string;
     level?: StudentLevel;
+    gender?: Gender;
   }): Promise<Student> {
     return this.studentRepo.save({
       firstName: data.firstName,
@@ -227,6 +226,7 @@ export class UserService {
       phoneNumber: data.phoneNumber,
       password: data.password,
       ...(data.level ? { level: data.level } : {}),
+      ...(data.gender ? { gender: data.gender } : {}),
     });
   }
 }

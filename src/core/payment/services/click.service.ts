@@ -10,10 +10,11 @@ import { CLICK_ERROR_NOTE, ClickError } from '@/core/payment/enum/click-error.en
 import { ClickPrepareDto } from '@/core/payment/dto/click-prepare.dto';
 import { ClickCompleteDto } from '@/core/payment/dto/click-complete.dto';
 import { PaymentService } from '@/core/payment/services/payment.service';
+import { resolvePlan } from '@/core/payment/utils/payment-url.util';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const CLICK_RELATIONS = { plan: true, enrollment: { course: true }, student: true } as const;
+const CLICK_RELATIONS = { purchases: { subscription: { plan: { course: true } } }, student: true } as const;
 
 export interface ClickPrepareResponse {
   click_trans_id: string;
@@ -241,7 +242,7 @@ export class ClickService {
     try {
       await this.paymentService.markPaid(payment);
       this.logger.log(
-        `[${dto.click_trans_id}] to'lov ${payment.id} tasdiqlandi, yozilish ${payment.enrollment?.id ?? '-'} faollashdi`,
+        `[${dto.click_trans_id}] to'lov ${payment.id} tasdiqlandi, kurs ${resolvePlan(payment)?.course?.id ?? '-'} uchun yozilish faollashdi`,
       );
     } catch (error) {
       this.logger.error(`To'lovni tasdiqlashda xato (payment ${payment.id})`, error as Error);

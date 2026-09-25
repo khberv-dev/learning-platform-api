@@ -5,7 +5,6 @@ import { PendingEnrollment } from '@/core/enrollment/entity/pending-enrollment.e
 import { PendingEnrollmentStatus } from '@/core/enrollment/enum/pending-enrollment-status.enum';
 import { Enrollment } from '@/core/enrollment/entity/enrollment.entity';
 import { EnrollmentStatus } from '@/core/enrollment/enum/enrollment-status.enum';
-import { isEnrollmentExpired } from '@/core/enrollment/utils/enrollment.util';
 import { EnrollmentService } from '@/core/enrollment/services/enrollment.service';
 import { CreatePendingEnrollmentDto } from '@/core/enrollment/dto/create-pending-enrollment.dto';
 import { AcceptPendingEnrollmentDto } from '@/core/enrollment/dto/accept-pending-enrollment.dto';
@@ -14,6 +13,8 @@ import { Course } from '@/core/course/entity/course.entity';
 import { Plan } from '@/core/plan/entity/plan.entity';
 import { Student } from '@/core/user/entity/student.entity';
 import { Payment } from '@/core/payment/entity/payment.entity';
+import { Subscription } from '@/core/payment/entity/subscription.entity';
+import { Purchase } from '@/core/payment/entity/purchase.entity';
 import { PaymentStatus } from '@/core/payment/enum/payment-status.enum';
 import { Paginated, paginate } from '@/common/dto/pagination-query.dto';
 import { PushService } from '@/core/notification/services/push.service';
@@ -23,6 +24,12 @@ const pendingRelations = {
   course: true,
   enrollment: true,
 } as const;
+
+function addMonths(date: Date, months: number): Date {
+  const result = new Date(date);
+  result.setMonth(result.getMonth() + months);
+  return result;
+}
 
 @Injectable()
 export class PendingEnrollmentService {
@@ -46,15 +53,11 @@ export class PendingEnrollmentService {
     if (!course.isActive) throw new BadRequestException('Kurs faol emas');
 
     const start = dto.start ? new Date(dto.start) : null;
-    const end = dto.end ? new Date(dto.end) : null;
-    if (start && end && end.getTime() <= start.getTime()) {
-      throw new BadRequestException("Tugash sanasi boshlanish sanasidan keyin bo'lishi kerak");
-    }
 
     const active = await this.enrollmentRepo.findOne({
       where: { student: { id: student.id }, course: { id: course.id }, status: EnrollmentStatus.ACTIVE },
     });
-    if (active && !isEnrollmentExpired(active)) {
+    if (active) {
       throw new BadRequestException('Talaba allaqachon ushbu kursga yozilgan');
     }
 
@@ -69,11 +72,10 @@ export class PendingEnrollmentService {
 
     if (existing) {
       existing.start = start;
-      existing.end = end;
       return this.pendingRepo.save(existing);
     }
 
-    const created = await this.pendingRepo.save({ student, course, start, end });
+    const created = await this.pendingRepo.save({ student, course, start });
     return this.findOnePending(created.id);
   }
 
@@ -118,7 +120,6 @@ export class PendingEnrollmentService {
           studentId: pending.student.id,
           planId: plan.id,
           start: pending.start?.toISOString(),
-          end: pending.end?.toISOString(),
           purchaseAmount: amount,
         },
         manager,
@@ -126,11 +127,18 @@ export class PendingEnrollmentService {
 
       const payment = await manager.getRepository(Payment).save({
         student: pending.student,
-        enrollment,
-        plan,
         amount,
         status: PaymentStatus.PAID,
       });
+
+      const subscriptionStart = enrollment.start ?? new Date();
+      const subscription = await manager.getRepository(Subscription).save({
+        student: pending.student,
+        plan,
+        start: subscriptionStart,
+        end: addMonths(subscriptionStart, plan.month),
+      });
+      await manager.getRepository(Purchase).save({ payment, subscription });
 
       pending.status = PendingEnrollmentStatus.ACCEPTED;
       pending.enrollment = enrollment;

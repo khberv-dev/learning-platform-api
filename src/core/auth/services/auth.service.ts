@@ -120,6 +120,7 @@ export class AuthService {
       ...identity,
       password: passwordHash,
       level: data.level,
+      gender: data.gender,
     });
 
     return { ...this.issueTokens(student.id, UserRole.STUDENT), role: UserRole.STUDENT };
