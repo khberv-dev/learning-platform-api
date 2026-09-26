@@ -12,7 +12,9 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { MoreThan, Repository } from 'typeorm';
 import { UserService } from '@/core/user/services/user.service';
-import { SignUpRequest } from '@/core/auth/dto/sign-up-request.dto';
+import { RequestRegistrationOtpDto } from '@/core/auth/dto/request-registration-otp.dto';
+import { VerifyRegistrationOtpDto } from '@/core/auth/dto/verify-registration-otp.dto';
+import { RegisterDto } from '@/core/auth/dto/register.dto';
 import { StudentSignInDto } from '@/core/auth/dto/student-sign-in.dto';
 import { MentorSignInDto } from '@/core/auth/dto/mentor-sign-in.dto';
 import { AdminSignInDto } from '@/core/auth/dto/admin-sign-in.dto';
@@ -20,6 +22,7 @@ import { SendOtpDto } from '@/core/auth/dto/send-otp.dto';
 import { OtpPurpose } from '@/core/auth/enum/otp-purpose.enum';
 import { RecoverPasswordDto } from '@/core/auth/dto/recover-password.dto';
 import { Otp } from '@/core/auth/entity/otp.entity';
+import { RegistrationSession } from '@/core/auth/entity/registration-session.entity';
 import { comparePassword, hashPassword } from '@/shared/utils/hash.util';
 import { NotificationService } from '@/core/notification/services/notification.service';
 import { SlidingWindowLimiter } from '@/core/auth/utils/sliding-window-limiter';
@@ -33,6 +36,11 @@ const OTP_RESEND_COOLDOWN_MS = 60 * 1000;
 const OTP_MAX_PER_RECIPIENT_PER_HOUR = 5;
 const OTP_MAX_VERIFY_ATTEMPTS = 5;
 const HOUR_MS = 60 * 60 * 1000;
+
+const REGISTRATION_SESSION_TTL_MS = 30 * 60 * 1000;
+const REGISTRATION_OTP_RESEND_COOLDOWN_MS = 2 * 60 * 1000;
+const REGISTRATION_OTP_MAX_VERIFY_ATTEMPTS = 5;
+const SESSION_NOT_FOUND_MESSAGE = "Sessiya topilmadi yoki muddati o'tgan";
 
 function generateOtpCode(): string {
   return String(randomInt(100_000, 1_000_000));
@@ -58,6 +66,7 @@ export class AuthService {
     private readonly configService: ConfigService,
     private readonly notificationService: NotificationService,
     @InjectRepository(Otp) private readonly otpRepo: Repository<Otp>,
+    @InjectRepository(RegistrationSession) private readonly registrationSessionRepo: Repository<RegistrationSession>,
   ) {
     const perIp = Number(this.configService.get<string>('OTP_MAX_PER_IP_PER_HOUR'));
     this.ipLimiter = Number.isFinite(perIp) && perIp > 0 ? new SlidingWindowLimiter(perIp, HOUR_MS) : null;
@@ -99,10 +108,15 @@ export class AuthService {
     if (!consumed.affected) throw new BadRequestException("OTP noto'g'ri yoki muddati o'tgan");
   }
 
-  async signUp(data: SignUpRequest) {
-    const identity = resolveIdentity(data);
-    await this.consumeOtp(identity, data.code, OtpPurpose.REGISTRATION);
+  async checkPhoneExists(phoneNumber: string): Promise<{ exists: boolean }> {
+    return { exists: await this.userService.hasStudentProfile(phoneNumber) };
+  }
 
+  async checkEmailExists(email: string): Promise<{ exists: boolean }> {
+    return { exists: await this.userService.hasStudentProfileByEmail(email) };
+  }
+
+  private async assertNotRegistered(identity: AuthIdentity): Promise<void> {
     const taken = identity.email
       ? await this.userService.hasStudentProfileByEmail(identity.email)
       : await this.userService.hasStudentProfile(identity.phoneNumber!);
@@ -111,17 +125,100 @@ export class AuthService {
         identity.email ? "Bu email allaqachon ro'yxatdan o'tgan" : "Bu telefon raqam allaqachon ro'yxatdan o'tgan",
       );
     }
+  }
 
-    const passwordHash = await hashPassword(data.password);
+  async requestRegistrationOtp(dto: RequestRegistrationOtpDto, ip?: string): Promise<{ sessionId: string }> {
+    const identity = resolveIdentity(dto);
+    if (ip && this.ipLimiter?.hit(ip)) {
+      throw new HttpException("Juda ko'p so'rov yuborildi, keyinroq urinib ko'ring", HttpStatus.TOO_MANY_REQUESTS);
+    }
+    await this.assertNotRegistered(identity);
+
+    const now = new Date();
+    const existing = await this.registrationSessionRepo.findOne({
+      where: { ...identity, expiresAt: MoreThan(now) },
+      order: { createdAt: 'DESC' },
+    });
+
+    if (existing) {
+      const elapsed = now.getTime() - existing.lastSentAt.getTime();
+      if (elapsed < REGISTRATION_OTP_RESEND_COOLDOWN_MS) {
+        const wait = Math.ceil((REGISTRATION_OTP_RESEND_COOLDOWN_MS - elapsed) / 1000);
+        throw new HttpException(`Yangi kod so'rash uchun ${wait} soniya kuting`, HttpStatus.TOO_MANY_REQUESTS);
+      }
+    }
+
+    const code = this.isDevelopment ? DEVELOPMENT_OTP_CODE : generateOtpCode();
+    if (identity.email) {
+      await this.notificationService.sendEmailOtp(identity.email, code);
+    } else {
+      await this.notificationService.sendOtp(identity.phoneNumber!, code);
+    }
+
+    if (existing) {
+      await this.registrationSessionRepo.update(existing.id, {
+        code,
+        lastSentAt: now,
+        verified: false,
+        attempts: 0,
+      });
+      return { sessionId: existing.id };
+    }
+
+    const created = await this.registrationSessionRepo.save({
+      phoneNumber: identity.phoneNumber ?? null,
+      email: identity.email ?? null,
+      code,
+      lastSentAt: now,
+      expiresAt: new Date(now.getTime() + REGISTRATION_SESSION_TTL_MS),
+      verified: false,
+      attempts: 0,
+    });
+    return { sessionId: created.id };
+  }
+
+  async verifyRegistrationOtp(dto: VerifyRegistrationOtpDto): Promise<{ verified: boolean }> {
+    const session = await this.registrationSessionRepo.findOne({ where: { id: dto.sessionId } });
+    if (!session || session.expiresAt < new Date() || session.attempts >= REGISTRATION_OTP_MAX_VERIFY_ATTEMPTS) {
+      throw new BadRequestException(SESSION_NOT_FOUND_MESSAGE);
+    }
+
+    if (session.code !== dto.code) {
+      await this.registrationSessionRepo.update(session.id, { attempts: session.attempts + 1 });
+      throw new BadRequestException("OTP noto'g'ri yoki muddati o'tgan");
+    }
+
+    await this.registrationSessionRepo.update(session.id, { verified: true });
+    return { verified: true };
+  }
+
+  async register(dto: RegisterDto) {
+    const session = await this.registrationSessionRepo.findOne({ where: { id: dto.sessionId } });
+    if (!session || session.expiresAt < new Date()) {
+      throw new BadRequestException(SESSION_NOT_FOUND_MESSAGE);
+    }
+    if (!session.verified) {
+      throw new BadRequestException('Avval OTP kodni tasdiqlang');
+    }
+
+    const identity = resolveIdentity({
+      phoneNumber: session.phoneNumber ?? undefined,
+      email: session.email ?? undefined,
+    });
+    await this.assertNotRegistered(identity);
+
+    const passwordHash = await hashPassword(dto.password);
 
     const student = await this.userService.createStudent({
-      firstName: data.firstName,
-      lastName: data.lastName,
+      firstName: dto.firstName,
+      lastName: dto.lastName,
       ...identity,
       password: passwordHash,
-      level: data.level,
-      gender: data.gender,
+      level: dto.level,
+      gender: dto.gender,
     });
+
+    await this.registrationSessionRepo.delete(session.id);
 
     return { ...this.issueTokens(student.id, UserRole.STUDENT), role: UserRole.STUDENT };
   }
@@ -191,17 +288,6 @@ export class AuthService {
     const identity = resolveIdentity(dto);
     await this.assertOtpAllowed(identity, ip);
 
-    if (dto.purpose === OtpPurpose.REGISTRATION) {
-      const hasStudent = identity.email
-        ? await this.userService.hasStudentProfileByEmail(identity.email)
-        : await this.userService.hasStudentProfile(identity.phoneNumber!);
-      if (hasStudent) {
-        throw new BadRequestException(
-          identity.email ? "Bu email allaqachon ro'yxatdan o'tgan" : "Bu telefon raqam allaqachon ro'yxatdan o'tgan",
-        );
-      }
-    }
-
     const code = this.isDevelopment ? DEVELOPMENT_OTP_CODE : generateOtpCode();
 
     if (identity.email) {
@@ -211,8 +297,8 @@ export class AuthService {
     }
 
     const expiresAt = new Date(Date.now() + OTP_TTL_MS);
-    await this.otpRepo.update({ ...identity, purpose: dto.purpose, used: false }, { used: true });
-    await this.otpRepo.save({ ...identity, code, purpose: dto.purpose, expiresAt, used: false, attempts: 0 });
+    await this.otpRepo.update({ ...identity, purpose: OtpPurpose.RECOVER, used: false }, { used: true });
+    await this.otpRepo.save({ ...identity, code, purpose: OtpPurpose.RECOVER, expiresAt, used: false, attempts: 0 });
 
     return { message: 'OTP yuborildi' };
   }

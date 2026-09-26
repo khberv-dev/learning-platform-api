@@ -38,7 +38,7 @@ Coverage is thin and deliberate — the specs cover pure logic and branch-heavy 
 | `CLICK_SERVICE_ID`, `CLICK_SECRET_KEY` | Click Merchant API; the secret signs `sign_string` on the prepare/complete webhooks |
 | `PAYME_MERCHANT_KEY` | Payme (Paycom) Merchant API; the password half of the `Basic` header Payme sends. Unset rejects every request with `-32504` |
 | `PAYME_ACCOUNT_FIELD` | optional, defaults to `payment_id` — the account field name configured in the Payme cabinet |
-| `ESKIZ_API_URL`, `ESKIZ_API_USER`, `ESKIZ_API_KEY` | Eskiz SMS gateway, used for sign-up / password-recovery OTP codes |
+| `ESKIZ_API_URL`, `ESKIZ_API_USER`, `ESKIZ_API_KEY` | Eskiz SMS gateway, used for registration / password-recovery OTP codes |
 | `RESEND_API_KEY`, `RESEND_FROM` | Resend email gateway and verified sender, used for email OTP codes |
 | `GOOGLE_SERVICES_JSON` | Firebase service account key for FCM push, as base64 or single-line raw JSON. Unset means push is skipped (warned once, never throws) |
 | `OTP_MAX_PER_IP_PER_HOUR` | optional per-IP cap on `POST /auth/otp/send`; unset disables it (needs `trust proxy` behind a reverse proxy, otherwise all requests look like one IP) |
@@ -80,7 +80,7 @@ The gate lives at the outermost sensible layer in each case: `EskizService.sendS
 
 ### Auth & authorization
 
-There is no `User` entity. `Student`, `Mentor`, and `Admin` (`src/core/user/entity/`) are three fully independent accounts, each owning its own login credentials — one account, one role, permanently. A person needing two roles gets two separate accounts; there is no mechanism to add a second role to an existing login. Only `Student` has both `email` and `phoneNumber`; `Mentor` has `phoneNumber` only (no email login), `Admin` has `email` only (no phone login) — all three otherwise share `firstName`, `lastName`, `avatar`, `password`, `isActive`. `Student` and `Mentor` additionally carry `gender` (`Gender`: `male` | `female`, default `male`) — `Admin` has no such column. A student sets it once at sign-up (`SignUpRequest.gender`, optional); there's no route to change it afterward. An admin sets/changes a mentor's via `CreateMentorDto`/`UpdateMentorDto`.
+There is no `User` entity. `Student`, `Mentor`, and `Admin` (`src/core/user/entity/`) are three fully independent accounts, each owning its own login credentials — one account, one role, permanently. A person needing two roles gets two separate accounts; there is no mechanism to add a second role to an existing login. Only `Student` has both `email` and `phoneNumber`; `Mentor` has `phoneNumber` only (no email login), `Admin` has `email` only (no phone login) — all three otherwise share `firstName`, `lastName`, `avatar`, `password`, `isActive`. `Student` and `Mentor` additionally carry `gender` (`Gender`: `male` | `female`, default `male`) — `Admin` has no such column. A student sets it once at registration (`RegisterDto.gender`, optional); there's no route to change it afterward. An admin sets/changes a mentor's via `CreateMentorDto`/`UpdateMentorDto`.
 
 `JwtAccessGuard` and `RolesGuard` are global `APP_GUARD` providers in `app.module.ts` — every route is authenticated by default.
 
@@ -106,11 +106,17 @@ Because each role is its own table with its own primary key, the id in the JWT *
 
 ### Sign-up / OTP
 
-`AuthService` owns the OTP flow end to end (no separate OTP service). Registration and password recovery accept exactly one identity: `phoneNumber` or `email`. Codes are 6 digits from `crypto.randomInt`, stored in the `otps` table with a 5-minute TTL, purpose, used flag, and attempt count, and delivered through `NotificationService` to Eskiz (SMS) or Resend (email). A code is bound to its purpose, a resend invalidates older codes for that identity and purpose, and five wrong verification attempts invalidate the code. Three send limits stack: a 60s per-recipient resend cooldown, 5 sends per recipient per hour, and an optional per-IP hourly cap via `SlidingWindowLimiter` (in-memory, so it resets on restart and is per-process).
+Registration and password recovery are two independent flows now, backed by two different tables — they no longer share `otps`/`OtpPurpose` the way a single generic "send OTP" endpoint once did.
 
-`POST /auth/otp/send` carries an optional `purpose` (`OtpPurpose`) that **defaults to `registration`**, which refuses a phone or email that is already taken; `recover` does not (password reset targets an existing account by definition). Because the default is the strict branch, a password-reset caller *must* send `purpose: "recover"` explicitly. "Taken" means *a `Student` row already exists with that identity* — `signUp` only ever creates a `Student`, so only the `Student` table is checked (`UserService.hasStudentProfile(ByEmail)`); a phone or email already in use by a `Mentor` or `Admin` account does not block registration, since those are unrelated accounts.
+**Registration** (`AuthService.requestRegistrationOtp` / `verifyRegistrationOtp` / `register`) is a three-step, session-scoped flow backed by `registration_sessions` (`RegistrationSession`):
 
-The taken-phone check runs **after** `assertOtpAllowed`, so probing numbers to discover which are registered still burns the per-IP and per-phone budget. The rejection reuses `signUp`'s exact wording (`Bu telefon raqam allaqachon ro'yxatdan o'tgan`) so the two entry points can't drift apart.
+1. `POST /auth/register/otp/send { phoneNumber | email }` — rejects an identity a `Student` already owns (`UserService.hasStudentProfile(ByEmail)`; same "Student table only" rule as everywhere else — a `Mentor`/`Admin` with that identity doesn't block it), then either reuses the caller's existing non-expired session for that identity or creates a new one. A session lives **30 minutes from creation** (`REGISTRATION_SESSION_TTL_MS`) — the outer window to verify and finish registering; resending does **not** push this deadline back. Resend is capped at **once per 2 minutes**, tracked via the session's own `lastSentAt`, not a separate per-recipient table — a resend also resets `attempts` to 0 and `verified` to `false` (a fresh code invalidates whatever verification state existed for the old one). Returns `{ sessionId }`.
+2. `POST /auth/register/otp/verify { sessionId, code }` — 400s (`"Sessiya topilmadi yoki muddati o'tgan"`) if the session id doesn't exist, is expired, or has hit 5 wrong attempts; a wrong code increments `attempts` and answers `"OTP noto'g'ri yoki muddati o'tgan"`; a right code sets `verified: true`.
+3. `POST /auth/register { sessionId, firstName, lastName?, password, level?, gender? }` — requires `verified: true` (400 `"Avval OTP kodni tasdiqlang"` otherwise) on top of the same not-expired check, then re-checks "not already taken" (race protection against two sessions for the same identity finishing concurrently). The phone/email is never sent in this call — it's read off the session record, not the request body. On success the session row is deleted; it's single-use and can't be replayed.
+
+**Password recovery** keeps the original two-call shape and is now `otps`' only purpose (`OtpPurpose` has just `RECOVER` left, so `POST /auth/otp/send` no longer takes a `purpose` field at all): `POST /auth/otp/send { phoneNumber | email }` then `POST /auth/recover-password { phoneNumber | email, code, newPassword }`. Codes are 6 digits from `crypto.randomInt`, 5-minute TTL, and the same three stacked send limits as before — 60s per-recipient resend cooldown, 5 sends per recipient per hour, and an optional per-IP hourly cap via `SlidingWindowLimiter` (in-memory, resets on restart, per-process).
+
+`GET /auth/check-phone?phoneNumber=` and `GET /auth/check-email?email=` are `@Public()` and let a client ask "is this identity already registered" directly — `{ exists: boolean }`, no side effects, no OTP or registration session touched. Same "Student table only" semantics as the registration check. Unlike the OTP-send endpoints, there's no per-IP or per-recipient limiter here — it's a plain existence lookup, not a resource that costs anything to call repeatedly.
 
 ### Payment & enrollment lifecycle
 
@@ -325,7 +331,4 @@ Admin lesson media can be replaced with `PATCH /api/admin/courses/:courseId/unit
 
 ## Docs
 
-There is no `docs/` folder — don't create one. `student-app-docs.md` at the repo root is the
-hand-written API guide for the student mobile app (every `/api/v{N}/student/*` and
-`/api/v{N}/auth/*` route it depends on). Keep it in sync when changing any endpoint it
-describes.
+There is no `docs/` folder and no standalone student-app API guide file — don't create one.

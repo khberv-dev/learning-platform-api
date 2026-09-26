@@ -1,12 +1,16 @@
-import { Body, Controller, Ip, Post, Request, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Ip, Post, Query, Request, UseGuards } from '@nestjs/common';
 
 import { AuthService } from '@/core/auth/services/auth.service';
-import { SignUpRequest } from '@/core/auth/dto/sign-up-request.dto';
+import { RequestRegistrationOtpDto } from '@/core/auth/dto/request-registration-otp.dto';
+import { VerifyRegistrationOtpDto } from '@/core/auth/dto/verify-registration-otp.dto';
+import { RegisterDto } from '@/core/auth/dto/register.dto';
 import { StudentSignInDto } from '@/core/auth/dto/student-sign-in.dto';
 import { MentorSignInDto } from '@/core/auth/dto/mentor-sign-in.dto';
 import { AdminSignInDto } from '@/core/auth/dto/admin-sign-in.dto';
 import { SendOtpDto } from '@/core/auth/dto/send-otp.dto';
 import { RecoverPasswordDto } from '@/core/auth/dto/recover-password.dto';
+import { CheckPhoneQuery } from '@/core/auth/dto/check-phone.query';
+import { CheckEmailQuery } from '@/core/auth/dto/check-email.query';
 import { Public } from '@/common/decorators/public.decorator';
 import { JwtRefreshGuard } from '@/common/guards/jwt-refresh.guard';
 
@@ -15,9 +19,33 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Public()
-  @Post('sign-up')
-  signUp(@Body() body: SignUpRequest) {
-    return this.authService.signUp(body);
+  @Get('check-phone')
+  checkPhone(@Query() query: CheckPhoneQuery) {
+    return this.authService.checkPhoneExists(query.phoneNumber);
+  }
+
+  @Public()
+  @Get('check-email')
+  checkEmail(@Query() query: CheckEmailQuery) {
+    return this.authService.checkEmailExists(query.email);
+  }
+
+  @Public()
+  @Post('register/otp/send')
+  sendRegistrationOtp(@Body() dto: RequestRegistrationOtpDto, @Ip() ip: string) {
+    return this.authService.requestRegistrationOtp(dto, ip);
+  }
+
+  @Public()
+  @Post('register/otp/verify')
+  verifyRegistrationOtp(@Body() dto: VerifyRegistrationOtpDto) {
+    return this.authService.verifyRegistrationOtp(dto);
+  }
+
+  @Public()
+  @Post('register')
+  register(@Body() dto: RegisterDto) {
+    return this.authService.register(dto);
   }
 
   @Public()

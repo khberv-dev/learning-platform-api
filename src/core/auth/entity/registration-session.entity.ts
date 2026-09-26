@@ -1,8 +1,7 @@
-import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from 'typeorm';
-import { OtpPurpose } from '@/core/auth/enum/otp-purpose.enum';
+import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 
-@Entity('otps')
-export class Otp {
+@Entity('registration_sessions')
+export class RegistrationSession {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
@@ -15,18 +14,21 @@ export class Otp {
   @Column()
   code: string;
 
-  @Column({ type: 'enum', enum: OtpPurpose, default: OtpPurpose.RECOVER })
-  purpose: OtpPurpose;
-
-  @Column({ type: 'timestamp' })
-  expiresAt: Date;
-
   @Column({ default: false })
-  used: boolean;
+  verified: boolean;
 
   @Column({ type: 'int', default: 0 })
   attempts: number;
 
+  @Column({ type: 'timestamp' })
+  expiresAt: Date;
+
+  @Column({ type: 'timestamp' })
+  lastSentAt: Date;
+
   @CreateDateColumn()
   createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
 }

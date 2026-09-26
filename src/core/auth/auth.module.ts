@@ -6,6 +6,7 @@ import { ConfigService } from '@nestjs/config';
 import { UserModule } from '@/core/user/user.module';
 import { NotificationModule } from '@/core/notification/notification.module';
 import { Otp } from '@/core/auth/entity/otp.entity';
+import { RegistrationSession } from '@/core/auth/entity/registration-session.entity';
 import { AuthService } from '@/core/auth/services/auth.service';
 import { AuthController } from '@/core/auth/controllers/auth.controller';
 import { JwtAccessStrategy } from '@/core/auth/strategies/jwt-access.strategy';
@@ -13,7 +14,7 @@ import { JwtRefreshStrategy } from '@/core/auth/strategies/jwt-refresh.strategy'
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Otp]),
+    TypeOrmModule.forFeature([Otp, RegistrationSession]),
     PassportModule,
     JwtModule.registerAsync({
       inject: [ConfigService],
