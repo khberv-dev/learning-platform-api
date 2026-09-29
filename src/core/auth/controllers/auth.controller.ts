@@ -1,4 +1,16 @@
-import { Body, Controller, Get, Ip, Post, Query, Request, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Ip,
+  Post,
+  Query,
+  Request,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 
 import { AuthService } from '@/core/auth/services/auth.service';
 import { RequestRegistrationOtpDto } from '@/core/auth/dto/request-registration-otp.dto';
@@ -11,6 +23,7 @@ import { SendOtpDto } from '@/core/auth/dto/send-otp.dto';
 import { RecoverPasswordDto } from '@/core/auth/dto/recover-password.dto';
 import { CheckPhoneQuery } from '@/core/auth/dto/check-phone.query';
 import { CheckEmailQuery } from '@/core/auth/dto/check-email.query';
+import { avatarFileFilter, avatarStorage, toAvatarPath } from '@/core/user/storage/avatar.storage';
 import { Public } from '@/common/decorators/public.decorator';
 import { JwtRefreshGuard } from '@/common/guards/jwt-refresh.guard';
 
@@ -44,8 +57,9 @@ export class AuthController {
 
   @Public()
   @Post('register')
-  register(@Body() dto: RegisterDto) {
-    return this.authService.register(dto);
+  @UseInterceptors(FileInterceptor('avatar', { storage: avatarStorage, fileFilter: avatarFileFilter }))
+  register(@Body() dto: RegisterDto, @UploadedFile() file?: Express.Multer.File) {
+    return this.authService.register(dto, file ? toAvatarPath(file.filename) : undefined);
   }
 
   @Public()

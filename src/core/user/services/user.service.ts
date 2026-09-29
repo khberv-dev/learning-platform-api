@@ -218,6 +218,7 @@ export class UserService {
     password: string;
     level?: StudentLevel;
     gender?: Gender;
+    avatar?: string;
   }): Promise<Student> {
     return this.studentRepo.save({
       firstName: data.firstName,
@@ -227,6 +228,7 @@ export class UserService {
       password: data.password,
       ...(data.level ? { level: data.level } : {}),
       ...(data.gender ? { gender: data.gender } : {}),
+      ...(data.avatar ? { avatar: data.avatar } : {}),
     });
   }
 }

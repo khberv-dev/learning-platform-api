@@ -11,9 +11,6 @@ export class RegistrationSession {
   @Column({ type: 'varchar', nullable: true })
   email: string | null;
 
-  @Column()
-  code: string;
-
   @Column({ default: false })
   verified: boolean;
 

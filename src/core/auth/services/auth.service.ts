@@ -58,6 +58,10 @@ function resolveIdentity(input: { phoneNumber?: string; email?: string }): AuthI
   return { phoneNumber: input.phoneNumber! };
 }
 
+function sessionIdentity(session: RegistrationSession): AuthIdentity {
+  return session.email ? { email: session.email } : { phoneNumber: session.phoneNumber! };
+}
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -86,6 +90,11 @@ export class AuthService {
     });
 
     return { accessToken, refreshToken };
+  }
+
+  private async recordOtp(identity: AuthIdentity, code: string, purpose: OtpPurpose, expiresAt: Date): Promise<void> {
+    await this.otpRepo.update({ ...identity, purpose, used: false }, { used: true });
+    await this.otpRepo.save({ ...identity, code, purpose, expiresAt, used: false, attempts: 0 });
   }
 
   private async consumeOtp(identity: AuthIdentity, code: string, purpose: OtpPurpose): Promise<void> {
@@ -156,8 +165,8 @@ export class AuthService {
     }
 
     if (existing) {
+      await this.recordOtp(identity, code, OtpPurpose.REGISTER, existing.expiresAt);
       await this.registrationSessionRepo.update(existing.id, {
-        code,
         lastSentAt: now,
         verified: false,
         attempts: 0,
@@ -165,12 +174,13 @@ export class AuthService {
       return { sessionId: existing.id };
     }
 
+    const expiresAt = new Date(now.getTime() + REGISTRATION_SESSION_TTL_MS);
+    await this.recordOtp(identity, code, OtpPurpose.REGISTER, expiresAt);
     const created = await this.registrationSessionRepo.save({
       phoneNumber: identity.phoneNumber ?? null,
       email: identity.email ?? null,
-      code,
       lastSentAt: now,
-      expiresAt: new Date(now.getTime() + REGISTRATION_SESSION_TTL_MS),
+      expiresAt,
       verified: false,
       attempts: 0,
     });
@@ -183,16 +193,26 @@ export class AuthService {
       throw new BadRequestException(SESSION_NOT_FOUND_MESSAGE);
     }
 
-    if (session.code !== dto.code) {
+    const otp = await this.otpRepo.findOne({
+      where: { ...sessionIdentity(session), purpose: OtpPurpose.REGISTER, used: false },
+      order: { createdAt: 'DESC' },
+    });
+    if (!otp || otp.expiresAt < new Date()) {
+      throw new BadRequestException(SESSION_NOT_FOUND_MESSAGE);
+    }
+
+    if (otp.code !== dto.code) {
+      await this.otpRepo.update(otp.id, { attempts: otp.attempts + 1 });
       await this.registrationSessionRepo.update(session.id, { attempts: session.attempts + 1 });
       throw new BadRequestException("OTP noto'g'ri yoki muddati o'tgan");
     }
 
+    await this.otpRepo.update(otp.id, { used: true });
     await this.registrationSessionRepo.update(session.id, { verified: true });
     return { verified: true };
   }
 
-  async register(dto: RegisterDto) {
+  async register(dto: RegisterDto, avatarPath?: string) {
     const session = await this.registrationSessionRepo.findOne({ where: { id: dto.sessionId } });
     if (!session || session.expiresAt < new Date()) {
       throw new BadRequestException(SESSION_NOT_FOUND_MESSAGE);
@@ -216,6 +236,7 @@ export class AuthService {
       password: passwordHash,
       level: dto.level,
       gender: dto.gender,
+      avatar: avatarPath,
     });
 
     await this.registrationSessionRepo.delete(session.id);
@@ -264,7 +285,10 @@ export class AuthService {
       throw new HttpException("Juda ko'p so'rov yuborildi, keyinroq urinib ko'ring", HttpStatus.TOO_MANY_REQUESTS);
     }
 
-    const last = await this.otpRepo.findOne({ where: identity, order: { createdAt: 'DESC' } });
+    const last = await this.otpRepo.findOne({
+      where: { ...identity, purpose: OtpPurpose.RECOVER },
+      order: { createdAt: 'DESC' },
+    });
     if (last) {
       const elapsed = Date.now() - last.createdAt.getTime();
       if (elapsed < OTP_RESEND_COOLDOWN_MS) {
@@ -274,7 +298,7 @@ export class AuthService {
     }
 
     const sentLastHour = await this.otpRepo.count({
-      where: { ...identity, createdAt: MoreThan(new Date(Date.now() - HOUR_MS)) },
+      where: { ...identity, purpose: OtpPurpose.RECOVER, createdAt: MoreThan(new Date(Date.now() - HOUR_MS)) },
     });
     if (sentLastHour >= OTP_MAX_PER_RECIPIENT_PER_HOUR) {
       throw new HttpException(
@@ -296,9 +320,7 @@ export class AuthService {
       await this.notificationService.sendOtp(identity.phoneNumber!, code);
     }
 
-    const expiresAt = new Date(Date.now() + OTP_TTL_MS);
-    await this.otpRepo.update({ ...identity, purpose: OtpPurpose.RECOVER, used: false }, { used: true });
-    await this.otpRepo.save({ ...identity, code, purpose: OtpPurpose.RECOVER, expiresAt, used: false, attempts: 0 });
+    await this.recordOtp(identity, code, OtpPurpose.RECOVER, new Date(Date.now() + OTP_TTL_MS));
 
     return { message: 'OTP yuborildi' };
   }
