@@ -1,7 +1,17 @@
-import { Column, CreateDateColumn, Entity, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  JoinTable,
+  ManyToMany,
+  OneToMany,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 import { Unit } from '@/core/course/entity/unit.entity';
 import { Enrollment } from '@/core/enrollment/entity/enrollment.entity';
 import { Plan } from '@/core/plan/entity/plan.entity';
+import { Author } from '@/core/author/entity/author.entity';
 
 @Entity('courses')
 export class Course {
@@ -34,6 +44,14 @@ export class Course {
 
   @OneToMany(() => Plan, (plan) => plan.course)
   plans: Plan[];
+
+  @ManyToMany(() => Author, (author) => author.courses)
+  @JoinTable({
+    name: 'course_authors',
+    joinColumn: { name: 'course_id' },
+    inverseJoinColumn: { name: 'author_id' },
+  })
+  authors: Author[];
 
   @CreateDateColumn()
   createdAt: Date;

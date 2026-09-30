@@ -8,6 +8,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Put,
   Query,
   UploadedFile,
   UseInterceptors,
@@ -31,6 +32,7 @@ import {
 } from '@/core/course/storage/task-content.storage';
 import { CreateCourseDto } from '@/core/course/dto/create-course.dto';
 import { UpdateCourseDto } from '@/core/course/dto/update-course.dto';
+import { SetCourseAuthorsDto } from '@/core/course/dto/set-course-authors.dto';
 import { CreateUnitDto } from '@/core/course/dto/create-unit.dto';
 import { UpdateUnitDto } from '@/core/course/dto/update-unit.dto';
 import { CreateLessonDto } from '@/core/course/dto/create-lesson.dto';
@@ -78,6 +80,11 @@ export class AdminCourseController {
   @HttpCode(204)
   deleteCourse(@Param('id') id: string) {
     return this.courseService.deleteCourse(id);
+  }
+
+  @Put(':id/authors')
+  setCourseAuthors(@Param('id') id: string, @Body() dto: SetCourseAuthorsDto) {
+    return this.courseService.setCourseAuthors(id, dto);
   }
 
   @Post(':courseId/units')

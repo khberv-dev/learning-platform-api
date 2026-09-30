@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { Course } from '@/core/course/entity/course.entity';
@@ -6,6 +6,8 @@ import { Lesson } from '@/core/course/entity/lesson.entity';
 import { Unit } from '@/core/course/entity/unit.entity';
 import { CreateCourseDto } from '@/core/course/dto/create-course.dto';
 import { UpdateCourseDto } from '@/core/course/dto/update-course.dto';
+import { SetCourseAuthorsDto } from '@/core/course/dto/set-course-authors.dto';
+import { Author } from '@/core/author/entity/author.entity';
 import { PushService } from '@/core/notification/services/push.service';
 import { Enrollment } from '@/core/enrollment/entity/enrollment.entity';
 import { EnrollmentStatus } from '@/core/enrollment/enum/enrollment-status.enum';
@@ -15,6 +17,8 @@ export const UNIT_ORDER = { index: 'ASC', createdAt: 'ASC' } as const;
 export const LESSON_ORDER = { index: 'ASC', createdAt: 'ASC' } as const;
 
 export const COURSE_LIST_ORDER = { index: 'ASC', createdAt: 'DESC' } as const;
+
+const AUTHOR_ORDER = { lastName: 'ASC', firstName: 'ASC' } as const;
 
 export interface StudentCourseListItem {
   id: string;
@@ -28,6 +32,7 @@ export class CourseService {
   constructor(
     @InjectRepository(Course) private readonly courseRepo: Repository<Course>,
     @InjectRepository(Enrollment) private readonly enrollmentRepo: Repository<Enrollment>,
+    @InjectRepository(Author) private readonly authorRepo: Repository<Author>,
     private readonly pushService: PushService,
   ) {}
 
@@ -122,8 +127,8 @@ export class CourseService {
   async findOneCourse(id: string) {
     const course = await this.courseRepo.findOne({
       where: { id },
-      relations: { units: true },
-      order: { units: UNIT_ORDER },
+      relations: { units: true, authors: true },
+      order: { units: UNIT_ORDER, authors: AUTHOR_ORDER },
     });
     if (!course) throw new NotFoundException('Kurs topilmadi');
 
@@ -173,8 +178,12 @@ export class CourseService {
   async findOneActiveCourse(
     id: string,
     studentUserId: string,
-  ): Promise<StudentCourseListItem & { description: string | null }> {
-    const course = await this.courseRepo.findOne({ where: { id, isActive: true } });
+  ): Promise<StudentCourseListItem & { description: string | null; authors: Author[] }> {
+    const course = await this.courseRepo.findOne({
+      where: { id, isActive: true },
+      relations: { authors: true },
+      order: { authors: AUTHOR_ORDER },
+    });
     if (!course) throw new NotFoundException('Kurs topilmadi');
 
     const totalProgressByCourseId = await this.totalProgressByCourse(studentUserId, [course.id]);
@@ -184,7 +193,20 @@ export class CourseService {
       description: course.description,
       image: course.image,
       totalProgress: totalProgressByCourseId.get(course.id) ?? 0,
+      authors: course.authors,
     };
+  }
+
+  async setCourseAuthors(id: string, dto: SetCourseAuthorsDto) {
+    const course = await this.courseRepo.findOne({ where: { id } });
+    if (!course) throw new NotFoundException('Kurs topilmadi');
+
+    const authors = dto.authorIds.length ? await this.authorRepo.find({ where: { id: In(dto.authorIds) } }) : [];
+    const missing = dto.authorIds.filter((authorId) => !authors.some((author) => author.id === authorId));
+    if (missing.length) throw new BadRequestException(`Mualliflar topilmadi: ${missing.join(', ')}`);
+
+    await this.courseRepo.save({ id: course.id, authors });
+    return this.findOneCourse(id);
   }
 
   async updateCourse(id: string, dto: UpdateCourseDto, image?: string) {

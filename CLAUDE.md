@@ -179,6 +179,12 @@ Every student-facing submission response (`submit`, `getLessonResults`, `getTask
 
 Admins track a student through `GET /api/admin/enrollments/:enrollmentId/students/:studentId/progress`, which verifies the enrollment belongs to that student.
 
+### Course authors
+
+`src/core/author/` holds `Author` (`authors`: `firstName`, `lastName`, `gender` — the shared `Gender` enum, required — nullable `avatar`, nullable text `description`). Authors are display-only people credited on a course, **not** accounts: no login, no role, no relation to `Mentor`. Admin-only CRUD at `admin/authors` (multipart, `avatar` file field through the shared `avatarStorage`, so avatars land under `avatar/` like every other avatar; list paginated; `GET admin/authors/:id` includes the author's `courses`).
+
+`Course.authors` is a `ManyToMany` owned by `Course`, join table `course_authors` (`course_id`, `author_id`, cascade on delete from either side — deleting an author just unlinks it). A course has zero or more authors. Assignment is one idempotent replace-the-whole-set call, `PUT admin/courses/:id/authors { authorIds }` (`CourseService.setCourseAuthors`) — `[]` clears it, any unknown id 400s naming the missing ids and changes nothing. Authors come back (ordered by `lastName`, `firstName`) on `GET admin/courses/:id` and on the student `GET student/courses/:id`; the lean student course list does not carry them.
+
 ### External API
 
 `/api/external/*` (student search, course/plan listing, direct enrollment, enrollment requests) is for other services — CRM, terminals, billing. It uses a shared secret instead of JWT: `@ApiKeyAuth()` composes `@Public()` (to skip the global JWT guard) with `ApiKeyGuard`, which compares the `X-Auth` header against `EXTERNAL_API_KEY` using `timingSafeEqual`. Rotating the key means editing `.env` and restarting; there is one key for all consumers.

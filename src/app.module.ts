@@ -21,6 +21,7 @@ import { ExternalModule } from '@/core/external/external.module';
 import { SessionModule } from '@/core/session/session.module';
 import { GroupModule } from '@/core/group/group.module';
 import { AppReportModule } from '@/core/app-report/app-report.module';
+import { AuthorModule } from '@/core/author/author.module';
 import { JwtAccessGuard } from '@/common/guards/jwt-access.guard';
 import { RolesGuard } from '@/common/guards/roles.guard';
 import { LoggingInterceptor } from '@/common/interceptors/logging.interceptor';
@@ -47,6 +48,7 @@ import { FileUrlInterceptor } from '@/common/interceptors/file-url.interceptor';
     SessionModule,
     GroupModule,
     AppReportModule,
+    AuthorModule,
   ],
   controllers: [AppController],
   providers: [

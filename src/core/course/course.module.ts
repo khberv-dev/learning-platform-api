@@ -8,6 +8,7 @@ import { TaskSubmission } from '@/core/course/entity/task-submission.entity';
 import { Student } from '@/core/user/entity/student.entity';
 import { Progress } from '@/core/enrollment/entity/progress.entity';
 import { Enrollment } from '@/core/enrollment/entity/enrollment.entity';
+import { Author } from '@/core/author/entity/author.entity';
 import { CourseService } from '@/core/course/services/course.service';
 import { UnitService } from '@/core/course/services/unit.service';
 import { LessonService } from '@/core/course/services/lesson.service';
@@ -22,7 +23,7 @@ import { MaterialModule } from '@/core/material/material.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Course, Unit, Lesson, Task, TaskSubmission, Student, Progress, Enrollment]),
+    TypeOrmModule.forFeature([Course, Unit, Lesson, Task, TaskSubmission, Student, Progress, Enrollment, Author]),
     NotificationModule,
     MaterialModule,
   ],
