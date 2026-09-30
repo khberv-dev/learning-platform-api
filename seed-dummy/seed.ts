@@ -2,8 +2,9 @@ import 'dotenv/config';
 import { Client } from 'pg';
 import bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
-import { existsSync, mkdirSync, copyFileSync, readFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { extname, resolve } from 'path';
+import { storedFileExists, uploadLocalFile } from '../src/common/storage/gcs.storage';
 
 interface UsersSeed {
   password: string;
@@ -56,7 +57,6 @@ interface CourseSeed {
 }
 
 const LESSONS_SOURCE_DIR = resolve(process.cwd(), 'seed-dummy/lessons');
-const LESSON_MEDIA_DEST_DIR = resolve(process.cwd(), 'uploads/lesson');
 
 async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 15);
@@ -148,16 +148,15 @@ async function seedStudents(client: Client, password: string): Promise<void> {
   }
 }
 
-function copyLessonVideo(filename: string): string {
+async function uploadLessonVideo(filename: string): Promise<string> {
   const source = resolve(LESSONS_SOURCE_DIR, filename);
   if (!existsSync(source)) {
     throw new Error(`Lesson video not found: ${source}`);
   }
 
-  mkdirSync(LESSON_MEDIA_DEST_DIR, { recursive: true });
-  const destFilename = `${randomUUID()}${extname(filename)}`;
-  copyFileSync(source, resolve(LESSON_MEDIA_DEST_DIR, destFilename));
-  return `lesson/${destFilename}`;
+  const media = `lesson/${randomUUID()}${extname(filename)}`;
+  await uploadLocalFile(source, media);
+  return media;
 }
 
 async function seedTask(client: Client, lessonId: string, task: TaskSeed): Promise<void> {
@@ -169,7 +168,23 @@ async function seedTask(client: Client, lessonId: string, task: TaskSeed): Promi
 }
 
 async function seedLesson(client: Client, unitId: string, lesson: LessonSeed): Promise<void> {
-  const media = copyLessonVideo(lesson.video);
+  const existing = await client.query<{ id: string; media: string | null }>(
+    'SELECT id, media FROM lessons WHERE unit_id = $1 AND title = $2',
+    [unitId, lesson.title],
+  );
+  if (existing.rowCount) {
+    const { id, media } = existing.rows[0];
+    if (media && (await storedFileExists(media))) {
+      console.log(`  ~ lesson "${lesson.title}" already exists, media in bucket`);
+      return;
+    }
+    const uploaded = await uploadLessonVideo(lesson.video);
+    await client.query('UPDATE lessons SET media = $1 WHERE id = $2', [uploaded, id]);
+    console.log(`  ~ lesson "${lesson.title}" already exists, media uploaded (media: ${uploaded})`);
+    return;
+  }
+
+  const media = await uploadLessonVideo(lesson.video);
   const lessonId = randomUUID();
 
   await client.query(
@@ -186,13 +201,23 @@ async function seedLesson(client: Client, unitId: string, lesson: LessonSeed): P
 }
 
 async function seedUnit(client: Client, courseId: string, unit: UnitSeed): Promise<void> {
-  const unitId = randomUUID();
-  await client.query(
-    `INSERT INTO units (id, title, index, course_id)
-     VALUES ($1, $2, $3, $4)`,
-    [unitId, unit.title, unit.index, courseId],
-  );
-  console.log(`+ unit created: ${unit.title}`);
+  const existing = await client.query<{ id: string }>('SELECT id FROM units WHERE course_id = $1 AND title = $2', [
+    courseId,
+    unit.title,
+  ]);
+  let unitId: string;
+  if (existing.rowCount) {
+    unitId = existing.rows[0].id;
+    console.log(`~ unit "${unit.title}" already exists`);
+  } else {
+    unitId = randomUUID();
+    await client.query(
+      `INSERT INTO units (id, title, index, course_id)
+       VALUES ($1, $2, $3, $4)`,
+      [unitId, unit.title, unit.index, courseId],
+    );
+    console.log(`+ unit created: ${unit.title}`);
+  }
 
   for (const lesson of unit.lessons) {
     await seedLesson(client, unitId, lesson);
@@ -200,19 +225,20 @@ async function seedUnit(client: Client, courseId: string, unit: UnitSeed): Promi
 }
 
 async function seedCourse(client: Client, course: CourseSeed): Promise<void> {
-  const existing = await client.query('SELECT id FROM courses WHERE title = $1', [course.title]);
+  const existing = await client.query<{ id: string }>('SELECT id FROM courses WHERE title = $1', [course.title]);
+  let courseId: string;
   if (existing.rowCount) {
-    console.log(`- course "${course.title}" already exists, skipping`);
-    return;
+    courseId = existing.rows[0].id;
+    console.log(`~ course "${course.title}" already exists`);
+  } else {
+    courseId = randomUUID();
+    await client.query(
+      `INSERT INTO courses (id, title, description, is_active, index)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [courseId, course.title, course.description, course.isActive, course.index],
+    );
+    console.log(`+ course created: ${course.title}`);
   }
-
-  const courseId = randomUUID();
-  await client.query(
-    `INSERT INTO courses (id, title, description, is_active, index)
-     VALUES ($1, $2, $3, $4, $5)`,
-    [courseId, course.title, course.description, course.isActive, course.index],
-  );
-  console.log(`+ course created: ${course.title}`);
 
   for (const unit of course.units) {
     await seedUnit(client, courseId, unit);

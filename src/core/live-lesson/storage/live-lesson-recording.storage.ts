@@ -1,16 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
-import { diskStorage } from 'multer';
-import { extname } from 'path';
-import { randomUUID } from 'crypto';
-import { mkdirSync } from 'fs';
+import { gcsStorage } from '@/common/storage/gcs.storage';
 
-const DEST = './uploads/live-lesson-recording';
-mkdirSync(DEST, { recursive: true });
-
-export const liveLessonRecordingStorage = diskStorage({
-  destination: DEST,
-  filename: (_req, file, cb) => cb(null, `${randomUUID()}${extname(file.originalname)}`),
-});
+export const liveLessonRecordingStorage = gcsStorage('live-lesson-recording');
 
 export function videoFileFilter(
   _req: any,

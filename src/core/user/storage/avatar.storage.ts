@@ -1,16 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
-import { diskStorage } from 'multer';
-import { extname } from 'path';
-import { randomUUID } from 'crypto';
-import { mkdirSync } from 'fs';
+import { gcsStorage } from '@/common/storage/gcs.storage';
 
-const DEST = './uploads/avatar';
-mkdirSync(DEST, { recursive: true });
-
-export const avatarStorage = diskStorage({
-  destination: DEST,
-  filename: (_req, file, cb) => cb(null, `${randomUUID()}${extname(file.originalname)}`),
-});
+export const avatarStorage = gcsStorage('avatar');
 
 export function avatarFileFilter(
   _req: any,

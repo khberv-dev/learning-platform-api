@@ -1,12 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
-import { diskStorage } from 'multer';
 import { extname } from 'path';
-import { randomUUID } from 'crypto';
-import { mkdirSync } from 'fs';
 import { MaterialType } from '@/core/material/enum/material-type.enum';
-
-const DEST = './uploads/material';
-mkdirSync(DEST, { recursive: true });
+import { gcsStorage } from '@/common/storage/gcs.storage';
 
 const MIME_TYPES: Record<string, MaterialType> = {
   'application/pdf': MaterialType.PDF,
@@ -24,10 +19,7 @@ export function materialTypeFor(file: Express.Multer.File): MaterialType | undef
   return MIME_TYPES[file.mimetype] ?? EXTENSIONS[extname(file.originalname).toLowerCase()];
 }
 
-export const materialStorage = diskStorage({
-  destination: DEST,
-  filename: (_req, file, cb) => cb(null, `${randomUUID()}${extname(file.originalname)}`),
-});
+export const materialStorage = gcsStorage('material');
 
 export function materialFileFilter(
   _req: any,

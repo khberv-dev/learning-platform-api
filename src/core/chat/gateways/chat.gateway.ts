@@ -1,5 +1,4 @@
 import { Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import {
   ConnectedSocket,
@@ -34,7 +33,6 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     private readonly jwtService: JwtService,
     private readonly userService: UserService,
     private readonly chatService: ChatService,
-    private readonly configService: ConfigService,
   ) {}
 
   afterInit(namespace: Namespace) {
@@ -119,9 +117,9 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     socket.to(roomKey(body.roomId)).emit('stop-typing', { userId: socket.data.userId, roomId: body.roomId });
   }
 
-  broadcastMessage(roomId: string, message: ChatMessage | null) {
+  async broadcastMessage(roomId: string, message: ChatMessage | null) {
     if (!message) return;
-    const expanded = expandFileUrls(message, () => this.configService.getOrThrow<string>('FILES_BASE_URL'));
+    const expanded = await expandFileUrls(message);
     this.server.to(roomKey(roomId)).emit('message', expanded);
   }
 

@@ -39,7 +39,9 @@ Reads `.env` for DB connection info, same as the app itself.
 
 - **Course** (`courses.json`): "General English" — 2 units, 5 lessons (2 + 3), each lesson with
   4 tasks of 3 questions each (60 questions total). Each lesson's video comes from
-  `lessons/<n>.mp4` and is copied into `uploads/lesson/` the same way a real upload would be.
+  `lessons/<n>.mp4` and is uploaded to the `learning_platform_lessons` GCS bucket as
+  `lesson/<uuid>.mp4`, the same way a real upload would be — so `GOOGLE_CLOUD_STORAGE_JSON` must be
+  set in `.env` before running the script.
 
 The `lessons/*.mp4` source videos are not committed (see `.gitignore`) — drop your own `1.mp4`
 through `5.mp4` into `seed-dummy/lessons/` before running the script.

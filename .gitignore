@@ -2,7 +2,6 @@
 /dist
 /node_modules
 /build
-/uploads
 
 # seed source videos — large binaries, not tracked
 /seed-dummy/lessons

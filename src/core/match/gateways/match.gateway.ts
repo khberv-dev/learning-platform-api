@@ -1,5 +1,4 @@
 import { Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import {
   ConnectedSocket,
@@ -31,7 +30,6 @@ export class MatchGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
     private readonly jwtService: JwtService,
     private readonly userService: UserService,
     private readonly matchService: MatchService,
-    private readonly configService: ConfigService,
   ) {}
 
   afterInit(namespace: Namespace) {
@@ -109,16 +107,15 @@ export class MatchGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
           lastName: socket.data.lastName,
           avatar: socket.data.avatar,
         };
-        const getBaseUrl = () => this.configService.getOrThrow<string>('FILES_BASE_URL');
         socket.emit('matched', {
           sessionId: outcome.result.sessionId,
           role: 'caller',
-          peer: expandFileUrls(peerOfCaller, getBaseUrl),
+          peer: await expandFileUrls(peerOfCaller),
         });
         partnerSocket.emit('matched', {
           sessionId: outcome.result.sessionId,
           role: 'callee',
-          peer: expandFileUrls(peerOfCallee, getBaseUrl),
+          peer: await expandFileUrls(peerOfCallee),
         });
         return;
       }

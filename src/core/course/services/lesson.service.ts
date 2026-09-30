@@ -6,6 +6,8 @@ import { Unit } from '@/core/course/entity/unit.entity';
 import { Task } from '@/core/course/entity/task.entity';
 import { TaskSubmission } from '@/core/course/entity/task-submission.entity';
 import { Progress } from '@/core/enrollment/entity/progress.entity';
+import { Enrollment } from '@/core/enrollment/entity/enrollment.entity';
+import { assertActiveEnrollmentForLesson } from '@/core/enrollment/utils/enrollment.util';
 import { CreateLessonDto } from '@/core/course/dto/create-lesson.dto';
 import { UpdateLessonDto } from '@/core/course/dto/update-lesson.dto';
 import { LESSON_ORDER } from '@/core/course/services/course.service';
@@ -33,6 +35,7 @@ export class LessonService {
     @InjectRepository(Task) private readonly taskRepo: Repository<Task>,
     @InjectRepository(TaskSubmission) private readonly submissionRepo: Repository<TaskSubmission>,
     @InjectRepository(Progress) private readonly progressRepo: Repository<Progress>,
+    @InjectRepository(Enrollment) private readonly enrollmentRepo: Repository<Enrollment>,
     private readonly pushService: PushService,
     private readonly materialService: MaterialService,
   ) {}
@@ -116,6 +119,7 @@ export class LessonService {
       where: { id: lessonId, unit: { id: unitId, course: { id: courseId } } },
     });
     if (!lesson) throw new NotFoundException('Dars topilmadi');
+    await assertActiveEnrollmentForLesson(this.enrollmentRepo, studentUserId, lessonId);
 
     const [totalTasks, completedTasks, progressRow, materials] = await Promise.all([
       this.taskRepo
@@ -216,7 +220,7 @@ export class LessonService {
     try {
       await removeLessonMediaFile(media);
     } catch (error) {
-      this.logger.error(`Dars videosini diskdan o'chirib bo'lmadi: ${media}`, error as Error);
+      this.logger.error(`Dars videosini fayl omboridan o'chirib bo'lmadi: ${media}`, error as Error);
     }
   }
 }

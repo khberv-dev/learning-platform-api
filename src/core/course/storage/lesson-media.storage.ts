@@ -1,17 +1,8 @@
 import { BadRequestException } from '@nestjs/common';
-import { diskStorage } from 'multer';
-import { basename, extname, resolve } from 'path';
-import { randomUUID } from 'crypto';
-import { mkdirSync } from 'fs';
-import { unlink } from 'fs/promises';
+import { basename } from 'path';
+import { deleteStoredFile, gcsStorage } from '@/common/storage/gcs.storage';
 
-const DEST = resolve(process.cwd(), 'uploads/lesson');
-mkdirSync(DEST, { recursive: true });
-
-export const lessonMediaStorage = diskStorage({
-  destination: DEST,
-  filename: (_req, file, cb) => cb(null, `${randomUUID()}${extname(file.originalname)}`),
-});
+export const lessonMediaStorage = gcsStorage('lesson');
 
 export function videoFileFilter(
   _req: any,
@@ -31,9 +22,5 @@ export async function removeLessonMediaFile(media: string | null | undefined): P
   const filename = basename(media);
   if (media !== `lesson/${filename}`) return;
 
-  try {
-    await unlink(resolve(DEST, filename));
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-  }
+  await deleteStoredFile(media);
 }

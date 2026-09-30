@@ -1,21 +1,13 @@
 import { BadRequestException } from '@nestjs/common';
-import { diskStorage } from 'multer';
-import { extname } from 'path';
-import { randomUUID } from 'crypto';
-import { mkdirSync } from 'fs';
 import { TaskContentType } from '@/core/course/enum/task-content-type.enum';
+import { gcsStorage } from '@/common/storage/gcs.storage';
 
-const AUDIO_DEST = './uploads/task-audio';
-const PICTURE_DEST = './uploads/task-picture';
-mkdirSync(AUDIO_DEST, { recursive: true });
-mkdirSync(PICTURE_DEST, { recursive: true });
+const AUDIO_FOLDER = 'task-audio';
+const PICTURE_FOLDER = 'task-picture';
 
-export const taskContentStorage = diskStorage({
-  destination: (_req, file, cb) => {
-    cb(null, file.mimetype.startsWith('image/') ? PICTURE_DEST : AUDIO_DEST);
-  },
-  filename: (_req, file, cb) => cb(null, `${randomUUID()}${extname(file.originalname)}`),
-});
+const folderFor = (file: Express.Multer.File) => (file.mimetype.startsWith('image/') ? PICTURE_FOLDER : AUDIO_FOLDER);
+
+export const taskContentStorage = gcsStorage(folderFor);
 
 export function taskContentFileFilter(
   _req: any,
@@ -31,5 +23,4 @@ export function taskContentFileFilter(
 export const taskContentTypeOf = (file: Express.Multer.File): TaskContentType =>
   file.mimetype.startsWith('image/') ? TaskContentType.PICTURE : TaskContentType.AUDIO;
 
-export const toTaskContentPath = (file: Express.Multer.File): string =>
-  file.mimetype.startsWith('image/') ? `task-picture/${file.filename}` : `task-audio/${file.filename}`;
+export const toTaskContentPath = (file: Express.Multer.File): string => `${folderFor(file)}/${file.filename}`;

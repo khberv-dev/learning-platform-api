@@ -3,6 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Material } from '@/core/material/entity/material.entity';
 import { Lesson } from '@/core/course/entity/lesson.entity';
+import { Enrollment } from '@/core/enrollment/entity/enrollment.entity';
+import { assertActiveEnrollmentForLesson } from '@/core/enrollment/utils/enrollment.util';
 import { CreateMaterialDto } from '@/core/material/dto/create-material.dto';
 import { MaterialType } from '@/core/material/enum/material-type.enum';
 import { paginate, Paginated, PaginationQuery } from '@/common/dto/pagination-query.dto';
@@ -12,6 +14,7 @@ export class MaterialService {
   constructor(
     @InjectRepository(Material) private readonly materialRepo: Repository<Material>,
     @InjectRepository(Lesson) private readonly lessonRepo: Repository<Lesson>,
+    @InjectRepository(Enrollment) private readonly enrollmentRepo: Repository<Enrollment>,
   ) {}
 
   private async loadLesson(lessonId: string): Promise<Lesson> {
@@ -32,8 +35,9 @@ export class MaterialService {
     });
   }
 
-  async listMaterials(lessonId: string, query: PaginationQuery): Promise<Paginated<Material>> {
+  async listMaterials(lessonId: string, query: PaginationQuery, studentId?: string): Promise<Paginated<Material>> {
     await this.loadLesson(lessonId);
+    if (studentId) await assertActiveEnrollmentForLesson(this.enrollmentRepo, studentId, lessonId);
     const [data, total] = await this.materialRepo.findAndCount({
       where: { lesson: { id: lessonId } },
       order: { createdAt: 'ASC' },
