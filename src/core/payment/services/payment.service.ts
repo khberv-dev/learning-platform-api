@@ -3,7 +3,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsWhere, Repository } from 'typeorm';
 import { Payment } from '@/core/payment/entity/payment.entity';
 import { PaymentType } from '@/core/payment/entity/payment-type.entity';
-import { Subscription } from '@/core/payment/entity/subscription.entity';
 import { Purchase } from '@/core/payment/entity/purchase.entity';
 import { PaymentStatus } from '@/core/payment/enum/payment-status.enum';
 import { Plan } from '@/core/plan/entity/plan.entity';
@@ -17,18 +16,13 @@ import { PaymentQuery } from '@/core/payment/dto/payment-query.dto';
 import { Paginated, PaginationQuery, paginate } from '@/common/dto/pagination-query.dto';
 import { buildPaymentUrl, resolvePlan } from '@/core/payment/utils/payment-url.util';
 import { PushService } from '@/core/notification/services/push.service';
+import { applyPlanSubscription } from '@/core/payment/utils/subscription.util';
 
 const paymentRelations = {
   paymentType: true,
   student: true,
-  purchases: { subscription: { plan: { course: true } } },
+  purchases: { plan: { course: true }, subscription: { plan: { course: true } } },
 } as const;
-
-function addMonths(date: Date, months: number): Date {
-  const result = new Date(date);
-  result.setMonth(result.getMonth() + months);
-  return result;
-}
 
 function withResolvedUrl(payment: Payment): Payment {
   if (!payment.paymentType) return payment;
@@ -43,7 +37,6 @@ export class PaymentService {
   constructor(
     @InjectRepository(Payment) private readonly paymentRepo: Repository<Payment>,
     @InjectRepository(PaymentType) private readonly paymentTypeRepo: Repository<PaymentType>,
-    @InjectRepository(Subscription) private readonly subscriptionRepo: Repository<Subscription>,
     @InjectRepository(Purchase) private readonly purchaseRepo: Repository<Purchase>,
     @InjectRepository(Plan) private readonly planRepo: Repository<Plan>,
     @InjectRepository(Student) private readonly studentRepo: Repository<Student>,
@@ -68,24 +61,23 @@ export class PaymentService {
     });
     if (alreadyEnrolled) throw new BadRequestException('Siz allaqachon ushbu kursga yozilgansiz');
 
+    const pending = { student: { id: studentId }, status: PaymentStatus.CREATED };
     let payment = await this.paymentRepo.findOne({
-      where: {
-        student: { id: studentId },
-        status: PaymentStatus.CREATED,
-        purchases: { subscription: { plan: { course: { id: plan.course.id } } } },
-      },
+      where: [
+        { ...pending, purchases: { plan: { course: { id: plan.course.id } } } },
+        { ...pending, purchases: { subscription: { plan: { course: { id: plan.course.id } } } } },
+      ],
       relations: paymentRelations,
     });
 
     if (payment) {
-      const subscription = payment.purchases[0]?.subscription ?? null;
+      const purchase = payment.purchases[0];
       if (payment.amount !== plan.price) {
         payment.amount = plan.price;
         payment = await this.paymentRepo.save(payment);
       }
-      if (subscription && subscription.plan?.id !== plan.id) {
-        subscription.plan = plan;
-        await this.subscriptionRepo.save(subscription);
+      if (purchase && purchase.plan?.id !== plan.id) {
+        await this.purchaseRepo.update(purchase.id, { plan });
       }
       payment = await this.findOnePayment(payment.id);
     } else {
@@ -93,8 +85,7 @@ export class PaymentService {
         student: { id: studentId },
         amount: plan.price,
       });
-      const subscription = await this.subscriptionRepo.save({ student, plan, start: null, end: null });
-      await this.purchaseRepo.save({ payment: created, subscription });
+      await this.purchaseRepo.save({ payment: created, plan });
       payment = await this.findOnePayment(created.id);
     }
 
@@ -147,12 +138,10 @@ export class PaymentService {
         start,
       });
 
-      const subscription = payment.purchases[0]?.subscription;
-      if (subscription) {
-        const subscriptionStart = new Date();
-        subscription.start = subscriptionStart;
-        subscription.end = addMonths(subscriptionStart, plan.month);
-        await this.subscriptionRepo.save(subscription);
+      const subscription = await applyPlanSubscription(this.paymentRepo.manager, payment.student.id, plan);
+      const purchase = payment.purchases[0];
+      if (subscription && purchase) {
+        await this.purchaseRepo.update(purchase.id, { plan, subscription });
       }
 
       void this.pushService.notifyCourseEnrolled(payment.student.id, course.id, course.title);
@@ -181,7 +170,7 @@ export class PaymentService {
     const where: FindOptionsWhere<Payment> = {};
     if (query.studentId) where.student = { id: query.studentId };
     if (query.paymentTypeId) where.paymentType = { id: query.paymentTypeId };
-    if (query.planId) where.purchases = { subscription: { plan: { id: query.planId } } };
+    if (query.planId) where.purchases = { plan: { id: query.planId } };
     if (query.status) where.status = query.status;
 
     const [data, total] = await this.paymentRepo.findAndCount({

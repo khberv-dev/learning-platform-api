@@ -2,7 +2,8 @@ import { Payment } from '@/core/payment/entity/payment.entity';
 import { Plan } from '@/core/plan/entity/plan.entity';
 
 export function resolvePlan(payment: Payment): Plan | null {
-  return payment.purchases?.[0]?.subscription?.plan ?? null;
+  const purchase = payment.purchases?.[0];
+  return purchase?.plan ?? purchase?.subscription?.plan ?? null;
 }
 
 export function buildPaymentUrl(template: string, payment: Payment): string {

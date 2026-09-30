@@ -5,7 +5,7 @@ import { MentorStatusHistory } from '@/core/user/entity/mentor-status-history.en
 import { MentorFeedback } from '@/core/user/entity/mentor-feedback.entity';
 import { Admin } from '@/core/user/entity/admin.entity';
 import { Student } from '@/core/user/entity/student.entity';
-import { GroupMentor } from '@/core/group/entity/group-mentor.entity';
+import { Group } from '@/core/group/entity/group.entity';
 import { GroupMembership } from '@/core/group/entity/group-membership.entity';
 import { UserService } from '@/core/user/services/user.service';
 import { MentorService } from '@/core/user/services/mentor.service';
@@ -28,7 +28,7 @@ import { Enrollment } from '@/core/enrollment/entity/enrollment.entity';
       MentorFeedback,
       Admin,
       Student,
-      GroupMentor,
+      Group,
       GroupMembership,
       Enrollment,
     ]),

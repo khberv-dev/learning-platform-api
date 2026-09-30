@@ -13,7 +13,7 @@ export class MentorGroupController {
 
   @Get('me')
   me(@CurrentUser() user: { id: string }, @Query() query: PaginationQuery) {
-    return this.groupService.findMyGroups(user.id, query);
+    return this.groupService.findMentorGroups(user.id, query);
   }
 
   @Get(':id')

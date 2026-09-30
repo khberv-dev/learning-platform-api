@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsIn, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsIn, IsOptional, IsString, IsUUID } from 'class-validator';
 import { PaginationQuery } from '@/common/dto/pagination-query.dto';
 
 export const GROUP_SORT_FIELDS = ['createdAt', 'updatedAt', 'title'] as const;
@@ -15,6 +15,10 @@ export class GroupQuery extends PaginationQuery {
   @IsString()
   @IsOptional()
   search?: string;
+
+  @IsUUID()
+  @IsOptional()
+  courseId?: string;
 
   @Transform(({ value }: { value: unknown }) => (value === 'true' ? true : value === 'false' ? false : value))
   @IsBoolean()

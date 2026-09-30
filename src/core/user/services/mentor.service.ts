@@ -6,7 +6,7 @@ import { MentorStatusHistory } from '@/core/user/entity/mentor-status-history.en
 import { MentorFeedback } from '@/core/user/entity/mentor-feedback.entity';
 import { Admin } from '@/core/user/entity/admin.entity';
 import { Student } from '@/core/user/entity/student.entity';
-import { GroupMentor } from '@/core/group/entity/group-mentor.entity';
+import { Group } from '@/core/group/entity/group.entity';
 import { GroupMembership } from '@/core/group/entity/group-membership.entity';
 import { GroupMentorRole } from '@/core/group/enum/group-mentor-role.enum';
 import { MentorStatus } from '@/core/user/enum/mentor-status.enum';
@@ -26,7 +26,7 @@ export class MentorService {
     @InjectRepository(MentorFeedback) private readonly feedbackRepo: Repository<MentorFeedback>,
     @InjectRepository(Admin) private readonly adminRepo: Repository<Admin>,
     @InjectRepository(Student) private readonly studentRepo: Repository<Student>,
-    @InjectRepository(GroupMentor) private readonly groupMentorRepo: Repository<GroupMentor>,
+    @InjectRepository(Group) private readonly groupRepo: Repository<Group>,
     @InjectRepository(GroupMembership) private readonly groupMembershipRepo: Repository<GroupMembership>,
   ) {}
 
@@ -169,14 +169,19 @@ export class MentorService {
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
-    const primaryMemberships = await this.groupMentorRepo.find({
-      where: { mentor: { id: mentor.id }, role: GroupMentorRole.PRIMARY },
-      relations: { group: true },
-    });
-    const groupIds = primaryMemberships.map((m) => m.group.id);
+    const groups = await this.groupRepo.find({ where: { primaryMentor: { id: mentor.id } }, select: { id: true } });
+    const groupIds = groups.map((group) => group.id);
 
     const [totalStudents, newStudentsRaw, feedbacks] = await Promise.all([
-      groupIds.length > 0 ? this.studentRepo.count({ where: { group: { id: In(groupIds) } } }) : 0,
+      groupIds.length > 0
+        ? this.groupMembershipRepo
+            .createQueryBuilder('gm')
+            .select('COUNT(DISTINCT gm.student_id)', 'count')
+            .where('gm.group_id IN (:...groupIds)', { groupIds })
+            .andWhere('gm.left_at IS NULL')
+            .getRawOne<{ count: string }>()
+            .then((row) => Number(row?.count ?? 0))
+        : 0,
       groupIds.length > 0
         ? this.groupMembershipRepo
             .createQueryBuilder('gm')

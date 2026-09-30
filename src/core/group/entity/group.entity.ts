@@ -1,4 +1,14 @@
-import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  JoinColumn,
+  ManyToOne,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
+} from 'typeorm';
+import { Course } from '@/core/course/entity/course.entity';
+import { Mentor } from '@/core/user/entity/mentor.entity';
 
 @Entity('groups')
 export class Group {
@@ -13,6 +23,14 @@ export class Group {
 
   @Column({ default: true })
   isActive: boolean;
+
+  @ManyToOne(() => Course, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn()
+  course: Course | null;
+
+  @ManyToOne(() => Mentor, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn()
+  primaryMentor: Mentor | null;
 
   @CreateDateColumn()
   createdAt: Date;

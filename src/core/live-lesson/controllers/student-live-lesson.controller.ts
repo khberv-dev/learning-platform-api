@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, ParseUUIDPipe, Query } from '@nestjs/common';
 
 import { Roles } from '@/common/decorators/roles.decorator';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
@@ -11,7 +11,10 @@ export class StudentLiveLessonController {
   constructor(private readonly liveLessonService: LiveLessonService) {}
 
   @Get('latest')
-  findLatest(@CurrentUser() user: { id: string }) {
-    return this.liveLessonService.findLatestForStudent(user.id);
+  findLatest(
+    @CurrentUser() user: { id: string },
+    @Query('groupId', new ParseUUIDPipe({ optional: true })) groupId?: string,
+  ) {
+    return this.liveLessonService.findLatestForStudent(user.id, groupId);
   }
 }

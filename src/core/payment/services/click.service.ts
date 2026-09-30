@@ -14,7 +14,10 @@ import { resolvePlan } from '@/core/payment/utils/payment-url.util';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const CLICK_RELATIONS = { purchases: { subscription: { plan: { course: true } } }, student: true } as const;
+const CLICK_RELATIONS = {
+  purchases: { plan: { course: true }, subscription: { plan: { course: true } } },
+  student: true,
+} as const;
 
 export interface ClickPrepareResponse {
   click_trans_id: string;

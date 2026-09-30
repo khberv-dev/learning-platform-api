@@ -9,7 +9,6 @@ import { GroupQuery } from '@/core/group/dto/group-query.dto';
 import { AddGroupStudentsDto } from '@/core/group/dto/add-group-students.dto';
 import { SwapGroupStudentDto } from '@/core/group/dto/swap-group-student.dto';
 import { AssignPrimaryMentorDto } from '@/core/group/dto/assign-primary-mentor.dto';
-import { AddSupportMentorDto } from '@/core/group/dto/add-support-mentor.dto';
 
 @Roles(UserRole.ADMIN)
 @Controller('admin/groups')
@@ -66,13 +65,8 @@ export class AdminGroupController {
     return this.groupService.assignPrimaryMentor(id, dto.mentorId);
   }
 
-  @Post(':id/support-mentors')
-  addSupportMentor(@Param('id') id: string, @Body() dto: AddSupportMentorDto) {
-    return this.groupService.addSupportMentor(id, dto.mentorId);
-  }
-
-  @Delete(':id/mentors/:mentorId')
-  removeMentor(@Param('id') id: string, @Param('mentorId') mentorId: string) {
-    return this.groupService.removeMentor(id, mentorId);
+  @Delete(':id/primary-mentor')
+  unassignPrimaryMentor(@Param('id') id: string) {
+    return this.groupService.unassignPrimaryMentor(id);
   }
 }

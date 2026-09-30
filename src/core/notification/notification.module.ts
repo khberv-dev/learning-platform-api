@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { GroupMembership } from '@/core/group/entity/group-membership.entity';
 import { Session } from '@/core/session/entity/session.entity';
 import { Enrollment } from '@/core/enrollment/entity/enrollment.entity';
 import { Student } from '@/core/user/entity/student.entity';
@@ -14,7 +15,7 @@ import { NotificationController } from '@/core/notification/controllers/notifica
 import { ResendEmailService } from '@/core/notification/services/resend-email.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Session, Enrollment, Student, Mentor, StudentNotification])],
+  imports: [TypeOrmModule.forFeature([Session, Enrollment, Student, Mentor, StudentNotification, GroupMembership])],
   controllers: [AdminPushController, NotificationController],
   providers: [EskizService, ResendEmailService, NotificationService, FirebaseService, PushService],
   exports: [NotificationService, PushService],

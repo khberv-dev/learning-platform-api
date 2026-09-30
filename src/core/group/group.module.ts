@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Group } from '@/core/group/entity/group.entity';
-import { GroupMentor } from '@/core/group/entity/group-mentor.entity';
 import { GroupMembership } from '@/core/group/entity/group-membership.entity';
 import { Student } from '@/core/user/entity/student.entity';
 import { Mentor } from '@/core/user/entity/mentor.entity';
+import { Course } from '@/core/course/entity/course.entity';
 import { GroupService } from '@/core/group/services/group.service';
 import { AdminGroupController } from '@/core/group/controllers/admin-group.controller';
 import { StudentGroupController } from '@/core/group/controllers/student-group.controller';
@@ -14,7 +14,7 @@ import { NotificationModule } from '@/core/notification/notification.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Group, GroupMentor, GroupMembership, Student, Mentor]),
+    TypeOrmModule.forFeature([Group, GroupMembership, Student, Mentor, Course]),
     ChatModule,
     NotificationModule,
   ],

@@ -1,12 +1,11 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { LiveLessonRecording } from '@/core/live-lesson/entity/live-lesson-recording.entity';
 import { Mentor } from '@/core/user/entity/mentor.entity';
-import { Student } from '@/core/user/entity/student.entity';
 import { Group } from '@/core/group/entity/group.entity';
-import { GroupMentor } from '@/core/group/entity/group-mentor.entity';
-import { GroupMentorRole } from '@/core/group/enum/group-mentor-role.enum';
+import { GroupMembership } from '@/core/group/entity/group-membership.entity';
+import { activeGroupIdsOfStudent, isActiveGroupMember } from '@/core/group/utils/group-membership.util';
 import { paginate, Paginated, PaginationQuery } from '@/common/dto/pagination-query.dto';
 
 @Injectable()
@@ -14,37 +13,27 @@ export class LiveLessonRecordingService {
   constructor(
     @InjectRepository(LiveLessonRecording) private readonly recordingRepo: Repository<LiveLessonRecording>,
     @InjectRepository(Mentor) private readonly mentorRepo: Repository<Mentor>,
-    @InjectRepository(Student) private readonly studentRepo: Repository<Student>,
     @InjectRepository(Group) private readonly groupRepo: Repository<Group>,
-    @InjectRepository(GroupMentor) private readonly groupMentorRepo: Repository<GroupMentor>,
+    @InjectRepository(GroupMembership) private readonly membershipRepo: Repository<GroupMembership>,
   ) {}
-
-  private async loadStudentGroupId(studentId: string): Promise<string | null> {
-    const student = await this.studentRepo.findOne({ where: { id: studentId }, relations: { group: true } });
-    return student?.group?.id ?? null;
-  }
 
   async upload(mentorId: string, groupId: string, title: string, videoUrl: string): Promise<LiveLessonRecording> {
     const mentor = await this.mentorRepo.findOne({ where: { id: mentorId } });
     if (!mentor) throw new NotFoundException('Mentor topilmadi');
 
-    const group = await this.groupRepo.findOne({ where: { id: groupId } });
+    const group = await this.groupRepo.findOne({ where: { id: groupId }, relations: { primaryMentor: true } });
     if (!group) throw new NotFoundException('Guruh topilmadi');
-
-    const primary = await this.groupMentorRepo.findOne({
-      where: { group: { id: groupId }, mentor: { id: mentor.id }, role: GroupMentorRole.PRIMARY },
-    });
-    if (!primary) throw new ForbiddenException('Ruxsat berilmagan');
+    if (group.primaryMentor?.id !== mentor.id) throw new ForbiddenException('Ruxsat berilmagan');
 
     return this.recordingRepo.save({ title, videoUrl, group });
   }
 
   async listMyRecordings(studentId: string, query: PaginationQuery): Promise<Paginated<LiveLessonRecording>> {
-    const groupId = await this.loadStudentGroupId(studentId);
-    if (!groupId) return paginate([], 0, query);
+    const groupIds = await activeGroupIdsOfStudent(this.membershipRepo, studentId);
+    if (groupIds.length === 0) return paginate([], 0, query);
 
     const [data, total] = await this.recordingRepo.findAndCount({
-      where: { group: { id: groupId } },
+      where: { group: { id: In(groupIds) } },
       relations: { group: true },
       order: { createdAt: 'DESC' },
       skip: query.skip,
@@ -58,8 +47,9 @@ export class LiveLessonRecordingService {
     groupId: string,
     query: PaginationQuery,
   ): Promise<Paginated<LiveLessonRecording>> {
-    const studentGroupId = await this.loadStudentGroupId(studentId);
-    if (!studentGroupId || studentGroupId !== groupId) throw new ForbiddenException('Ruxsat berilmagan');
+    if (!(await isActiveGroupMember(this.membershipRepo, studentId, groupId))) {
+      throw new ForbiddenException('Ruxsat berilmagan');
+    }
 
     const [data, total] = await this.recordingRepo.findAndCount({
       where: { group: { id: groupId } },
@@ -78,8 +68,9 @@ export class LiveLessonRecordingService {
     });
     if (!recording) throw new NotFoundException('Yozuv topilmadi');
 
-    const studentGroupId = await this.loadStudentGroupId(studentId);
-    if (!studentGroupId || studentGroupId !== recording.group.id) throw new ForbiddenException('Ruxsat berilmagan');
+    if (!(await isActiveGroupMember(this.membershipRepo, studentId, recording.group.id))) {
+      throw new ForbiddenException('Ruxsat berilmagan');
+    }
 
     return recording;
   }

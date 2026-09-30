@@ -11,6 +11,8 @@ import { Student } from '@/core/user/entity/student.entity';
 import { EnrollmentQuery } from '@/core/enrollment/dto/enrollment-query.dto';
 import { Paginated, paginate, paginateInMemory, PaginationQuery } from '@/common/dto/pagination-query.dto';
 import { PushService } from '@/core/notification/services/push.service';
+import { Subscription } from '@/core/payment/entity/subscription.entity';
+import { applyPlanSubscription } from '@/core/payment/utils/subscription.util';
 
 export interface CreateEnrollmentInput {
   studentId: string;
@@ -26,8 +28,6 @@ export class EnrollmentService {
     @InjectRepository(Enrollment) private readonly enrollmentRepo: Repository<Enrollment>,
     @InjectRepository(EnrollmentHistory) private readonly historyRepo: Repository<EnrollmentHistory>,
     @InjectRepository(Student) private readonly studentRepo: Repository<Student>,
-    @InjectRepository(Course) private readonly courseRepo: Repository<Course>,
-    @InjectRepository(Plan) private readonly planRepo: Repository<Plan>,
     private readonly courseService: CourseService,
     private readonly pushService: PushService,
   ) {}
@@ -149,28 +149,33 @@ export class EnrollmentService {
     return paginate(data, total, query);
   }
 
-  async createEnrollment(dto: CreateEnrollmentInput, manager?: EntityManager) {
-    const studentRepo = manager?.getRepository(Student) ?? this.studentRepo;
-    const courseRepo = manager?.getRepository(Course) ?? this.courseRepo;
-    const planRepo = manager?.getRepository(Plan) ?? this.planRepo;
-    const enrollmentRepo = manager?.getRepository(Enrollment) ?? this.enrollmentRepo;
-    const historyRepo = manager?.getRepository(EnrollmentHistory) ?? this.historyRepo;
+  async createEnrollment(dto: CreateEnrollmentInput, manager?: EntityManager): Promise<Enrollment> {
+    if (manager) return (await this.enroll(dto, manager)).enrollment;
 
-    const student = await studentRepo.findOne({ where: { id: dto.studentId } });
+    const { enrollment, course } = await this.enrollmentRepo.manager.transaction((m) => this.enroll(dto, m));
+    void this.pushService.notifyCourseEnrolled(dto.studentId, course.id, course.title);
+    return enrollment;
+  }
+
+  async enroll(
+    dto: CreateEnrollmentInput,
+    manager: EntityManager,
+  ): Promise<{ enrollment: Enrollment; course: Course; subscription: Subscription | null }> {
+    const student = await manager.getRepository(Student).findOne({ where: { id: dto.studentId } });
     if (!student) throw new NotFoundException('Talaba topilmadi');
 
     let plan: Plan | null = null;
     let course: Course;
 
     if (dto.planId) {
-      plan = await planRepo.findOne({ where: { id: dto.planId }, relations: { course: true } });
+      plan = await manager.getRepository(Plan).findOne({ where: { id: dto.planId }, relations: { course: true } });
       if (!plan) throw new NotFoundException('Tarif topilmadi');
       course = plan.course;
       if (dto.courseId && dto.courseId !== course.id) {
         throw new BadRequestException("Tarif ko'rsatilgan kursga tegishli emas");
       }
     } else if (dto.courseId) {
-      const found = await courseRepo.findOne({ where: { id: dto.courseId } });
+      const found = await manager.getRepository(Course).findOne({ where: { id: dto.courseId } });
       if (!found) throw new NotFoundException('Kurs topilmadi');
       course = found;
     } else {
@@ -178,6 +183,7 @@ export class EnrollmentService {
     }
 
     const start = dto.start ? new Date(dto.start) : new Date();
+    const enrollmentRepo = manager.getRepository(Enrollment);
 
     const existing = await enrollmentRepo.findOne({
       where: { student: { id: student.id }, course: { id: course.id } },
@@ -192,16 +198,14 @@ export class EnrollmentService {
     enrollment.start = start;
     await enrollmentRepo.save(enrollment);
 
-    await historyRepo.save({
+    await manager.getRepository(EnrollmentHistory).save({
       enrollment,
       purchaseAmount: dto.purchaseAmount ?? plan?.price ?? 0,
       start,
     });
 
-    if (!manager) {
-      void this.pushService.notifyCourseEnrolled(student.id, course.id, course.title);
-    }
+    const subscription = plan ? await applyPlanSubscription(manager, student.id, plan) : null;
 
-    return enrollment;
+    return { enrollment, course, subscription };
   }
 }

@@ -13,7 +13,6 @@ import { Course } from '@/core/course/entity/course.entity';
 import { Plan } from '@/core/plan/entity/plan.entity';
 import { Student } from '@/core/user/entity/student.entity';
 import { Payment } from '@/core/payment/entity/payment.entity';
-import { Subscription } from '@/core/payment/entity/subscription.entity';
 import { Purchase } from '@/core/payment/entity/purchase.entity';
 import { PaymentStatus } from '@/core/payment/enum/payment-status.enum';
 import { Paginated, paginate } from '@/common/dto/pagination-query.dto';
@@ -24,12 +23,6 @@ const pendingRelations = {
   course: true,
   enrollment: true,
 } as const;
-
-function addMonths(date: Date, months: number): Date {
-  const result = new Date(date);
-  result.setMonth(result.getMonth() + months);
-  return result;
-}
 
 @Injectable()
 export class PendingEnrollmentService {
@@ -115,7 +108,7 @@ export class PendingEnrollmentService {
     const amount = dto.amount ?? plan.price;
 
     const accepted = await this.dataSource.transaction(async (manager) => {
-      const enrollment = await this.enrollmentService.createEnrollment(
+      const { enrollment, subscription } = await this.enrollmentService.enroll(
         {
           studentId: pending.student.id,
           planId: plan.id,
@@ -131,14 +124,7 @@ export class PendingEnrollmentService {
         status: PaymentStatus.PAID,
       });
 
-      const subscriptionStart = enrollment.start ?? new Date();
-      const subscription = await manager.getRepository(Subscription).save({
-        student: pending.student,
-        plan,
-        start: subscriptionStart,
-        end: addMonths(subscriptionStart, plan.month),
-      });
-      await manager.getRepository(Purchase).save({ payment, subscription });
+      await manager.getRepository(Purchase).save({ payment, plan, subscription });
 
       pending.status = PendingEnrollmentStatus.ACCEPTED;
       pending.enrollment = enrollment;

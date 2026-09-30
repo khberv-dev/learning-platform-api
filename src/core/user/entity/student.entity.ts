@@ -1,17 +1,7 @@
-import {
-  Column,
-  CreateDateColumn,
-  Entity,
-  JoinColumn,
-  ManyToOne,
-  OneToMany,
-  PrimaryGeneratedColumn,
-  UpdateDateColumn,
-} from 'typeorm';
+import { Column, CreateDateColumn, Entity, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 import { Enrollment } from '@/core/enrollment/entity/enrollment.entity';
 import { StudentLevel } from '@/core/user/enum/student-level.enum';
 import { Gender } from '@/core/user/enum/gender.enum';
-import { Group } from '@/core/group/entity/group.entity';
 
 @Entity('students')
 export class Student {
@@ -53,10 +43,6 @@ export class Student {
 
   @OneToMany(() => Enrollment, (enrollment) => enrollment.student)
   enrollments: Enrollment[];
-
-  @ManyToOne(() => Group, { onDelete: 'SET NULL', nullable: true })
-  @JoinColumn()
-  group: Group | null;
 
   @CreateDateColumn()
   createdAt: Date;

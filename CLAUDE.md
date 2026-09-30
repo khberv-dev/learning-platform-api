@@ -122,19 +122,21 @@ Registration and password recovery are two independent flows, but **every OTP co
 
 ### Payment & enrollment lifecycle
 
-`Payment` knows nothing about what it bought — no `plan`, `course`, or `enrollment` column. What a payment is for is reached through a small bridge: `Payment → Purchase → Subscription → Plan → Course`. `Purchase` (`payment/entity/purchase.entity.ts`) is a generic line-item join — required `payment`, nullable `subscription` — deliberately shaped so a future purchasable item type is just another nullable FK on the same row, the same "exactly one owner column is set" pattern `UserActivity`/`Session` already use for student/mentor/admin. `Subscription` (`payment/entity/subscription.entity.ts`: `student`, `plan`, `start`, `end`) is the only item type today and is **not** a course-access mechanism — it's purely a record of "this term was purchased," start/end included. Course access is `Enrollment`, entirely separate, permanent, and untouched by any of this.
+`Payment` knows nothing about what it bought — no `plan`, `course`, or `enrollment` column. What a payment is for is reached through `Purchase` (`payment/entity/purchase.entity.ts`), a generic line-item join: required `payment`, nullable `plan` (what was bought), nullable `subscription` (the subscription that purchase created or extended, set only once paid and only for a subscription plan). `resolvePlan(payment)` (`payment/utils/payment-url.util.ts`) reads `purchases[0].plan`, falling back to `purchases[0].subscription.plan` for rows written before `Purchase.plan` existed — any relation set that feeds `resolvePlan`/`markPaid` (`paymentRelations`, `CLICK_RELATIONS`, `PAYME_RELATIONS`) must load **both** paths.
 
-Access is **permanent and bought once**: `Enrollment` has no `end` column, no expiry, and no re-purchase of a course the student currently has active.
+Access is **permanent and bought once**: `Enrollment` has no `end` column, no expiry, and no re-purchase of a course the student currently has active. Course access is `Enrollment` only — a `Subscription` never gates course content.
 
-1. A `Plan` belongs to a `Course` and carries `price` and `month` (duration of the `Subscription` term it produces). Courses have no price of their own.
-2. `POST /api/student/payments/request { planId }` rejects with `400 Siz allaqachon ushbu kursga yozilgansiz` if the student already has an `active` `Enrollment` for that plan's course. Otherwise it finds an existing pending `Payment` for that course via `purchases.subscription.plan.course` and updates its plan/amount, or creates a new `Payment` (`created`) + `Subscription` (`plan`, `start: null`, `end: null`) + `Purchase` linking them. Either way it returns the active `PaymentType`s.
+**Subscriptions are per `(student, course)` and opt-in per plan.** `Plan.hasSubscription` (boolean, default `false`) decides whether enrolling through that plan touches a subscription at all. `Subscription` (`payment/entity/subscription.entity.ts`: `student`, `course`, `plan` — the plan that last created/extended it — `start`, `end`) is created or extended by one helper, `applyPlanSubscription(manager, studentId, plan)` (`payment/utils/subscription.util.ts`), on **every** enrollment path: `markPaid`, `EnrollmentService.enroll` (admin, external, and `acceptPending` all go through it), whenever the resolved plan has `hasSubscription`. It finds the student's latest subscription for that plan's course: still running (`end > now`) → `end += plan.month` on the same row; none or expired → a new row `start = now`, `end = now + plan.month`. A plan without `hasSubscription`, or an enrollment with no plan (external `courseId`-only), writes no subscription. `course` is nullable only because rows predating it have none; every new row sets it.
+
+1. A `Plan` belongs to a `Course` and carries `price`, `month` (the subscription term length), and `hasSubscription`. Courses have no price of their own.
+2. `POST /api/student/payments/request { planId }` rejects with `400 Siz allaqachon ushbu kursga yozilgansiz` if the student already has an `active` `Enrollment` for that plan's course. Otherwise it finds an existing pending `Payment` for that course (via `purchases.plan.course`, or the legacy `purchases.subscription.plan.course`) and updates its amount / the purchase's `plan`, or creates a new `Payment` (`created`) + `Purchase { payment, plan }`. No subscription row exists until the payment is confirmed. Either way it returns the active `PaymentType`s.
 3. `Payment.amount` snapshots `plan.price` at creation time, so later price changes don't affect pending or historical payments. Click amount verification compares against this snapshot.
-4. Confirmation (`PaymentService.markPaid`) reads the plan via `resolvePlan(payment)` (`payment/utils/payment-url.util.ts`, walks `payment.purchases[0].subscription.plan`) and does two independent things: activates/reuses the `Enrollment` for `(student, plan.course)` — whatever its current status, so a refunded-then-repurchased course keeps its `Progress` history instead of starting a disconnected new enrollment — and separately sets the linked `Subscription.start`/`end` (`start + plan.month`). `markCancelled` resolves the same `plan` and only touches `Enrollment` (`status: cancelled`); the `Subscription`'s dates are left as the historical record of the term that was cancelled.
-5. Admins have **read-only** access to payments (`GET /api/admin/payments`, `GET /api/admin/payments/:id`) — there is no approve, reject, or delete endpoint. Payment status changes only through the Click/Payme webhooks. For cash/transfer cases, admins bypass payments entirely via `POST /api/admin/enrollments`, which opens an enrollment directly. `PendingEnrollmentService.acceptPending` creates its own `Payment` (`paid`) + `Subscription` + `Purchase` alongside the `Enrollment` it opens, so an externally-accepted enrollment leaves the same trail a self-serve purchase would.
+4. Confirmation (`PaymentService.markPaid`) resolves the plan and activates/reuses the `Enrollment` for `(student, plan.course)` — whatever its current status, so a refunded-then-repurchased course keeps its `Progress` history — then runs `applyPlanSubscription` and links the resulting subscription onto the purchase. `markCancelled` only touches `Enrollment` (`status: cancelled`); a subscription it created or extended is left as-is (no rollback of the extension).
+5. Admins have **read-only** access to payments (`GET /api/admin/payments`, `GET /api/admin/payments/:id`, filter `planId` matches `purchases.plan`) — there is no approve, reject, or delete endpoint. Payment status changes only through the Click/Payme webhooks. For cash/transfer cases, admins bypass payments entirely via `POST /api/admin/enrollments`. `PendingEnrollmentService.acceptPending` calls `EnrollmentService.enroll` inside its transaction and records a `paid` `Payment` + `Purchase { payment, plan, subscription }`, so an externally-accepted enrollment leaves the same trail a self-serve purchase would.
 
-`POST /api/admin/enrollments`'s `CreateEnrollmentDto` is deliberately minimal — `studentId`, `courseId`, `planId` (both required and cross-checked: `400 Tarif ko'rsatilgan kursga tegishli emas` if `planId`'s plan doesn't belong to `courseId`), and an optional `start` (defaults to now). There's no `purchaseAmount` override here — `EnrollmentService.createEnrollment` always records `plan.price` in `enrollment_histories` for this path. The External/`PendingEnrollmentService` callers of the same service method use a looser internal shape (`CreateEnrollmentInput`, `courseId`/`planId` each optional, `purchaseAmount` overridable) that the admin DTO is a strict subtype of — that flexibility exists for those two callers only, not admin.
+`POST /api/admin/enrollments`'s `CreateEnrollmentDto` is deliberately minimal — `studentId`, `courseId`, `planId` (both required and cross-checked: `400 Tarif ko'rsatilgan kursga tegishli emas` if `planId`'s plan doesn't belong to `courseId`), and an optional `start` (defaults to now). There's no `purchaseAmount` override here — the admin path always records `plan.price` in `enrollment_histories`. The External/`PendingEnrollmentService` callers use a looser internal shape (`CreateEnrollmentInput`, `courseId`/`planId` each optional, `purchaseAmount` overridable) that the admin DTO is a strict subtype of.
 
-`EnrollmentService.createEnrollment` (admin/external/pending-enrollment paths) follows the same reuse-by-`(student, course)` rule as `markPaid`: it 400s if an `active` row already exists, otherwise reuses whatever row is there (typically `cancelled`) or creates a new one. This is unrelated to `Subscription`/`Purchase`, which only `PaymentService` and `PendingEnrollmentService.acceptPending` write to.
+`EnrollmentService.enroll(dto, manager)` does the work (student/plan/course resolution, reuse-by-`(student, course)`: 400 if an `active` row exists, otherwise reuse the `cancelled` row or create one, `enrollment_histories` row, `applyPlanSubscription`) and returns `{ enrollment, course, subscription }`. `createEnrollment(dto, manager?)` is the public wrapper: with a caller's `manager` it just delegates (no push — the caller's transaction may still roll back); without one it runs `enroll` in its own transaction so enrollment, history, and subscription commit together, then pushes `course_enrolled`.
 
 `PaymentType.url` is a **template** containing `$placeholder` tokens (`$paymentId`, `$userFullName`, `$amount`, `$courseTitle`, …) resolved per payment by `buildPaymentUrl` (`payment/utils/payment-url.util.ts`); `$courseId`/`$courseTitle`/`$planId`/`$planTitle`/`$planMonth` all read from `resolvePlan(payment)`. Values are URI-encoded; unknown `$tokens` are left verbatim so template typos are visible. The stored template is never mutated — resolution happens on read.
 
@@ -206,7 +208,7 @@ Device tokens were already there: `Session.fcmToken`, one row per device. `Sessi
 | `course_created` | `CourseService.createCourse` / `updateCourse` | every student |
 | `lesson_added` | `LessonService.createLesson` | students with a live enrolment in that course |
 | `group_joined` | `GroupService.addStudents`, `GroupService.swapStudent` | the student(s) newly placed in that group |
-| `live_lesson_created` | `LiveLessonService.create` | every student currently in that group |
+| `live_lesson_created` | `LiveLessonService.create` | every student with an active membership in that group |
 
 Four things that are load-bearing:
 
@@ -232,73 +234,34 @@ Two Socket.io namespaces, each authenticating from `handshake.auth.token` or an 
 
 ### Live lessons
 
-`src/core/live-lesson/` is a **create-only broadcast**, not a schedulable resource — a `LiveLesson` is just `name` + `meetLink` (plus its `group` and `mentor` FKs and `createdAt`; no `startTime`/`endTime`, no update or delete). `POST mentor/live-lessons` is the only mentor route, and `LiveLessonService.create` requires the calling mentor to currently hold the `primary` `GroupMentor` role for the target group — this is the "go live now" action, not a calendar booking. Right after saving, it fires `PushService.notifyLiveLessonCreated` (`void`, never awaited — same "push never breaks the business action" rule as everywhere else) to every student currently in that group. Students only ever want *right now*: `GET student/live-lessons/latest` returns the single newest `LiveLesson` for the student's current group (`null` if ungrouped or none yet) — there's no list/history endpoint. Recordings are a separate, unrelated entity keyed by `group` the same way (`mentor/live-lesson-recordings` to upload, `student/live-lesson-recordings` to read, with pagination/history intact there) with their own upload storage. This whole module is unrelated to `Lesson` under `course/`, which is prerecorded course content.
+`src/core/live-lesson/` is a **create-only broadcast**, not a schedulable resource — a `LiveLesson` is just `name` + `meetLink` (plus its `group` and `mentor` FKs and `createdAt`; no `startTime`/`endTime`, no update or delete). `POST mentor/live-lessons` is the only mentor route, and `LiveLessonService.create` requires the calling mentor to be the target group's `primaryMentor` — this is the "go live now" action, not a calendar booking. Right after saving, it fires `PushService.notifyLiveLessonCreated` (`void`, never awaited — same "push never breaks the business action" rule as everywhere else) to every student with an active membership in that group. Students only ever want *right now*: `GET student/live-lessons/latest` returns the single newest `LiveLesson` across all the student's active groups (`null` if none); optional `?groupId=` narrows it to one group and 403s if the student isn't an active member of it. There's no list/history endpoint. Recordings are a separate, unrelated entity keyed by `group` the same way (`mentor/live-lesson-recordings` to upload — primary mentor only; `student/live-lesson-recordings` to read — `my` spans every active group, `groups/:groupId` and `:id` require active membership) with their own upload storage. This whole module is unrelated to `Lesson` under `course/`, which is prerecorded course content.
 
-There is no more student-initiated pairing — the `assignment` module (student picks a mentor and books a slot against the mentor's published schedule) has been removed entirely, along with `Mentor.schedule`. A student's mentor relationship now exists only through their current `Group` membership; `LiveLesson`/`LiveLessonRecording` moved from `Assignment` to `Group` accordingly.
+There is no more student-initiated pairing — the `assignment` module has been removed entirely, along with `Mentor.schedule`. A student's mentor relationship exists only through their group memberships; `LiveLesson`/`LiveLessonRecording` hang off `Group`.
 
 ### Groups
 
-`src/core/group/` is now the **only** mentor↔student pairing mechanism — a named cohort (`Group`:
-`title`, `schedule` — a `Record<Weekday, string[]>` validated only for weekday keys and non-empty
-string values (`validateGroupScheduleShape`, `group/utils/group-schedule.util.ts`); the time
-values themselves are free text, not matched against any booking slots — `isActive`) with a small
-mentor team and a student roster, fully admin-managed at `admin/groups`. `LiveLesson` and
-`LiveLessonRecording` (see "Live lessons" below) hang off `Group`.
+`src/core/group/` is the **only** mentor↔student pairing mechanism — a named cohort (`Group`: `title`, `schedule` — a `Record<Weekday, string[]>` validated only for weekday keys and non-empty string values (`validateGroupScheduleShape`, `group/utils/group-schedule.util.ts`); the time values are free text — `isActive`, `course`, `primaryMentor`), fully admin-managed at `admin/groups`.
 
-A student is in **at most one group at a time** — `Student.group` is a direct nullable FK, the
-single source of truth for "current group." `GroupMembership` is an append-only history log
-(`group`, `student`, `joinedAt`, `leftAt`) mirroring `Enrollment` / `EnrollmentHistory`: the FK
-says where a student is *now*, the log says how they got there. `GroupMentor` is the mentor-side
-join table, one row per `(group, mentor)` with a `role` of `primary` or `support` — a partial
-unique index (`role = 'primary'`) keeps at most one primary per group at the DB level, on top of
-`GroupService.assignPrimaryMentor` replacing whichever row currently holds that role (promoting an
-existing support-mentor row rather than erroring on the `(group, mentor)` uniqueness if that
-mentor is already on the team).
+**A group belongs to a course.** `Group.course` is required on create (`CreateGroupDto.courseId`) and changeable on update; the column is nullable only so pre-existing rows survive the schema sync (`SET NULL` if the course is deleted). `GET admin/groups` accepts `?courseId=`.
 
-`Mentor.role` (same `GroupMentorRole` enum, `group/enum/group-mentor-role.enum.ts` — reused
-directly rather than duplicated) is a fixed classification set on the mentor's own profile
-(replaces the old free-text `profession` field), independent of any one group. It gates group
-assignment: `assignPrimaryMentor` rejects a mentor whose `role` isn't `primary`, and
-`addSupportMentor` rejects one whose `role` isn't `support` — a mentor's global classification and
-their per-group `GroupMentor.role` always agree, so a `support`-classified mentor can never become
-a group's primary regardless of team composition.
+**A group has one mentor, stored directly on it.** `Group.primaryMentor` is a nullable FK to `Mentor` (`SET NULL` on delete) — there is no mentor join table and no support mentors anymore (`group_mentors` is orphaned in the DB: `synchronize` never drops a table whose entity was deleted, same as the old conversation tables). `PATCH admin/groups/:id/primary-mentor { mentorId }` sets it, `DELETE` on the same path clears it. `Mentor.role` (`GroupMentorRole`, `group/enum/group-mentor-role.enum.ts`) stays as a profile classification and gates assignment: only a mentor whose `role` is `primary` can be set.
 
-Three controllers, one per audience, all in this module (same split as `course`/`live-lesson`):
-`admin-group.controller.ts` (`admin/groups` — create, activate/deactivate, add/remove/swap
-students, assign primary mentor, add/remove mentors; `GET admin/groups` fetches every page's
-`GroupMentor` primary rows in one extra query and attaches each group's `primaryMentor` — `null`
-if unassigned — rather than the fuller per-team `mentors` array `GET admin/groups/:id` returns),
-`student-group.controller.ts` (`GET student/groups/me`, `null` if ungrouped),
-`mentor-group.controller.ts` (paginated `GET mentor/groups/me`, every group that mentor is primary
-or support for — same `Group & primaryMentor` shape `GET admin/groups` returns, plus the calling
-mentor's own `role` in each group; `GET mentor/groups/:id` returns the same full detail
-`GET admin/groups/:id` does — mentors/students, not just `primaryMentor` — but 403s unless the
-caller is on that group's team, primary or support).
+**Membership is `student → group_memberships → group`, many-to-many with history.** There is no `Student.group` column. `GroupMembership` (`group`, `student`, `joinedAt`, `leftAt`) is the single source of truth: a row with `leftAt = null` is an active membership, leaving sets `leftAt` (rows are never deleted), rejoining inserts a new row. A partial unique index (`UQ_group_membership_active`, `(group, student) WHERE left_at IS NULL`) allows one active row per student per group at the DB level. A student may be in several groups at once, but **at most one active group per course** — `addStudents`, `swapStudent`, and a course change in `updateGroup` all 400 naming the conflicting student and group. `group/utils/group-membership.util.ts` (`activeGroupIdsOfStudent`, `isActiveGroupMember`) is the shared lookup chat, live lessons, and recordings use.
 
-"Add" a student only works if they currently have no group (`400` otherwise, naming the student) —
-moving an already-placed student is "swap" (`PATCH admin/groups/:id/students/:studentId/swap`,
-body `{ toGroupId }`), which closes the old `GroupMembership` row and opens a new one in the same
-transaction as the FK update. "Remove" only works for a student currently in that specific group.
+- **Add** (`POST admin/groups/:id/students { studentIds }`) — 400 if a student is already active in this group or in another group of the same course.
+- **Remove** (`DELETE admin/groups/:id/students/:studentId`) — only for an active member of that group; sets `leftAt`.
+- **Swap** (`PATCH admin/groups/:id/students/:studentId/swap { toGroupId }`) — closes the old row and opens the new one in one transaction; the target group may be in another course.
 
-**Chat is a property of the group, not a separately managed resource.** `GroupService.createGroup`
-calls `ChatService.createRoomForGroup` right after saving the row, so every group gets exactly one
-`ChatRoom` (`chat/entity/chat-room.entity.ts`, a `OneToOne` on `group`) the moment it's created —
-there's no admin action to open or close a room, and it outlives membership churn instead of being
-recreated per pairing. `ChatService` has no `ChatMember` table to keep in sync as the roster
-changes; access is derived on every call — a student may read/send iff `Student.group` currently
-points at that room's group, a mentor iff they hold the `primary` `GroupMentor` row for it (a
-`support` mentor has **no** access, read or write), and any admin always passes (no membership row
-needed, unlike the other two roles). `ChatService.hasAccess` is the single gate every read and
-write method calls, so promoting/demoting a mentor or moving a student immediately changes who can
-use the room, with nothing left to reconcile.
+Three controllers, one per audience: `admin-group.controller.ts` (above, plus create/update/activate/deactivate; list and detail include `course` and `primaryMentor`, detail adds `students` — active members with their `joinedAt`), `student-group.controller.ts` (paginated `GET student/groups/me` — every group with an active membership, newest join first), `mentor-group.controller.ts` (paginated `GET mentor/groups/me` — groups whose `primaryMentor` is the caller; `GET mentor/groups/:id` returns the admin detail but 403s unless the caller is that group's `primaryMentor`).
 
-`addStudents` and `swapStudent` each fire a `group_joined` push (see "Push notifications" above)
-for every student newly placed in a group, after their transaction commits.
+**Chat is a property of the group, not a separately managed resource.** `GroupService.createGroup` calls `ChatService.createRoomForGroup` right after saving the row, so every group gets exactly one `ChatRoom` (`chat/entity/chat-room.entity.ts`, a `OneToOne` on `group`) that outlives membership churn. Access is derived on every call — a student may read/send iff they have an active membership in that room's group, a mentor iff they are the group's `primaryMentor`, and any admin always passes. `ChatService.hasAccess` is the single gate every read and write method calls, so reassigning the mentor or moving a student immediately changes who can use the room, with nothing to reconcile.
+
+`addStudents` and `swapStudent` each fire a `group_joined` push (see "Push notifications" above) for every student newly placed in a group, after their writes commit.
 
 ### Mentor status
 
 `Mentor.status` (`MentorStatus`: `working` | `vacation` | `fired`, default `working`) is separate
-from `Mentor.role` (the `primary`/`support` group classification above) and from `isActive` (login
+from `Mentor.role` (the `primary`/`support` classification above) and from `isActive` (login
 gate). Admins change it through `PATCH admin/mentors/:id/status` (`MentorService.changeStatus`),
 which writes a `MentorStatusHistory` row (`mentor`, `oldStatus`, `newStatus`, `changedBy` — the
 admin who made the change, `SET NULL` if that admin is later deleted — `changedAt`) before saving
@@ -309,9 +272,9 @@ rather than being settable independently through this route.
 **Only a `working` mentor is student-facing.** `GET student/mentors`, `GET student/mentors/:id`,
 and `POST student/mentors/:id/feedbacks` all filter/require `status: working`; a mentor on
 `vacation` or `fired` simply stops appearing to students and 404s if addressed directly, with no
-separate "unavailable" state to handle. This has no effect on `Group`/`GroupMentor` membership —
-a `vacation`/`fired` mentor stays on their group's team and keeps whatever `GroupMentorRole` they
-had until an admin changes that separately; `changeStatus` does not touch group assignment.
+separate "unavailable" state to handle. This has no effect on groups — a `vacation`/`fired` mentor
+stays the `primaryMentor` of whatever groups they had until an admin reassigns them; `changeStatus`
+does not touch group assignment.
 
 `GET admin/mentors/:id` eager-loads `statusHistories` (with `changedBy`) as part of the normal
 mentor read, newest-first is not enforced at the query level since there's no dedicated

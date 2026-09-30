@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
 import { Session } from '@/core/session/entity/session.entity';
 import { Student } from '@/core/user/entity/student.entity';
 import { Mentor } from '@/core/user/entity/mentor.entity';
@@ -10,6 +10,7 @@ import { FirebaseService, PushPayload } from '@/core/notification/services/fireb
 import { PushAudience } from '@/core/notification/enum/push-audience.enum';
 import { SendPushDto } from '@/core/notification/dto/send-push.dto';
 import { StudentNotification } from '@/core/notification/entity/student-notification.entity';
+import { GroupMembership } from '@/core/group/entity/group-membership.entity';
 import { paginate, Paginated, PaginationQuery } from '@/common/dto/pagination-query.dto';
 import type { AuthUser } from '@/common/utils/role-owner.util';
 import { UserRole } from '@/core/user/enum/user-role.enum';
@@ -47,6 +48,7 @@ export class PushService {
     @InjectRepository(Student) private readonly studentRepo: Repository<Student>,
     @InjectRepository(Mentor) private readonly mentorRepo: Repository<Mentor>,
     @InjectRepository(StudentNotification) private readonly studentNotificationRepo: Repository<StudentNotification>,
+    @InjectRepository(GroupMembership) private readonly membershipRepo: Repository<GroupMembership>,
     private readonly firebaseService: FirebaseService,
   ) {}
 
@@ -65,10 +67,14 @@ export class PushService {
   }
 
   async notifyLiveLessonCreated(groupId: string, groupTitle: string, lessonName: string): Promise<void> {
-    const students = await this.studentRepo.find({ where: { group: { id: groupId } }, select: { id: true } });
-    if (students.length === 0) return;
+    const memberships = await this.membershipRepo.find({
+      where: { group: { id: groupId }, leftAt: IsNull() },
+      relations: { student: true },
+      select: { id: true, student: { id: true } },
+    });
+    if (memberships.length === 0) return;
 
-    const roleIds: RoleId[] = students.map((s) => ({ id: s.id, role: UserRole.STUDENT }));
+    const roleIds: RoleId[] = memberships.map((m) => ({ id: m.student.id, role: UserRole.STUDENT }));
     const payload = liveLessonCreatedMessage(lessonName, groupTitle, groupId);
     await this.savePermanent(roleIds, payload);
     await this.send(await this.tokensOfUsers(roleIds), payload);

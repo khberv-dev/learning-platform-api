@@ -13,8 +13,6 @@ describe('EnrollmentService.getStudentCourseProgress', () => {
     studentRepo as never,
     {} as never,
     {} as never,
-    {} as never,
-    {} as never,
   );
 
   beforeEach(() => jest.clearAllMocks());
@@ -106,8 +104,6 @@ describe('EnrollmentService student course lists', () => {
     enrollmentRepo as never,
     {} as never,
     studentRepo as never,
-    {} as never,
-    {} as never,
     courseService as never,
     {} as never,
   );

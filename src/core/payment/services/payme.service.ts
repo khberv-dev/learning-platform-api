@@ -15,7 +15,10 @@ import { resolvePlan } from '@/core/payment/utils/payment-url.util';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const PAYME_RELATIONS = { purchases: { subscription: { plan: { course: true } } }, student: true } as const;
+const PAYME_RELATIONS = {
+  purchases: { plan: { course: true }, subscription: { plan: { course: true } } },
+  student: true,
+} as const;
 
 const TRANSACTION_TIMEOUT_MS = 12 * 60 * 60 * 1000;
 

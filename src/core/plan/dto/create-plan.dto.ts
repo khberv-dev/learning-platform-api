@@ -15,5 +15,9 @@ export class CreatePlanDto {
 
   @IsBoolean()
   @IsOptional()
+  hasSubscription?: boolean;
+
+  @IsBoolean()
+  @IsOptional()
   isActive?: boolean;
 }

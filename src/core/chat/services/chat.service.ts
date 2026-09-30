@@ -1,13 +1,12 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
 import { ChatRoom } from '@/core/chat/entity/chat-room.entity';
 import { ChatMessage } from '@/core/chat/entity/chat-message.entity';
 import { MessageType } from '@/core/chat/enum/message-type.enum';
 import { Group } from '@/core/group/entity/group.entity';
-import { GroupMentor } from '@/core/group/entity/group-mentor.entity';
-import { GroupMentorRole } from '@/core/group/enum/group-mentor-role.enum';
-import { Student } from '@/core/user/entity/student.entity';
+import { GroupMembership } from '@/core/group/entity/group-membership.entity';
+import { activeGroupIdsOfStudent, isActiveGroupMember } from '@/core/group/utils/group-membership.util';
 import { UserRole } from '@/core/user/enum/user-role.enum';
 import { Paginated, PaginationQuery, paginate } from '@/common/dto/pagination-query.dto';
 import { toChatFilePath } from '@/core/chat/storage/chat-file.storage';
@@ -22,20 +21,13 @@ export class ChatService {
     @InjectRepository(ChatRoom) private readonly roomRepo: Repository<ChatRoom>,
     @InjectRepository(ChatMessage) private readonly messageRepo: Repository<ChatMessage>,
     @InjectRepository(Group) private readonly groupRepo: Repository<Group>,
-    @InjectRepository(GroupMentor) private readonly groupMentorRepo: Repository<GroupMentor>,
-    @InjectRepository(Student) private readonly studentRepo: Repository<Student>,
+    @InjectRepository(GroupMembership) private readonly membershipRepo: Repository<GroupMembership>,
   ) {}
 
   private async hasAccess(user: RoleId, groupId: string): Promise<boolean> {
     if (user.role === UserRole.ADMIN) return true;
-    if (user.role === UserRole.STUDENT) {
-      const student = await this.studentRepo.findOne({ where: { id: user.id }, relations: { group: true } });
-      return student?.group?.id === groupId;
-    }
-    const primary = await this.groupMentorRepo.findOne({
-      where: { group: { id: groupId }, mentor: { id: user.id }, role: GroupMentorRole.PRIMARY },
-    });
-    return !!primary;
+    if (user.role === UserRole.STUDENT) return isActiveGroupMember(this.membershipRepo, user.id, groupId);
+    return this.groupRepo.exists({ where: { id: groupId, primaryMentor: { id: user.id } } });
   }
 
   private async loadRoomWithGroup(roomId: string): Promise<ChatRoom> {
@@ -54,22 +46,19 @@ export class ChatService {
     const qb = this.roomRepo.createQueryBuilder('room').leftJoinAndSelect('room.group', 'group');
 
     if (user.role === UserRole.STUDENT) {
-      const student = await this.studentRepo.findOne({ where: { id: user.id }, relations: { group: true } });
-      qb.andWhere('room.group_id = :groupId', { groupId: student?.group?.id ?? null });
-    } else if (user.role === UserRole.MENTOR) {
       qb.andWhere((sub) => {
         const exists = sub
           .subQuery()
           .select('1')
-          .from(GroupMentor, 'gm')
-          .where('gm.group_id = room.group_id')
-          .andWhere('gm.mentor_id = :mentorId')
-          .andWhere('gm.role = :role')
+          .from(GroupMembership, 'membership')
+          .where('membership.group_id = room.group_id')
+          .andWhere('membership.student_id = :studentId')
+          .andWhere('membership.left_at IS NULL')
           .getQuery();
         return `EXISTS ${exists}`;
-      })
-        .setParameter('mentorId', user.id)
-        .setParameter('role', GroupMentorRole.PRIMARY);
+      }).setParameter('studentId', user.id);
+    } else if (user.role === UserRole.MENTOR) {
+      qb.andWhere('group.primary_mentor_id = :mentorId', { mentorId: user.id });
     }
 
     const [data, total] = await qb
@@ -82,24 +71,21 @@ export class ChatService {
 
   async getRoom(user: RoleId, roomId: string) {
     const room = await this.assertAccess(user, roomId);
-    const [primary, students] = await Promise.all([
-      this.groupMentorRepo.findOne({
-        where: { group: { id: room.group.id }, role: GroupMentorRole.PRIMARY },
-        relations: { mentor: true },
+    const [group, memberships] = await Promise.all([
+      this.groupRepo.findOne({ where: { id: room.group.id }, relations: { primaryMentor: true } }),
+      this.membershipRepo.find({
+        where: { group: { id: room.group.id }, leftAt: IsNull() },
+        relations: { student: true },
       }),
-      this.studentRepo.find({ where: { group: { id: room.group.id } } }),
     ]);
+    const mentor = group?.primaryMentor ?? null;
+    const students = memberships.map((m) => m.student);
 
     return {
       id: room.id,
       group: { id: room.group.id, title: room.group.title },
-      mentor: primary?.mentor
-        ? {
-            id: primary.mentor.id,
-            firstName: primary.mentor.firstName,
-            lastName: primary.mentor.lastName,
-            avatar: primary.mentor.avatar,
-          }
+      mentor: mentor
+        ? { id: mentor.id, firstName: mentor.firstName, lastName: mentor.lastName, avatar: mentor.avatar }
         : null,
       students: students.map((s) => ({ id: s.id, firstName: s.firstName, lastName: s.lastName, avatar: s.avatar })),
       createdAt: room.createdAt,
@@ -169,18 +155,14 @@ export class ChatService {
       const rooms = await this.roomRepo.find({ select: { id: true } });
       return rooms.map((r) => r.id);
     }
-    if (user.role === UserRole.STUDENT) {
-      const student = await this.studentRepo.findOne({ where: { id: user.id }, relations: { group: true } });
-      if (!student?.group) return [];
-      const room = await this.roomRepo.findOne({ where: { group: { id: student.group.id } } });
-      return room ? [room.id] : [];
-    }
-    const memberships = await this.groupMentorRepo.find({
-      where: { mentor: { id: user.id }, role: GroupMentorRole.PRIMARY },
-      relations: { group: true },
-    });
-    if (memberships.length === 0) return [];
-    const rooms = await this.roomRepo.find({ where: memberships.map((m) => ({ group: { id: m.group.id } })) });
+    const groupIds =
+      user.role === UserRole.STUDENT
+        ? await activeGroupIdsOfStudent(this.membershipRepo, user.id)
+        : (await this.groupRepo.find({ where: { primaryMentor: { id: user.id } }, select: { id: true } })).map(
+            (group) => group.id,
+          );
+    if (groupIds.length === 0) return [];
+    const rooms = await this.roomRepo.find({ where: { group: { id: In(groupIds) } }, select: { id: true } });
     return rooms.map((r) => r.id);
   }
 }

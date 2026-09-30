@@ -27,6 +27,9 @@ export class Plan {
   @Column({ type: 'int' })
   month: number;
 
+  @Column({ default: false })
+  hasSubscription: boolean;
+
   @Column({ default: true })
   isActive: boolean;
 
