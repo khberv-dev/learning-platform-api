@@ -3,9 +3,11 @@ import { Storage } from '@google-cloud/storage';
 import type { StorageEngine } from 'multer';
 import { extname } from 'path';
 import { randomUUID } from 'crypto';
+import { AppEnvironment, resolveEnvironment } from '@/shared/config/environment.config';
 
-export const LESSONS_BUCKET = 'learning_platform_lessons';
-export const GENERAL_BUCKET = 'learning_platform_general';
+const LESSONS_BUCKET = 'learning_platform_lessons';
+const GENERAL_BUCKET = 'learning_platform_general';
+const DEVELOPMENT_BUCKET_PREFIX = 'test-';
 
 const LESSONS_FOLDER = 'lesson';
 const SIGNED_URL_TTL_MS = 6 * 60 * 60 * 1000;
@@ -49,7 +51,10 @@ function getClient(): Storage {
 }
 
 export function bucketForPath(path: string): string {
-  return path.startsWith(`${LESSONS_FOLDER}/`) ? LESSONS_BUCKET : GENERAL_BUCKET;
+  const bucket = path.startsWith(`${LESSONS_FOLDER}/`) ? LESSONS_BUCKET : GENERAL_BUCKET;
+  return resolveEnvironment(process.env.ENVIRONMENT) === AppEnvironment.DEVELOPMENT
+    ? `${DEVELOPMENT_BUCKET_PREFIX}${bucket}`
+    : bucket;
 }
 
 export async function signedFileUrl(path: string): Promise<string> {

@@ -4,7 +4,7 @@ import bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
 import { existsSync, readFileSync } from 'fs';
 import { extname, resolve } from 'path';
-import { storedFileExists, uploadLocalFile } from '../src/common/storage/gcs.storage';
+import { storedFileExists, uploadLocalFile } from '@/common/storage/gcs.storage';
 
 interface UsersSeed {
   password: string;

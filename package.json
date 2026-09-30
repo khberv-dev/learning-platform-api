@@ -20,7 +20,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "db:sync": "nest build && typeorm schema:sync -d ./dist/shared/config/database.config.js",
     "db:clear": "nest build && typeorm schema:drop -d ./dist/shared/config/database.config.js",
-    "db:seed": "ts-node seed-dummy/seed.ts"
+    "db:seed": "ts-node -r tsconfig-paths/register seed-dummy/seed.ts"
   },
   "dependencies": {
     "@google-cloud/storage": "^8.2.0",
