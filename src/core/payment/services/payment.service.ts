@@ -21,7 +21,7 @@ import { applyPlanSubscription } from '@/core/payment/utils/subscription.util';
 const paymentRelations = {
   paymentType: true,
   student: true,
-  purchases: { plan: { course: true }, subscription: { plan: { course: true } } },
+  purchases: { plan: { course: true }, subscription: true },
 } as const;
 
 function withResolvedUrl(payment: Payment): Payment {
@@ -63,10 +63,7 @@ export class PaymentService {
 
     const pending = { student: { id: studentId }, status: PaymentStatus.CREATED };
     let payment = await this.paymentRepo.findOne({
-      where: [
-        { ...pending, purchases: { plan: { course: { id: plan.course.id } } } },
-        { ...pending, purchases: { subscription: { plan: { course: { id: plan.course.id } } } } },
-      ],
+      where: { ...pending, purchases: { plan: { course: { id: plan.course.id } } } },
       relations: paymentRelations,
     });
 

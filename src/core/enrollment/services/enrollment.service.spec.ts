@@ -97,7 +97,7 @@ describe('EnrollmentService student course lists', () => {
   const enrollmentRepo = { find: jest.fn() };
   const studentRepo = { findOne: jest.fn() };
   const courseService = {
-    findActiveCourses: jest.fn(),
+    listActiveCourses: jest.fn(),
     contentCountsByCourse: jest.fn(),
   };
   const service = new EnrollmentService(
@@ -136,11 +136,20 @@ describe('EnrollmentService student course lists', () => {
 
   it('excludes a course the student already has an active enrollment for from available courses', async () => {
     enrollmentRepo.find.mockResolvedValue([{ status: EnrollmentStatus.ACTIVE, course: { id: 'course-current' } }]);
-    courseService.findActiveCourses.mockResolvedValue([{ id: 'course-current' }, { id: 'course-new' }]);
+    courseService.listActiveCourses.mockResolvedValue([
+      { id: 'course-current', title: 'Current', description: 'a', image: null },
+      { id: 'course-new', title: 'New', description: 'b', image: 'course/x.png' },
+    ]);
+    courseService.contentCountsByCourse.mockResolvedValue(
+      new Map([['course-new', { unitsCount: 2, lessonsCount: 7 }]]),
+    );
 
     const result = await service.getAvailableCourses('user-1', new PaginationQuery());
 
-    expect(result.data).toEqual([{ id: 'course-new' }]);
+    expect(courseService.contentCountsByCourse).toHaveBeenCalledWith(['course-new']);
+    expect(result.data).toEqual([
+      { id: 'course-new', title: 'New', description: 'b', image: 'course/x.png', lessonsCount: 7 },
+    ]);
     expect(result.total).toBe(1);
   });
 });

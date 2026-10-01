@@ -110,9 +110,23 @@ export class EnrollmentService {
     });
 
     const blockedCourseIds = new Set(taken.map((e) => e.course.id));
-    const activeCourses = await this.courseService.findActiveCourses(studentId);
-    const available = activeCourses.filter((c) => !blockedCourseIds.has(c.id));
-    return paginateInMemory(available, query);
+    const activeCourses = await this.courseService.listActiveCourses();
+    const page = paginateInMemory(
+      activeCourses.filter((c) => !blockedCourseIds.has(c.id)),
+      query,
+    );
+
+    const counts = await this.courseService.contentCountsByCourse(page.data.map((c) => c.id));
+    return {
+      ...page,
+      data: page.data.map((course) => ({
+        id: course.id,
+        title: course.title,
+        description: course.description,
+        image: course.image,
+        lessonsCount: counts.get(course.id)?.lessonsCount ?? 0,
+      })),
+    };
   }
 
   async getMyCourses(studentId: string, query: PaginationQuery) {

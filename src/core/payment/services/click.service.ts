@@ -15,7 +15,7 @@ import { resolvePlan } from '@/core/payment/utils/payment-url.util';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const CLICK_RELATIONS = {
-  purchases: { plan: { course: true }, subscription: { plan: { course: true } } },
+  purchases: { plan: { course: true }, subscription: true },
   student: true,
 } as const;
 

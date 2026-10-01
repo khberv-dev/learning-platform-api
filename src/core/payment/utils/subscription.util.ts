@@ -24,14 +24,12 @@ export async function applyPlanSubscription(
 
   if (current?.end && current.end > now) {
     current.end = addMonths(current.end, plan.month);
-    current.plan = plan;
     return repo.save(current);
   }
 
   return repo.save({
     student: { id: studentId },
     course: plan.course,
-    plan,
     start: now,
     end: addMonths(now, plan.month),
   });

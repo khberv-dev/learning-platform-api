@@ -18,6 +18,8 @@ import { AdminPaymentController } from '@/core/payment/controllers/admin-payment
 import { PaymentController } from '@/core/payment/controllers/payment.controller';
 import { ClickController } from '@/core/payment/controllers/click.controller';
 import { PaymeController } from '@/core/payment/controllers/payme.controller';
+import { StudentSubscriptionController } from '@/core/payment/controllers/student-subscription.controller';
+import { SubscriptionService } from '@/core/payment/services/subscription.service';
 import { NotificationModule } from '@/core/notification/notification.module';
 
 @Module({
@@ -41,7 +43,8 @@ import { NotificationModule } from '@/core/notification/notification.module';
     PaymentController,
     ClickController,
     PaymeController,
+    StudentSubscriptionController,
   ],
-  providers: [PaymentTypeService, PaymentService, ClickService, PaymeService],
+  providers: [PaymentTypeService, PaymentService, ClickService, PaymeService, SubscriptionService],
 })
 export class PaymentModule {}

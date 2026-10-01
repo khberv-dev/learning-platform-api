@@ -107,6 +107,10 @@ export class CourseService {
     return paginateInMemory(courses, query);
   }
 
+  listActiveCourses(): Promise<Course[]> {
+    return this.courseRepo.find({ where: { isActive: true }, order: COURSE_LIST_ORDER });
+  }
+
   async findActiveCourses(studentUserId: string): Promise<StudentCourseListItem[]> {
     const courses = await this.courseRepo.find({
       where: { isActive: true },
