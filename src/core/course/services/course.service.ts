@@ -60,15 +60,8 @@ export class CourseService {
 
   async createCourse(dto: CreateCourseDto, image?: string) {
     const course = await this.courseRepo.save({ ...dto, image });
-    await this.announceIfPublished(course);
+    if (course.isActive) void this.pushService.notifyCourseCreated(course.id, course.title);
     return course;
-  }
-
-  private async announceIfPublished(course: Course): Promise<void> {
-    if (!course.isActive || course.announcedAt) return;
-
-    await this.courseRepo.update(course.id, { announcedAt: new Date() });
-    void this.pushService.notifyCourseCreated(course.id, course.title);
   }
 
   async findAllCourses(
@@ -217,7 +210,7 @@ export class CourseService {
     const course = await this.courseRepo.findOne({ where: { id } });
     if (!course) throw new NotFoundException('Kurs topilmadi');
     const saved = await this.courseRepo.save({ ...course, ...dto, ...(image && { image }) });
-    await this.announceIfPublished(saved);
+    if (!course.isActive && saved.isActive) void this.pushService.notifyCourseCreated(saved.id, saved.title);
     return this.findOneCourse(id);
   }
 

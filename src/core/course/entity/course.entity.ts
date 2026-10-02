@@ -33,9 +33,6 @@ export class Course {
   @Column({ type: 'int', default: 0 })
   index: number;
 
-  @Column({ type: 'timestamp', nullable: true })
-  announcedAt: Date | null;
-
   @OneToMany(() => Unit, (unit) => unit.course)
   units: Unit[];
 
