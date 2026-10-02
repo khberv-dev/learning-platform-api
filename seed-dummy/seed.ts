@@ -67,14 +67,14 @@ async function seedAdmin(client: Client, password: string): Promise<void> {
   const hashed = await hashPassword(password);
   const existing = await client.query('SELECT id FROM admins WHERE email = $1', [admin.email]);
   if (existing.rowCount) {
-    await client.query('UPDATE admins SET password = $1 WHERE email = $2', [hashed, admin.email]);
+    await client.query('UPDATE admins SET password = $1, is_superadmin = true WHERE email = $2', [hashed, admin.email]);
     console.log(`~ admin ${admin.email} already exists, password synced`);
     return;
   }
 
   await client.query(
-    `INSERT INTO admins (id, first_name, last_name, email, password, is_active)
-     VALUES ($1, $2, $3, $4, $5, true)`,
+    `INSERT INTO admins (id, first_name, last_name, email, password, is_active, is_superadmin)
+     VALUES ($1, $2, $3, $4, $5, true, true)`,
     [randomUUID(), admin.firstName, admin.lastName, admin.email, hashed],
   );
   console.log(`+ admin created: ${admin.email}`);
@@ -197,7 +197,9 @@ async function seedLesson(client: Client, unitId: string, lesson: LessonSeed): P
   for (const task of lesson.tasks) {
     await seedTask(client, lessonId, task);
   }
-  console.log(`    + ${lesson.tasks.length} tasks, ${lesson.tasks.reduce((n, t) => n + t.questions.length, 0)} questions`);
+  console.log(
+    `    + ${lesson.tasks.length} tasks, ${lesson.tasks.reduce((n, t) => n + t.questions.length, 0)} questions`,
+  );
 }
 
 async function seedUnit(client: Client, courseId: string, unit: UnitSeed): Promise<void> {

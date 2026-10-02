@@ -3,7 +3,7 @@ import { Mentor } from '@/core/user/entity/mentor.entity';
 import { Admin } from '@/core/user/entity/admin.entity';
 import { MentorStatus } from '@/core/user/enum/mentor-status.enum';
 
-@Entity('mentor_status_histories')
+@Entity('mentor_status_history')
 export class MentorStatusHistory {
   @PrimaryGeneratedColumn('uuid')
   id: string;

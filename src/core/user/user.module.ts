@@ -19,6 +19,9 @@ import { AdminController } from '@/core/user/controllers/admin.controller';
 import { StudentActivity } from '@/core/user/entity/student-activity.entity';
 import { Enrollment } from '@/core/enrollment/entity/enrollment.entity';
 
+import { AdminAdminController } from '@/core/user/controllers/admin-admin.controller';
+import { AdminService } from '@/core/user/services/admin.service';
+
 @Module({
   imports: [
     TypeOrmModule.forFeature([
@@ -40,8 +43,9 @@ import { Enrollment } from '@/core/enrollment/entity/enrollment.entity';
     StudentMentorController,
     AdminMentorController,
     AdminController,
+    AdminAdminController,
   ],
-  providers: [UserService, MentorService, StudentService],
+  providers: [UserService, MentorService, StudentService, AdminService],
   exports: [UserService],
 })
 export class UserModule {}

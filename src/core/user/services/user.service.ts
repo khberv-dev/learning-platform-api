@@ -46,6 +46,7 @@ export class UserService {
       email: 'email' in account ? (account.email ?? null) : null,
       phoneNumber: 'phoneNumber' in account ? (account.phoneNumber ?? null) : null,
       isActive: account.isActive,
+      isSuperadmin: 'isSuperadmin' in account ? account.isSuperadmin : false,
     };
   }
 

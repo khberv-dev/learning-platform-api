@@ -1,7 +1,7 @@
 import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
 import { Enrollment } from '@/core/enrollment/entity/enrollment.entity';
 
-@Entity('enrollment_histories')
+@Entity('enrollment_history')
 export class EnrollmentHistory {
   @PrimaryGeneratedColumn('uuid')
   id: string;

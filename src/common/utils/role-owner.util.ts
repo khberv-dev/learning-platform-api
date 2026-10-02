@@ -9,6 +9,7 @@ export interface AuthUser {
   email: string | null;
   phoneNumber: string | null;
   isActive: boolean;
+  isSuperadmin: boolean;
 }
 
 type OwnerColumn = 'student' | 'mentor' | 'admin';
